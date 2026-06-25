@@ -479,6 +479,20 @@ h2 {
   background: linear-gradient(145deg, rgba(15, 143, 140, 0.12), rgba(24, 90, 219, 0.08)), var(--surface);
 }
 
+.proof-card {
+  display: grid;
+  gap: 14px;
+}
+
+.proof-card > svg {
+  color: var(--accent);
+}
+
+.proof-card p {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
 .job-card-head {
   justify-content: space-between;
   gap: 10px;
@@ -715,6 +729,10 @@ h2 {
 .stat-strip {
   padding: 12px;
   margin-bottom: 12px;
+}
+
+.dashboard-stats {
+  margin-bottom: 14px;
 }
 
 .job-list {

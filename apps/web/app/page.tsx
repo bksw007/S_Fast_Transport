@@ -78,6 +78,9 @@ const emptyJobDraft: JobDraft = {
   eta: ""
 };
 
+type DriverScreen = (typeof driverMenu)[number];
+type AdminScreen = (typeof adminMenu)[number];
+
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 let googleMapsLoader: Promise<void> | null = null;
 
@@ -92,6 +95,8 @@ export default function Home() {
   const [selectedJobId, setSelectedJobId] = useState(sampleJobs[0]?.id ?? "");
   const [firebaseMessage, setFirebaseMessage] = useState("ใช้ข้อมูลตัวอย่างจนกว่าจะล็อกอินและอ่าน Firestore ได้");
   const [busyMessage, setBusyMessage] = useState("");
+  const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[1]);
+  const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[1]);
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (nextUser) => {
@@ -199,14 +204,21 @@ export default function Home() {
         <StatusBar message={busyMessage || firebaseMessage} />
 
         {mode === "driver" ? (
-          <DriverView
-            job={selectedJob}
+          <DriverMobileScreen
+            screen={driverScreen}
+            jobs={activeJobs}
+            selectedJob={selectedJob}
+            selectedJobId={selectedJob.id}
             canWrite={canWrite}
+            onSelectJob={setSelectedJobId}
             onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
+            onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
           />
         ) : (
-          <AdminView
+          <AdminMobileScreen
+            screen={adminScreen}
             activeJobs={activeJobs}
+            selectedJob={selectedJob}
             selectedJobId={selectedJob.id}
             onSelectJob={setSelectedJobId}
             onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
@@ -217,7 +229,21 @@ export default function Home() {
 
         <nav className="bottom-nav" aria-label="เมนูหลัก">
           {(mode === "driver" ? driverMenu.slice(0, 4) : adminMenu.slice(0, 4)).map((item, index) => (
-            <button key={item} className={index === 1 ? "selected" : ""}>
+            <button
+              key={item}
+              className={
+                (mode === "driver" && driverScreen === item) || (mode === "admin" && adminScreen === item)
+                  ? "selected"
+                  : ""
+              }
+              onClick={() => {
+                if (mode === "driver") {
+                  setDriverScreen(item as DriverScreen);
+                } else {
+                  setAdminScreen(item as AdminScreen);
+                }
+              }}
+            >
               {index === 0 && <ListChecks size={18} />}
               {index === 1 && <MapPin size={18} />}
               {index === 2 && <Route size={18} />}
@@ -246,6 +272,79 @@ export default function Home() {
       </aside>
     </main>
   );
+}
+
+function DriverMobileScreen({
+  screen,
+  jobs,
+  selectedJob,
+  selectedJobId,
+  canWrite,
+  onSelectJob,
+  onAction,
+  onUpload
+}: {
+  screen: DriverScreen;
+  jobs: TransportJob[];
+  selectedJob: TransportJob;
+  selectedJobId: string;
+  canWrite: boolean;
+  onSelectJob: (jobId: string) => void;
+  onAction: (status: JobStatus) => void;
+  onUpload: (file: File) => void;
+}) {
+  if (screen === "งานวันนี้") {
+    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+  }
+
+  if (screen === "แผนที่งานของฉัน") {
+    return <MapScreen jobs={jobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+  }
+
+  if (screen === "อัปเดตหลักฐาน") {
+    return <ProofScreen job={selectedJob} canWrite={canWrite} onUpload={onUpload} />;
+  }
+
+  return <DriverView job={selectedJob} canWrite={canWrite} onAction={onAction} />;
+}
+
+function AdminMobileScreen({
+  screen,
+  activeJobs,
+  selectedJob,
+  selectedJobId,
+  onSelectJob,
+  onCreateJob,
+  onSeed,
+  canWrite
+}: {
+  screen: AdminScreen;
+  activeJobs: TransportJob[];
+  selectedJob: TransportJob;
+  selectedJobId: string;
+  onSelectJob: (jobId: string) => void;
+  onCreateJob: (draft: JobDraft) => void;
+  onSeed: () => void;
+  canWrite: boolean;
+}) {
+  if (screen === "Dashboard") {
+    return <AdminDashboard activeJobs={activeJobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+  }
+
+  if (screen === "Jobs / ใบงาน") {
+    return (
+      <AdminView
+        activeJobs={activeJobs}
+        selectedJobId={selectedJobId}
+        onSelectJob={onSelectJob}
+        onCreateJob={onCreateJob}
+        onSeed={onSeed}
+        canWrite={canWrite}
+      />
+    );
+  }
+
+  return <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
 }
 
 function LoginScreen({ authReady }: { authReady: boolean }) {
@@ -452,6 +551,194 @@ function DriverView({
           <p>ระบบหยุดแชร์ตำแหน่งอัตโนมัติเมื่อกดจบงาน</p>
         </div>
       </article>
+    </section>
+  );
+}
+
+function TodayJobs({
+  jobs,
+  selectedJobId,
+  onSelectJob
+}: {
+  jobs: TransportJob[];
+  selectedJobId: string;
+  onSelectJob: (jobId: string) => void;
+}) {
+  return (
+    <section className="screen">
+      <div className="section-title">
+        <div>
+          <h1>งานวันนี้</h1>
+          <p>เลือกใบงานเพื่อดูรายละเอียดและอัปเดตสถานะ</p>
+        </div>
+        <span className="live-dot">{jobs.length} งาน</span>
+      </div>
+
+      <div className="job-list">
+        {jobs.map((job) => (
+          <button
+            key={job.id}
+            className={`job-row ${job.id === selectedJobId ? "selected-job" : ""}`}
+            onClick={() => onSelectJob(job.id)}
+          >
+            <div className="job-row-main">
+              <strong>{job.workOrder}</strong>
+              <span>{job.customer}</span>
+              <small>{job.pickupLocation} → {job.deliveryLocation}</small>
+            </div>
+            <div className="job-row-side">
+              <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
+              <b>ETA {job.eta}</b>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MapScreen({
+  jobs,
+  selectedJob,
+  selectedJobId,
+  onSelectJob
+}: {
+  jobs: TransportJob[];
+  selectedJob: TransportJob;
+  selectedJobId: string;
+  onSelectJob: (jobId: string) => void;
+}) {
+  return (
+    <section className="screen">
+      <div className="section-title">
+        <div>
+          <h1>Live Tracking</h1>
+          <p>{selectedJob.workOrder} · {selectedJob.vehiclePlate}</p>
+        </div>
+        <span className={selectedJob.alerts.length ? "status danger" : "status"}>{statusLabels[selectedJob.status]}</span>
+      </div>
+
+      <GoogleLiveMap jobs={jobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
+
+      <article className="job-card">
+        <div className="job-card-head">
+          <div>
+            <span className="label">ตำแหน่งล่าสุด</span>
+            <h2>{selectedJob.driverName}</h2>
+          </div>
+          <strong>{selectedJob.currentLocation.speed} กม./ชม.</strong>
+        </div>
+        <div className="route-block">
+          <RoutePoint title="รับสินค้า" value={selectedJob.pickupLocation} />
+          <RoutePoint title="ส่งสินค้า" value={selectedJob.deliveryLocation} />
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function ProofScreen({
+  job,
+  canWrite,
+  onUpload
+}: {
+  job: TransportJob;
+  canWrite: boolean;
+  onUpload: (file: File) => void;
+}) {
+  return (
+    <section className="screen">
+      <div className="section-title">
+        <div>
+          <h1>อัปเดตหลักฐาน</h1>
+          <p>{job.workOrder} · {job.customer}</p>
+        </div>
+        <span className="status">{statusLabels[job.status]}</span>
+      </div>
+
+      <article className="job-card proof-card">
+        <FileImage size={28} />
+        <div>
+          <span className="label">POD / รูปหน้างาน</span>
+          <h2>แนบไฟล์หลักฐานส่งของ</h2>
+          <p>รองรับรูปภาพและ PDF สำหรับใบงานที่เลือกอยู่</p>
+        </div>
+        <label className="upload-button">
+          <FileImage size={17} />
+          เลือกไฟล์
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            disabled={!canWrite}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) {
+                onUpload(file);
+                event.currentTarget.value = "";
+              }
+            }}
+          />
+        </label>
+      </article>
+
+      <article className="privacy-card">
+        <CheckCircle2 size={20} />
+        <div>
+          <strong>ไฟล์จะถูกผูกกับใบงานนี้</strong>
+          <p>เลือกงานอื่นจากเมนูงานวันนี้ก่อน หากต้องการอัปโหลดให้ใบงานอื่น</p>
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function AdminDashboard({
+  activeJobs,
+  selectedJobId,
+  onSelectJob
+}: {
+  activeJobs: TransportJob[];
+  selectedJobId: string;
+  onSelectJob: (jobId: string) => void;
+}) {
+  const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
+  const completedCount = activeJobs.filter((job) => job.status === "completed").length;
+
+  return (
+    <section className="screen">
+      <div className="section-title">
+        <div>
+          <h1>Dashboard</h1>
+          <p>ภาพรวมงานขนส่งวันนี้</p>
+        </div>
+        <span className="live-dot">Today</span>
+      </div>
+
+      <div className="stat-strip dashboard-stats">
+        <Metric icon={<Truck size={18} />} label="งาน active" value={`${activeJobs.length}`} />
+        <Metric icon={<AlertTriangle size={18} />} label="แจ้งเตือน" value={`${alertCount}`} />
+        <Metric icon={<CheckCircle2 size={18} />} label="ปิดงานแล้ว" value={`${completedCount}`} />
+      </div>
+
+      <div className="job-list">
+        {activeJobs.map((job) => (
+          <button
+            key={job.id}
+            className={`job-row ${job.id === selectedJobId ? "selected-job" : ""}`}
+            onClick={() => onSelectJob(job.id)}
+          >
+            <div className="job-row-main">
+              <strong>{job.workOrder}</strong>
+              <span>{job.driverName} · {job.vehiclePlate}</span>
+              <small>{job.customer}</small>
+            </div>
+            <div className="job-row-side">
+              <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
+              <b>{job.lastUpdatedMinutes} นาที</b>
+            </div>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
