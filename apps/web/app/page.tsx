@@ -25,8 +25,10 @@ import {
 } from "lucide-react";
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   type User
 } from "firebase/auth";
@@ -82,6 +84,7 @@ export default function Home() {
   const [mode, setMode] = useState<"driver" | "admin">("driver");
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [jobs, setJobs] = useState<TransportJob[]>(sampleJobs);
   const [selectedJobId, setSelectedJobId] = useState(sampleJobs[0]?.id ?? "");
   const [firebaseMessage, setFirebaseMessage] = useState("ใช้ข้อมูลตัวอย่างจนกว่าจะล็อกอินและอ่าน Firestore ได้");
@@ -91,10 +94,12 @@ export default function Home() {
     return onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       setProfile(null);
+      setAuthReady(false);
 
       if (!nextUser) {
         setJobs(sampleJobs);
         setFirebaseMessage("ยังไม่ได้ล็อกอิน: แสดงข้อมูลตัวอย่าง");
+        setAuthReady(true);
         return;
       }
 
@@ -105,6 +110,8 @@ export default function Home() {
         setFirebaseMessage(nextProfile ? `ล็อกอินเป็น ${nextProfile.role}` : "ล็อกอินแล้ว แต่ยังไม่พบโปรไฟล์");
       } catch (error) {
         setFirebaseMessage(toMessage(error));
+      } finally {
+        setAuthReady(true);
       }
     });
   }, []);
@@ -148,6 +155,10 @@ export default function Home() {
     }
   }
 
+  if (!authReady || !user) {
+    return <LoginScreen authReady={authReady} />;
+  }
+
   return (
     <main className="app-shell" data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
@@ -169,7 +180,7 @@ export default function Home() {
           </div>
         </header>
 
-        <AuthPanel user={user} profile={profile} />
+        <UserBadge user={user} profile={profile} />
 
         <div className="mode-switch" role="tablist" aria-label="เลือกโหมด">
           <button className={mode === "driver" ? "selected" : ""} onClick={() => setMode("driver")}>
@@ -234,7 +245,7 @@ export default function Home() {
   );
 }
 
-function AuthPanel({ user, profile }: { user: User | null; profile: UserProfile | null }) {
+function LoginScreen({ authReady }: { authReady: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -255,36 +266,89 @@ function AuthPanel({ user, profile }: { user: User | null; profile: UserProfile 
     }
   }
 
-  if (user) {
-    return (
-      <section className="auth-card signed-in">
-        <div>
-          <strong>{profile?.displayName || user.email}</strong>
-          <span>{profile?.role || "กำลังโหลด role"}</span>
-        </div>
-        <button onClick={() => signOut(auth)} aria-label="ออกจากระบบ">
-          <LogOut size={17} />
-        </button>
-      </section>
-    );
+  async function signInWithGoogle() {
+    setMessage("กำลังเปิด Google...");
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const credential = await signInWithPopup(auth, provider);
+      await ensureDriverProfile(
+        credential.user.uid,
+        credential.user.email ?? "",
+        credential.user.displayName ?? credential.user.email ?? ""
+      );
+      setMessage("สำเร็จ");
+    } catch (error) {
+      setMessage(toMessage(error));
+    }
   }
 
   return (
-    <form className="auth-card" onSubmit={(event) => event.preventDefault()}>
-      <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" type="email" />
-      <input
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        placeholder="password"
-        type="password"
-      />
-      <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="ชื่อคนขับ" />
-      <div className="auth-actions">
-        <button type="button" onClick={() => submit("login")}>เข้าสู่ระบบ</button>
-        <button type="button" onClick={() => submit("signup")}>สมัคร driver</button>
+    <main className="login-shell">
+      <section className="login-card">
+        <div className="login-brand">
+          <span className="brand-mark">S</span>
+          <div>
+            <strong>S Fast Transport</strong>
+            <span>ระบบติดตามงานขนส่งแบบ Real-time</span>
+          </div>
+        </div>
+
+        <div className="login-copy">
+          <h1>เข้าสู่ระบบก่อนใช้งาน</h1>
+          <p>จัดการใบงาน ติดตามรถ อัปเดตสถานะ และแนบหลักฐานส่งของในที่เดียว</p>
+        </div>
+
+        <form className="login-form" onSubmit={(event) => event.preventDefault()}>
+          <input
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="อีเมล"
+            type="email"
+            autoComplete="email"
+          />
+          <input
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="รหัสผ่าน"
+            type="password"
+            autoComplete="current-password"
+          />
+          <input
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            placeholder="ชื่อสำหรับสมัคร driver"
+            autoComplete="name"
+          />
+          <div className="auth-actions">
+            <button type="button" onClick={() => submit("login")}>เข้าสู่ระบบ</button>
+            <button type="button" onClick={() => submit("signup")}>สมัคร driver</button>
+          </div>
+          <button className="google-button" type="button" onClick={signInWithGoogle}>
+            <span>G</span>
+            เข้าสู่ระบบด้วย Google
+          </button>
+        </form>
+
+        <div className="login-footnote">
+          {!authReady ? "กำลังตรวจสอบ session..." : message || "บัญชีใหม่จะเริ่มต้นเป็น driver และสามารถเปลี่ยน role เป็น admin ได้ใน Firestore"}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function UserBadge({ user, profile }: { user: User; profile: UserProfile | null }) {
+  return (
+    <section className="auth-card signed-in">
+      <div>
+        <strong>{profile?.displayName || user.displayName || user.email}</strong>
+        <span>{profile?.role || "กำลังโหลด role"}</span>
       </div>
-      {message && <p>{message}</p>}
-    </form>
+      <button onClick={() => signOut(auth)} aria-label="ออกจากระบบ">
+        <LogOut size={17} />
+      </button>
+    </section>
   );
 }
 

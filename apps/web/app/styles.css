@@ -68,6 +68,94 @@ a {
   font-size: calc(16px * var(--font-scale));
 }
 
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  color: var(--text);
+  background:
+    linear-gradient(140deg, rgba(15, 143, 140, 0.12), rgba(24, 90, 219, 0.1)),
+    var(--bg);
+}
+
+.login-card {
+  width: min(100%, 440px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-brand strong,
+.login-brand span {
+  display: block;
+}
+
+.login-brand span,
+.login-copy p,
+.login-footnote {
+  color: var(--muted);
+}
+
+.login-copy {
+  display: grid;
+  gap: 7px;
+}
+
+.login-copy h1 {
+  font-size: 1.75rem;
+}
+
+.login-form {
+  display: grid;
+  gap: 10px;
+}
+
+.google-button {
+  min-height: 46px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 900;
+}
+
+.google-button span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #185adb;
+  border: 1px solid var(--border);
+  font-weight: 900;
+}
+
+.login-footnote {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .app-shell[data-theme="dark"] {
   --bg: #08111a;
   --surface: #111d28;
