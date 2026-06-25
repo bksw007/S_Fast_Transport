@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "S Fast Transport",
+    "slug": "s-fast-transport",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "sfasttransport",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sfasttransport.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "ใช้ตำแหน่งเฉพาะระหว่างงานขนส่งเพื่อให้ Admin และลูกค้าติดตามสถานะใบงานได้",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ใช้ตำแหน่งเบื้องหลังเฉพาะระหว่างงานที่คนขับเริ่มแชร์ตำแหน่ง"
+      }
+    },
+    "android": {
+      "package": "com.sfasttransport.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      "expo-location",
+      "expo-notifications"
+    ]
+  }
+}

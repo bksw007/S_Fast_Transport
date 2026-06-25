@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : null;
+    }
+
+    function isAdmin() {
+      return role() in ["admin", "dispatcher", "owner"];
+    }
+
+    function isDriver() {
+      return role() == "driver";
+    }
+
+    function isAssignedDriver(jobId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/today_jobs/$(jobId)).data.assignedDriverUid == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (uid == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /today_jobs/{jobId} {
+      allow read: if isAdmin() || isAssignedDriver(jobId);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          isAssignedDriver(jobId)
+          && request.resource.data.assignedDriverUid == resource.data.assignedDriverUid
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "status",
+            "trackingEnabled",
+            "trackingStartedAt",
+            "trackingEndedAt",
+            "currentLocation",
+            "trackingStatus",
+            "updatedAt"
+          ])
+        );
+    }
+
+    match /jobs/{jobId} {
+      allow read: if isAdmin() || isAssignedDriver(jobId);
+      allow write: if isAdmin();
+    }
+
+    match /job_locations/{jobId}/points/{pointId} {
+      allow read: if isAdmin() || isAssignedDriver(jobId);
+      allow create: if isAssignedDriver(jobId)
+        && request.resource.data.driverUid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          "driverUid",
+          "lat",
+          "lng",
+          "speed",
+          "heading",
+          "accuracy",
+          "batteryLevel",
+          "timestamp",
+          "source"
+        ]);
+      allow update, delete: if false;
+    }
+
+    match /job_events/{eventId} {
+      allow read: if isAdmin() || isAssignedDriver(resource.data.jobId);
+      allow create: if isAdmin() || isAssignedDriver(request.resource.data.jobId);
+      allow update, delete: if isAdmin();
+    }
+
+    match /driver_live_status/{driverUid} {
+      allow read: if isAdmin() || driverUid == request.auth.uid;
+      allow write: if driverUid == request.auth.uid || isAdmin();
+    }
+
+    match /proof_of_delivery/{podId} {
+      allow read: if isAdmin() || isAssignedDriver(resource.data.jobId);
+      allow create, update: if isAdmin() || isAssignedDriver(request.resource.data.jobId);
+      allow delete: if isAdmin();
+    }
+
+    match /tracking_share_links/{linkId} {
+      allow read: if resource.data.enabled == true && request.time < resource.data.expiresAt;
+      allow write: if isAdmin();
+    }
+
+    match /vehicles/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /locations/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /customers/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /notifications/{docId} {
+      allow read: if signedIn() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+  }
+}

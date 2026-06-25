@@ -1,0 +1,15 @@
+{
+  "name": "s-fast-transport",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @s-fast-transport/web",
+    "dev:mobile": "npm run start -w @s-fast-transport/mobile",
+    "lint": "npm run lint -w @s-fast-transport/web",
+    "typecheck": "npm run typecheck -w @s-fast-transport/web && npm run typecheck -w @s-fast-transport/mobile"
+  }
+}

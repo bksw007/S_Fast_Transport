@@ -1,0 +1,28 @@
+{
+  "name": "@s-fast-transport/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "main": "expo/AppEntry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.4",
+    "@s-fast-transport/shared": "0.1.0",
+    "expo": "^52.0.23",
+    "expo-location": "^18.0.4",
+    "expo-notifications": "^0.29.13",
+    "firebase": "^11.10.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-safe-area-context": "^4.12.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.2"
+  }
+}
