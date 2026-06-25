@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn()
+        ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return role() in ["admin", "dispatcher", "owner"];
+    }
+
+    function isAssignedDriver(jobId) {
+      return signedIn()
+        && firestore.get(/databases/(default)/documents/today_jobs/$(jobId)).data.assignedDriverUid == request.auth.uid;
+    }
+
+    match /proof_of_delivery/{jobId}/{uid}/{fileName} {
+      allow read: if isAdmin() || isAssignedDriver(jobId) || uid == request.auth.uid;
+      allow write: if signedIn()
+        && uid == request.auth.uid
+        && (isAdmin() || isAssignedDriver(jobId))
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches("image/.*|application/pdf");
+    }
+  }
+}

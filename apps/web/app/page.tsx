@@ -1,16 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
   CheckCircle2,
-  ChevronRight,
   CircleDot,
   Clock3,
   FileImage,
   Gauge,
   ListChecks,
+  LogOut,
   MapPin,
   Moon,
   Phone,
@@ -21,9 +21,15 @@ import {
   Share2,
   Sun,
   TextCursorInput,
-  Truck,
-  UserRound
+  Truck
 } from "lucide-react";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  type User
+} from "firebase/auth";
 import {
   adminMenu,
   driverActions,
@@ -31,8 +37,21 @@ import {
   sampleJobs,
   statusLabels,
   timelineEvents,
-  type JobStatus
+  type JobStatus,
+  type TransportJob
 } from "@s-fast-transport/shared";
+import { auth } from "@/lib/firebase";
+import {
+  createJob,
+  ensureDriverProfile,
+  getUserProfile,
+  seedSampleJobs,
+  subscribeTodayJobs,
+  updateJobStatus,
+  uploadProof,
+  type JobDraft,
+  type UserProfile
+} from "@/lib/transport-repository";
 
 const statusOrder: JobStatus[] = [
   "assigned",
@@ -47,13 +66,87 @@ const statusOrder: JobStatus[] = [
   "completed"
 ];
 
+const emptyJobDraft: JobDraft = {
+  customer: "",
+  driverName: "",
+  driverPhone: "",
+  vehiclePlate: "",
+  pickupLocation: "",
+  deliveryLocation: "",
+  eta: ""
+};
+
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [fontScale, setFontScale] = useState(1);
   const [mode, setMode] = useState<"driver" | "admin">("driver");
-  const [activeAction, setActiveAction] = useState("to_delivery");
-  const selectedJob = sampleJobs[0];
-  const activeJobs = useMemo(() => sampleJobs.filter((job) => job.trackingEnabled), []);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [jobs, setJobs] = useState<TransportJob[]>(sampleJobs);
+  const [selectedJobId, setSelectedJobId] = useState(sampleJobs[0]?.id ?? "");
+  const [firebaseMessage, setFirebaseMessage] = useState("ใช้ข้อมูลตัวอย่างจนกว่าจะล็อกอินและอ่าน Firestore ได้");
+  const [busyMessage, setBusyMessage] = useState("");
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, async (nextUser) => {
+      setUser(nextUser);
+      setProfile(null);
+
+      if (!nextUser) {
+        setJobs(sampleJobs);
+        setFirebaseMessage("ยังไม่ได้ล็อกอิน: แสดงข้อมูลตัวอย่าง");
+        return;
+      }
+
+      try {
+        await ensureDriverProfile(nextUser.uid, nextUser.email ?? "", nextUser.displayName ?? "");
+        const nextProfile = await getUserProfile(nextUser.uid);
+        setProfile(nextProfile);
+        setFirebaseMessage(nextProfile ? `ล็อกอินเป็น ${nextProfile.role}` : "ล็อกอินแล้ว แต่ยังไม่พบโปรไฟล์");
+      } catch (error) {
+        setFirebaseMessage(toMessage(error));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!user || !profile) {
+      return;
+    }
+
+    return subscribeTodayJobs(
+      profile,
+      (nextJobs) => {
+        setJobs(nextJobs);
+        setSelectedJobId((current) => current || nextJobs[0]?.id || "");
+      },
+      (message) => setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`)
+    );
+  }, [user, profile]);
+
+  const selectedJob = useMemo(
+    () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? sampleJobs[0],
+    [jobs, selectedJobId]
+  );
+  const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
+  const canWrite = Boolean(profile && ["owner", "admin", "dispatcher", "driver"].includes(profile.role));
+
+  async function runAction(action: (actor: UserProfile) => Promise<void>) {
+    if (!profile) {
+      setFirebaseMessage("กรุณาล็อกอินก่อนใช้งานจริง");
+      return;
+    }
+
+    setBusyMessage("กำลังบันทึก...");
+    try {
+      await action(profile);
+      setFirebaseMessage("บันทึกสำเร็จ");
+    } catch (error) {
+      setFirebaseMessage(toMessage(error));
+    } finally {
+      setBusyMessage("");
+    }
+  }
 
   return (
     <main className="app-shell" data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
@@ -76,6 +169,8 @@ export default function Home() {
           </div>
         </header>
 
+        <AuthPanel user={user} profile={profile} />
+
         <div className="mode-switch" role="tablist" aria-label="เลือกโหมด">
           <button className={mode === "driver" ? "selected" : ""} onClick={() => setMode("driver")}>
             <Truck size={17} />
@@ -87,10 +182,23 @@ export default function Home() {
           </button>
         </div>
 
+        <StatusBar message={busyMessage || firebaseMessage} />
+
         {mode === "driver" ? (
-          <DriverView activeAction={activeAction} setActiveAction={setActiveAction} />
+          <DriverView
+            job={selectedJob}
+            canWrite={canWrite}
+            onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
+          />
         ) : (
-          <AdminView activeJobs={activeJobs} />
+          <AdminView
+            activeJobs={activeJobs}
+            selectedJobId={selectedJob.id}
+            onSelectJob={setSelectedJobId}
+            onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
+            onSeed={() => runAction(seedSampleJobs)}
+            canWrite={canWrite}
+          />
         )}
 
         <nav className="bottom-nav" aria-label="เมนูหลัก">
@@ -107,51 +215,127 @@ export default function Home() {
       </section>
 
       <aside className="desktop-panel">
-        <AdminView activeJobs={activeJobs} compact={false} />
-        <JobDetail job={selectedJob} />
+        <AdminView
+          activeJobs={activeJobs}
+          selectedJobId={selectedJob.id}
+          onSelectJob={setSelectedJobId}
+          onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
+          onSeed={() => runAction(seedSampleJobs)}
+          canWrite={canWrite}
+          compact={false}
+        />
+        <JobDetail
+          job={selectedJob}
+          canWrite={canWrite}
+          onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+        />
       </aside>
     </main>
   );
 }
 
+function AuthPanel({ user, profile }: { user: User | null; profile: UserProfile | null }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function submit(kind: "login" | "signup") {
+    setMessage("กำลังตรวจสอบ...");
+    try {
+      if (kind === "signup") {
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        await ensureDriverProfile(credential.user.uid, credential.user.email ?? email, displayName || email);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+      setMessage("สำเร็จ");
+    } catch (error) {
+      setMessage(toMessage(error));
+    }
+  }
+
+  if (user) {
+    return (
+      <section className="auth-card signed-in">
+        <div>
+          <strong>{profile?.displayName || user.email}</strong>
+          <span>{profile?.role || "กำลังโหลด role"}</span>
+        </div>
+        <button onClick={() => signOut(auth)} aria-label="ออกจากระบบ">
+          <LogOut size={17} />
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <form className="auth-card" onSubmit={(event) => event.preventDefault()}>
+      <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" type="email" />
+      <input
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        placeholder="password"
+        type="password"
+      />
+      <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="ชื่อคนขับ" />
+      <div className="auth-actions">
+        <button type="button" onClick={() => submit("login")}>เข้าสู่ระบบ</button>
+        <button type="button" onClick={() => submit("signup")}>สมัคร driver</button>
+      </div>
+      {message && <p>{message}</p>}
+    </form>
+  );
+}
+
+function StatusBar({ message }: { message: string }) {
+  return (
+    <div className="sync-bar">
+      <Bell size={16} />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 function DriverView({
-  activeAction,
-  setActiveAction
+  job,
+  canWrite,
+  onAction
 }: {
-  activeAction: string;
-  setActiveAction: (value: string) => void;
+  job: TransportJob;
+  canWrite: boolean;
+  onAction: (status: JobStatus) => void;
 }) {
-  const selectedJob = sampleJobs[0];
-  const currentStep = statusOrder.indexOf(selectedJob.status);
+  const currentStep = Math.max(0, statusOrder.indexOf(job.status));
 
   return (
     <section className="screen">
       <div className="section-title">
         <div>
           <h1>กำลังขนส่ง</h1>
-          <p>{selectedJob.workOrder} · {selectedJob.vehiclePlate}</p>
+          <p>{job.workOrder} · {job.vehiclePlate}</p>
         </div>
-        <span className="live-dot">Live</span>
+        <span className="live-dot">{job.trackingEnabled ? "Live" : "Standby"}</span>
       </div>
 
       <article className="job-card primary">
         <div className="job-card-head">
           <div>
             <span className="label">ลูกค้า</span>
-            <h2>{selectedJob.customer}</h2>
+            <h2>{job.customer}</h2>
           </div>
-          <button aria-label="โทรหาผู้เกี่ยวข้อง">
+          <a className="round-link" aria-label="โทรหาผู้เกี่ยวข้อง" href={`tel:${job.driverPhone}`}>
             <Phone size={18} />
-          </button>
+          </a>
         </div>
         <div className="route-block">
-          <RoutePoint title="รับสินค้า" value={selectedJob.pickupLocation} />
-          <RoutePoint title="ส่งสินค้า" value={selectedJob.deliveryLocation} />
+          <RoutePoint title="รับสินค้า" value={job.pickupLocation} />
+          <RoutePoint title="ส่งสินค้า" value={job.deliveryLocation} />
         </div>
         <div className="metric-row">
-          <Metric icon={<Clock3 size={18} />} label="ETA" value={selectedJob.eta} />
-          <Metric icon={<Gauge size={18} />} label="Speed" value={`${selectedJob.currentLocation.speed} กม./ชม.`} />
-          <Metric icon={<MapPin size={18} />} label="อัปเดต" value={`${selectedJob.lastUpdatedMinutes} นาที`} />
+          <Metric icon={<Clock3 size={18} />} label="ETA" value={job.eta} />
+          <Metric icon={<Gauge size={18} />} label="Speed" value={`${job.currentLocation.speed} กม./ชม.`} />
+          <Metric icon={<MapPin size={18} />} label="สถานะ" value={statusLabels[job.status]} />
         </div>
       </article>
 
@@ -163,11 +347,7 @@ function DriverView({
 
       <div className="action-grid">
         {driverActions.map((action) => (
-          <button
-            key={action.id}
-            className={activeAction === action.id ? "active" : ""}
-            onClick={() => setActiveAction(action.id)}
-          >
+          <button key={action.id} disabled={!canWrite} onClick={() => onAction(action.nextStatus)}>
             {action.id === "completed" ? <CheckCircle2 size={20} /> : <CircleDot size={20} />}
             {action.label}
           </button>
@@ -185,7 +365,46 @@ function DriverView({
   );
 }
 
-function AdminView({ activeJobs, compact = true }: { activeJobs: typeof sampleJobs; compact?: boolean }) {
+function AdminView({
+  activeJobs,
+  selectedJobId,
+  onSelectJob,
+  onCreateJob,
+  onSeed,
+  canWrite,
+  compact = true
+}: {
+  activeJobs: TransportJob[];
+  selectedJobId: string;
+  onSelectJob: (jobId: string) => void;
+  onCreateJob: (draft: JobDraft) => void;
+  onSeed: () => void;
+  canWrite: boolean;
+  compact?: boolean;
+}) {
+  const [draft, setDraft] = useState(emptyJobDraft);
+  const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
+  const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
+
+  function updateDraft(field: keyof JobDraft, value: string) {
+    setDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function submitJob() {
+    const nextDraft = {
+      ...draft,
+      customer: draft.customer || "ลูกค้าใหม่",
+      driverName: draft.driverName || "รอระบุคนขับ",
+      driverPhone: draft.driverPhone || "-",
+      vehiclePlate: draft.vehiclePlate || "-",
+      pickupLocation: draft.pickupLocation || "จุดรับสินค้า",
+      deliveryLocation: draft.deliveryLocation || "จุดส่งสินค้า",
+      eta: draft.eta || "วันนี้"
+    };
+    onCreateJob(nextDraft);
+    setDraft(emptyJobDraft);
+  }
+
   return (
     <section className={compact ? "screen" : "admin-wide"}>
       <div className="section-title">
@@ -193,34 +412,49 @@ function AdminView({ activeJobs, compact = true }: { activeJobs: typeof sampleJo
           <h1>Live Tracking</h1>
           <p>ติดตามรถตามใบงานแบบ Real-time</p>
         </div>
-        <button className="icon-text">
+        <button className="icon-text" onClick={onSeed} disabled={!canWrite}>
           <Plus size={17} />
-          งานใหม่
+          Seed
         </button>
       </div>
 
+      <form className="job-form" onSubmit={(event) => event.preventDefault()}>
+        <input value={draft.customer} onChange={(event) => updateDraft("customer", event.target.value)} placeholder="ลูกค้า" />
+        <input value={draft.driverName} onChange={(event) => updateDraft("driverName", event.target.value)} placeholder="คนขับ" />
+        <input value={draft.vehiclePlate} onChange={(event) => updateDraft("vehiclePlate", event.target.value)} placeholder="ทะเบียน" />
+        <input value={draft.pickupLocation} onChange={(event) => updateDraft("pickupLocation", event.target.value)} placeholder="จุดรับ" />
+        <input value={draft.deliveryLocation} onChange={(event) => updateDraft("deliveryLocation", event.target.value)} placeholder="จุดส่ง" />
+        <input value={draft.eta} onChange={(event) => updateDraft("eta", event.target.value)} placeholder="ETA" />
+        <button type="button" onClick={submitJob} disabled={!canWrite}>สร้างงาน</button>
+      </form>
+
       <div className="map-card">
         <div className="map-grid" />
-        {activeJobs.map((job, index) => (
-          <span
+        {activeJobs.slice(0, 3).map((job, index) => (
+          <button
             key={job.id}
             className={`vehicle-pin pin-${index + 1} ${job.alerts.length ? "warning" : ""}`}
             aria-label={job.id}
+            onClick={() => onSelectJob(job.id)}
           >
             <Truck size={18} />
-          </span>
+          </button>
         ))}
       </div>
 
       <div className="stat-strip">
-        <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value="18" />
-        <Metric icon={<AlertTriangle size={18} />} label="แจ้งเตือน" value="3" />
-        <Metric icon={<Clock3 size={18} />} label="ส่งช้า" value="2" />
+        <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.length}`} />
+        <Metric icon={<AlertTriangle size={18} />} label="แจ้งเตือน" value={`${alertCount}`} />
+        <Metric icon={<Clock3 size={18} />} label="ส่งช้า" value={`${delayedCount}`} />
       </div>
 
       <div className="job-list">
         {activeJobs.map((job) => (
-          <article key={job.id} className="job-row">
+          <button
+            key={job.id}
+            className={`job-row ${job.id === selectedJobId ? "selected-job" : ""}`}
+            onClick={() => onSelectJob(job.id)}
+          >
             <div className="job-row-main">
               <strong>{job.workOrder}</strong>
               <span>{job.driverName} · {job.vehiclePlate}</span>
@@ -230,14 +464,22 @@ function AdminView({ activeJobs, compact = true }: { activeJobs: typeof sampleJo
               <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
               <b>ETA {job.eta}</b>
             </div>
-          </article>
+          </button>
         ))}
       </div>
     </section>
   );
 }
 
-function JobDetail({ job }: { job: typeof sampleJobs[number] }) {
+function JobDetail({
+  job,
+  canWrite,
+  onUpload
+}: {
+  job: TransportJob;
+  canWrite: boolean;
+  onUpload: (file: File) => void;
+}) {
   return (
     <section className="detail-panel">
       <div className="detail-head">
@@ -267,12 +509,27 @@ function JobDetail({ job }: { job: typeof sampleJobs[number] }) {
         <article>
           <span className="label">Tracking</span>
           <strong>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์"}</strong>
-          <p>ล่าสุด {job.lastUpdatedMinutes} นาทีที่แล้ว</p>
+          <p>ล่าสุด {job.currentLocation.updatedAt}</p>
         </article>
         <article>
           <span className="label">POD</span>
-          <strong>รูปต้นทาง 3 รูป</strong>
-          <p>รอลายเซ็นผู้รับปลายทาง</p>
+          <strong>แนบหลักฐานส่งของ</strong>
+          <label className="upload-button">
+            <FileImage size={17} />
+            เลือกไฟล์
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              disabled={!canWrite}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  onUpload(file);
+                  event.currentTarget.value = "";
+                }
+              }}
+            />
+          </label>
         </article>
       </div>
 
@@ -315,4 +572,8 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
       </div>
     </div>
   );
+}
+
+function toMessage(error: unknown) {
+  return error instanceof Error ? error.message : "เกิดข้อผิดพลาด";
 }

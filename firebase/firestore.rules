@@ -25,12 +25,33 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn() && (uid == request.auth.uid || isAdmin());
-      allow create, update, delete: if isAdmin();
+      allow create: if signedIn()
+        && uid == request.auth.uid
+        && request.resource.data.role == "driver"
+        && request.resource.data.active == true;
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && uid == request.auth.uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "displayName",
+            "phone",
+            "fcmToken",
+            "updatedAt"
+          ])
+        );
+      allow delete: if isAdmin();
     }
 
     match /today_jobs/{jobId} {
       allow read: if isAdmin() || isAssignedDriver(jobId);
-      allow create, delete: if isAdmin();
+      allow create: if isAdmin()
+        || (
+          isDriver()
+          && request.resource.data.assignedDriverUid == request.auth.uid
+        );
+      allow delete: if isAdmin();
       allow update: if isAdmin()
         || (
           isAssignedDriver(jobId)
@@ -83,7 +104,9 @@ service cloud.firestore {
 
     match /proof_of_delivery/{podId} {
       allow read: if isAdmin() || isAssignedDriver(resource.data.jobId);
-      allow create, update: if isAdmin() || isAssignedDriver(request.resource.data.jobId);
+      allow create: if (isAdmin() || isAssignedDriver(request.resource.data.jobId))
+        && request.resource.data.uploadedByUid == request.auth.uid;
+      allow update: if isAdmin() || isAssignedDriver(request.resource.data.jobId);
       allow delete: if isAdmin();
     }
 

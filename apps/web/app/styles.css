@@ -32,6 +32,29 @@ button {
   font: inherit;
 }
 
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 11px;
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -134,6 +157,7 @@ button {
 
 .top-actions button,
 .job-card-head button,
+.round-link,
 .detail-actions button {
   width: 40px;
   height: 40px;
@@ -142,6 +166,63 @@ button {
   border-radius: 8px;
   background: var(--surface-2);
   border: 1px solid var(--border);
+}
+
+.auth-card {
+  margin: 0 18px 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.auth-card.signed-in {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.auth-card strong,
+.auth-card span {
+  display: block;
+}
+
+.auth-card span,
+.auth-card p {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.auth-card button,
+.job-form button {
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--accent);
+  color: white;
+  font-weight: 800;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sync-bar {
+  margin: 0 18px 10px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(15, 143, 140, 0.1);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .mode-switch {
@@ -324,6 +405,21 @@ h2 {
   font-weight: 800;
 }
 
+.job-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.job-form button {
+  background: var(--accent);
+}
+
 .action-grid .active {
   color: white;
   background: var(--accent);
@@ -411,6 +507,7 @@ h2 {
   place-items: center;
   border-radius: 50%;
   color: white;
+  border: 0;
   background: var(--accent);
   box-shadow: 0 14px 32px rgba(15, 143, 140, 0.3);
 }
@@ -438,6 +535,14 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
+  width: 100%;
+  color: inherit;
+  text-align: left;
+}
+
+.job-row.selected-job {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .job-row-main {
@@ -532,6 +637,24 @@ h2 {
   font-weight: 800;
 }
 
+.upload-button {
+  margin-top: 8px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--accent);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.upload-button input {
+  display: none;
+}
+
 @media (max-width: 1050px) {
   .app-shell {
     display: block;
@@ -554,7 +677,9 @@ h2 {
 @media (max-width: 380px) {
   .action-grid,
   .metric-row,
-  .stat-strip {
+  .stat-strip,
+  .job-form,
+  .auth-actions {
     grid-template-columns: 1fr;
   }
 }
