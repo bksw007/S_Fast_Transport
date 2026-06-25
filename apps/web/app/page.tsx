@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -77,6 +77,9 @@ const emptyJobDraft: JobDraft = {
   deliveryLocation: "",
   eta: ""
 };
+
+const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+let googleMapsLoader: Promise<void> | null = null;
 
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -429,6 +432,133 @@ function DriverView({
   );
 }
 
+function GoogleLiveMap({
+  jobs,
+  selectedJobId,
+  onSelectJob
+}: {
+  jobs: TransportJob[];
+  selectedJobId: string;
+  onSelectJob: (jobId: string) => void;
+}) {
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const [mapMessage, setMapMessage] = useState("");
+
+  const validJobs = useMemo(
+    () => jobs.filter((job) => Number.isFinite(job.currentLocation.lat) && Number.isFinite(job.currentLocation.lng)),
+    [jobs]
+  );
+
+  useEffect(() => {
+    if (!googleMapsApiKey || !mapElementRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    loadGoogleMaps(googleMapsApiKey)
+      .then(() => {
+        if (cancelled || !mapElementRef.current) {
+          return;
+        }
+
+        const google = (window as unknown as { google: any }).google;
+        const center = getMapCenter(validJobs);
+
+        if (!mapRef.current) {
+          mapRef.current = new google.maps.Map(mapElementRef.current, {
+            center,
+            zoom: validJobs.length > 1 ? 10 : 13,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            clickableIcons: false
+          });
+        } else {
+          mapRef.current.setCenter(center);
+        }
+
+        markersRef.current.forEach((marker) => marker.setMap(null));
+        markersRef.current = validJobs.map((job) => {
+          const marker = new google.maps.Marker({
+            map: mapRef.current,
+            position: { lat: job.currentLocation.lat, lng: job.currentLocation.lng },
+            title: `${job.workOrder} · ${job.driverName}`,
+            label: {
+              text: job.alerts.length ? "!" : "T",
+              color: "#ffffff",
+              fontWeight: "900"
+            },
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: job.id === selectedJobId ? 15 : 12,
+              fillColor: job.alerts.length ? "#e69b19" : "#0f8f8c",
+              fillOpacity: 1,
+              strokeColor: "#ffffff",
+              strokeWeight: 3
+            }
+          });
+
+          marker.addListener("click", () => onSelectJob(job.id));
+          return marker;
+        });
+
+        if (validJobs.length > 1) {
+          const bounds = new google.maps.LatLngBounds();
+          validJobs.forEach((job) => bounds.extend({ lat: job.currentLocation.lat, lng: job.currentLocation.lng }));
+          mapRef.current.fitBounds(bounds, 56);
+        }
+      })
+      .catch((error) => setMapMessage(toMessage(error)));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [validJobs, selectedJobId, onSelectJob]);
+
+  if (!googleMapsApiKey) {
+    return (
+      <FallbackMap jobs={jobs} onSelectJob={onSelectJob} message="เพิ่ม NEXT_PUBLIC_GOOGLE_MAPS_API_KEY เพื่อเปิด Google Maps จริง" />
+    );
+  }
+
+  return (
+    <div className="map-card has-real-map">
+      <div ref={mapElementRef} className="google-map" />
+      {mapMessage && <div className="map-message">{mapMessage}</div>}
+    </div>
+  );
+}
+
+function FallbackMap({
+  jobs,
+  onSelectJob,
+  message
+}: {
+  jobs: TransportJob[];
+  onSelectJob: (jobId: string) => void;
+  message: string;
+}) {
+  return (
+    <div className="map-card">
+      <div className="map-grid" />
+      <div className="map-message">{message}</div>
+      {jobs.slice(0, 3).map((job, index) => (
+        <button
+          key={job.id}
+          className={`vehicle-pin pin-${index + 1} ${job.alerts.length ? "warning" : ""}`}
+          aria-label={job.id}
+          onClick={() => onSelectJob(job.id)}
+        >
+          <Truck size={18} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AdminView({
   activeJobs,
   selectedJobId,
@@ -492,19 +622,7 @@ function AdminView({
         <button type="button" onClick={submitJob} disabled={!canWrite}>สร้างงาน</button>
       </form>
 
-      <div className="map-card">
-        <div className="map-grid" />
-        {activeJobs.slice(0, 3).map((job, index) => (
-          <button
-            key={job.id}
-            className={`vehicle-pin pin-${index + 1} ${job.alerts.length ? "warning" : ""}`}
-            aria-label={job.id}
-            onClick={() => onSelectJob(job.id)}
-          >
-            <Truck size={18} />
-          </button>
-        ))}
-      </div>
+      <GoogleLiveMap jobs={activeJobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
 
       <div className="stat-strip">
         <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.length}`} />
@@ -640,4 +758,47 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
 
 function toMessage(error: unknown) {
   return error instanceof Error ? error.message : "เกิดข้อผิดพลาด";
+}
+
+function getMapCenter(jobs: TransportJob[]) {
+  if (!jobs.length) {
+    return { lat: 13.7563, lng: 100.5018 };
+  }
+
+  return {
+    lat: jobs.reduce((sum, job) => sum + job.currentLocation.lat, 0) / jobs.length,
+    lng: jobs.reduce((sum, job) => sum + job.currentLocation.lng, 0) / jobs.length
+  };
+}
+
+function loadGoogleMaps(apiKey: string) {
+  const windowWithMaps = window as Window & { google?: any };
+
+  if (windowWithMaps.google?.maps) {
+    return Promise.resolve();
+  }
+
+  if (googleMapsLoader) {
+    return googleMapsLoader;
+  }
+
+  googleMapsLoader = new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>("script[data-google-maps]");
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("โหลด Google Maps ไม่สำเร็จ")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.dataset.googleMaps = "true";
+    script.async = true;
+    script.defer = true;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("โหลด Google Maps ไม่สำเร็จ"));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsLoader;
 }

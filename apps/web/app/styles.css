@@ -594,6 +594,32 @@ h2 {
     var(--surface-2);
 }
 
+.map-card.has-real-map {
+  padding: 0;
+  background: var(--surface-2);
+}
+
+.google-map {
+  position: absolute;
+  inset: 0;
+}
+
+.map-message {
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--muted);
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+}
+
 .map-grid {
   position: absolute;
   inset: 0;
