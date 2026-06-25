@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { driverActions, sampleJobs, statusLabels } from "@s-fast-transport/shared";
@@ -42,9 +42,7 @@ export default function App() {
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.header}>
-            <View style={styles.brandMark}>
-              <Text style={styles.brandLetter}>S</Text>
-            </View>
+            <Image source={require("./assets/truck-logo.png")} style={styles.brandMark} resizeMode="contain" />
             <View style={styles.brandText}>
               <Text style={styles.brandName}>S Fast Transport</Text>
               <Text style={styles.muted}>Driver mobile</Text>
@@ -155,14 +153,9 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       width: 44,
       height: 44,
       borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.accent
-    },
-    brandLetter: {
-      color: "#ffffff",
-      fontWeight: "900",
-      fontSize: 23 * fontScale
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border
     },
     brandText: {
       flex: 1

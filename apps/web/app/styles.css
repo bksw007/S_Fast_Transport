@@ -210,16 +210,33 @@ a {
   gap: 10px;
 }
 
-.brand-mark {
+.brand-mark,
+.brand-logo {
   width: 42px;
   height: 42px;
   border-radius: 8px;
+  display: block;
+  object-fit: contain;
+}
+
+.brand-mark {
   display: grid;
   place-items: center;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: white;
   font-weight: 900;
   font-size: 1.35rem;
+}
+
+.brand-logo {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 3px;
+}
+
+.brand-logo.large {
+  width: 62px;
+  height: 62px;
 }
 
 .brand strong,

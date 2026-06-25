@@ -164,7 +164,7 @@ export default function Home() {
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
-            <span className="brand-mark">S</span>
+            <img className="brand-logo" src="/icons/truck-logo.png" alt="S Fast Transport" />
             <div>
               <strong>S Fast Transport</strong>
               <span>Real-time job tracking</span>
@@ -287,7 +287,7 @@ function LoginScreen({ authReady }: { authReady: boolean }) {
     <main className="login-shell">
       <section className="login-card">
         <div className="login-brand">
-          <span className="brand-mark">S</span>
+          <img className="brand-logo large" src="/icons/truck-logo.png" alt="S Fast Transport" />
           <div>
             <strong>S Fast Transport</strong>
             <span>ระบบติดตามงานขนส่งแบบ Real-time</span>
