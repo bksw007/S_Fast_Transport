@@ -204,6 +204,14 @@ export default function Home() {
 
         <StatusBar message={busyMessage || firebaseMessage} />
 
+        <SectionMenu
+          mode={mode}
+          driverScreen={driverScreen}
+          adminScreen={adminScreen}
+          onDriverScreenChange={setDriverScreen}
+          onAdminScreenChange={setAdminScreen}
+        />
+
         {mode === "driver" ? (
           <DriverMobileScreen
             screen={driverScreen}
@@ -228,31 +236,6 @@ export default function Home() {
           />
         )}
 
-        <nav className="bottom-nav" aria-label="เมนูหลัก">
-          {(mode === "driver" ? driverMenu.slice(0, 4) : adminMenu.slice(0, 4)).map((item, index) => (
-            <button
-              key={item}
-              className={
-                (mode === "driver" && driverScreen === item) || (mode === "admin" && adminScreen === item)
-                  ? "selected"
-                  : ""
-              }
-              onClick={() => {
-                if (mode === "driver") {
-                  setDriverScreen(item as DriverScreen);
-                } else {
-                  setAdminScreen(item as AdminScreen);
-                }
-              }}
-            >
-              {index === 0 && <ListChecks size={18} />}
-              {index === 1 && <MapPin size={18} />}
-              {index === 2 && <Route size={18} />}
-              {index === 3 && <FileImage size={18} />}
-              <span>{item}</span>
-            </button>
-          ))}
-        </nav>
       </section>
 
       <aside className="desktop-panel">
@@ -272,6 +255,73 @@ export default function Home() {
         />
       </aside>
     </main>
+  );
+}
+
+const driverMenuDetails = [
+  { label: driverMenu[0], description: "รายการใบงาน", icon: ListChecks },
+  { label: driverMenu[1], description: "สถานะงานปัจจุบัน", icon: Truck },
+  { label: driverMenu[2], description: "ตำแหน่งและเส้นทาง", icon: MapPin },
+  { label: driverMenu[3], description: "รูปและเอกสาร POD", icon: FileImage }
+] as const;
+
+const adminMenuDetails = [
+  { label: adminMenu[0], description: "ภาพรวมวันนี้", icon: Gauge },
+  { label: adminMenu[1], description: "ติดตามรถแบบสด", icon: MapPin },
+  { label: adminMenu[2], description: "สร้างและจัดการงาน", icon: ListChecks },
+  { label: adminMenu[3], description: "ดูรถทั้งหมดบนแผนที่", icon: Route }
+] as const;
+
+function SectionMenu({
+  mode,
+  driverScreen,
+  adminScreen,
+  onDriverScreenChange,
+  onAdminScreenChange
+}: {
+  mode: "driver" | "admin";
+  driverScreen: DriverScreen;
+  adminScreen: AdminScreen;
+  onDriverScreenChange: (screen: DriverScreen) => void;
+  onAdminScreenChange: (screen: AdminScreen) => void;
+}) {
+  const items = mode === "driver" ? driverMenuDetails : adminMenuDetails;
+  const activeScreen = mode === "driver" ? driverScreen : adminScreen;
+
+  return (
+    <nav className="section-menu" aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
+      <div className="section-menu-heading">
+        <span>เมนูหลัก</span>
+        <small>{mode === "driver" ? "สำหรับคนขับ" : "สำหรับผู้ดูแล"}</small>
+      </div>
+      <div className="section-menu-grid">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const selected = activeScreen === item.label;
+
+          return (
+            <button
+              key={item.label}
+              className={selected ? "selected" : ""}
+              aria-current={selected ? "page" : undefined}
+              onClick={() => {
+                if (mode === "driver") {
+                  onDriverScreenChange(item.label as DriverScreen);
+                } else {
+                  onAdminScreenChange(item.label as AdminScreen);
+                }
+              }}
+            >
+              <span className="section-menu-icon"><Icon size={19} /></span>
+              <span className="section-menu-copy">
+                <strong>{item.label}</strong>
+                <small>{item.description}</small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
