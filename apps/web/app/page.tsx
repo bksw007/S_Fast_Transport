@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import {
   AlertTriangle,
   Bell,
@@ -172,7 +173,7 @@ export default function Home() {
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
-            <img className="brand-logo" src="/icons/truck-logo.png" alt="S Fast Transport" />
+            <Image className="brand-logo" src="/icons/truck-logo.png" alt="S Fast Transport" width={48} height={48} />
             <div>
               <strong>S Fast Transport</strong>
               <span>Real-time job tracking</span>
@@ -390,7 +391,7 @@ function LoginScreen({ authReady }: { authReady: boolean }) {
       <div className="login-backdrop" aria-hidden="true" />
       <section className="login-card">
         <div className="login-brand">
-          <img className="login-logo" src="/icons/truck-logo.png" alt="S Fast Transport" />
+          <Image className="login-logo" src="/icons/truck-logo.png" alt="S Fast Transport" width={72} height={72} priority />
           <div>
             <strong>S Fast Transport</strong>
             <span>Transport Control Center</span>
@@ -753,8 +754,8 @@ function GoogleLiveMap({
   onSelectJob: (jobId: string) => void;
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
   const [mapMessage, setMapMessage] = useState("");
 
   const validJobs = useMemo(
@@ -775,11 +776,11 @@ function GoogleLiveMap({
           return;
         }
 
-        const google = (window as unknown as { google: any }).google;
+        const mapsApi = window.google;
         const center = getMapCenter(validJobs);
 
         if (!mapRef.current) {
-          mapRef.current = new google.maps.Map(mapElementRef.current, {
+          mapRef.current = new mapsApi.maps.Map(mapElementRef.current, {
             center,
             zoom: validJobs.length > 1 ? 10 : 13,
             mapTypeControl: false,
@@ -793,7 +794,7 @@ function GoogleLiveMap({
 
         markersRef.current.forEach((marker) => marker.setMap(null));
         markersRef.current = validJobs.map((job) => {
-          const marker = new google.maps.Marker({
+          const marker = new mapsApi.maps.Marker({
             map: mapRef.current,
             position: { lat: job.currentLocation.lat, lng: job.currentLocation.lng },
             title: `${job.workOrder} · ${job.driverName}`,
@@ -803,7 +804,7 @@ function GoogleLiveMap({
               fontWeight: "900"
             },
             icon: {
-              path: google.maps.SymbolPath.CIRCLE,
+              path: mapsApi.maps.SymbolPath.CIRCLE,
               scale: job.id === selectedJobId ? 15 : 12,
               fillColor: job.alerts.length ? "#e69b19" : "#0f8f8c",
               fillOpacity: 1,
@@ -817,7 +818,7 @@ function GoogleLiveMap({
         });
 
         if (validJobs.length > 1) {
-          const bounds = new google.maps.LatLngBounds();
+          const bounds = new mapsApi.maps.LatLngBounds();
           validJobs.forEach((job) => bounds.extend({ lat: job.currentLocation.lat, lng: job.currentLocation.lng }));
           mapRef.current.fitBounds(bounds, 56);
         }
@@ -1083,9 +1084,7 @@ function getMapCenter(jobs: TransportJob[]) {
 }
 
 function loadGoogleMaps(apiKey: string) {
-  const windowWithMaps = window as Window & { google?: any };
-
-  if (windowWithMaps.google?.maps) {
+  if (window.google?.maps) {
     return Promise.resolve();
   }
 
