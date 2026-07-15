@@ -435,43 +435,41 @@ a {
 
 .menu-context-card,
 .menu-profile-card {
-  position: relative;
   min-width: 0;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  padding: 11px 12px 11px 42px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
 }
 
-.menu-order {
-  position: absolute;
-  top: 9px;
-  left: 10px;
-  color: var(--accent);
-  font-size: .6rem;
-  font-weight: 900;
-  letter-spacing: .08em;
-}
-
-.menu-account-icon,
+.menu-company-logo,
 .menu-avatar {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 10px;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 11%, var(--surface-2));
+  background-color: #ffffff;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  border: 1px solid var(--border);
+}
+
+.menu-company-logo {
+  padding: 3px;
 }
 
 .menu-avatar {
   color: #ffffff;
   background-color: var(--accent);
   background-position: center;
+  background-repeat: no-repeat;
   background-size: cover;
   font-weight: 900;
 }
@@ -479,14 +477,12 @@ a {
 .menu-context-card strong,
 .menu-context-card small,
 .menu-profile-copy strong,
-.menu-profile-copy span,
-.menu-profile-copy small {
+.menu-profile-copy span {
   display: block;
 }
 
 .menu-context-card small,
-.menu-profile-copy span,
-.menu-profile-copy small {
+.menu-profile-copy span {
   color: var(--muted);
 }
 
@@ -515,20 +511,12 @@ a {
   white-space: nowrap;
 }
 
-.menu-profile-copy small {
-  margin-top: 4px;
-  overflow: hidden;
-  font-size: .6rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .menu-session-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
+  gap: 6px;
+  padding: 5px 7px;
   border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
   border-radius: 9px;
   color: var(--accent);
@@ -539,12 +527,12 @@ a {
 .menu-session-card button {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
 }
 
 .menu-session-card > div {
   min-width: 0;
-  font-size: .66rem;
+  font-size: .6rem;
   font-weight: 800;
 }
 
@@ -555,13 +543,13 @@ a {
 }
 
 .menu-session-card button {
-  min-height: 34px;
-  padding: 0 9px;
-  border-radius: 7px;
+  min-height: 29px;
+  padding: 0 8px;
+  border-radius: 6px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
-  font-size: .66rem;
+  font-size: .6rem;
   font-weight: 900;
 }
 
@@ -948,7 +936,7 @@ h2 {
 
 .access-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.3fr) repeat(2, minmax(130px, .7fr)) repeat(2, minmax(140px, 1fr)) auto;
+  grid-template-columns: minmax(180px, 1.3fr) repeat(2, minmax(130px, .7fr)) repeat(3, minmax(140px, 1fr)) auto;
   align-items: center;
   gap: 8px;
   padding: 12px;
@@ -1308,11 +1296,9 @@ h2 {
   }
 
   .section-menu-heading {
-    position: sticky;
-    z-index: 1;
-    top: -14px;
-    margin: -14px -14px 12px;
-    padding: 14px;
+    position: static;
+    margin: 0 -14px 12px;
+    padding: 11px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--surface-2);
   }

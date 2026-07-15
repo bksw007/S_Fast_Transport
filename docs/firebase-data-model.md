@@ -16,6 +16,7 @@ Every tenant-owned operational document uses `organizationId`. The main company 
 - `organizationId`: `main | {subcontractId} | null`
 - `organizationType`: `main | subcontract | null`
 - `organizationName`
+- `organizationLogoUrl`
 - `authProvider`: `google.com`
 - `approvedByUid`
 - `approvedAt`

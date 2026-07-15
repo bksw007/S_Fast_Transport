@@ -33,12 +33,13 @@ export type UserProfile = {
   organizationId: string | null;
   organizationType: OrganizationType | null;
   organizationName: string;
+  organizationLogoUrl: string;
   approvalStatus: ApprovalStatus;
 };
 
 export type UserAccessUpdate = Pick<
   UserProfile,
-  "role" | "organizationId" | "organizationType" | "organizationName" | "approvalStatus" | "active"
+  "role" | "organizationId" | "organizationType" | "organizationName" | "organizationLogoUrl" | "approvalStatus" | "active"
 >;
 
 export type JobDraft = {
@@ -103,6 +104,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     organizationId: data.organizationId ?? null,
     organizationType: data.organizationType ?? (data.role === "subcontract_admin" ? "subcontract" : "main"),
     organizationName: data.organizationName ?? "S Fast Transport",
+    organizationLogoUrl: data.organizationLogoUrl ?? "",
     approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved")
   };
 }
@@ -121,6 +123,7 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
       organizationId: null,
       organizationType: null,
       organizationName: "",
+      organizationLogoUrl: "",
       authProvider: "google.com",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -327,6 +330,7 @@ export function subscribeUserProfiles(
           organizationId: data.organizationId ?? null,
           organizationType: data.organizationType ?? null,
           organizationName: data.organizationName ?? "",
+          organizationLogoUrl: data.organizationLogoUrl ?? "",
           approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved")
         } as UserProfile;
       });

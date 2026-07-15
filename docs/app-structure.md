@@ -4,7 +4,7 @@
 
 Main-company admins can operate across every organization.
 
-- Dashboard
+- Dashboard (default screen after admin login)
 - Jobs / ใบงาน
 - Live Tracking
 - บริษัทขนส่ง
@@ -19,7 +19,7 @@ Main-company admins can operate across every organization.
 
 Subcontract admins see only records whose `organizationId` matches their profile.
 
-- Dashboard
+- Dashboard (default screen after admin login)
 - Jobs / ใบงาน
 - Live Tracking
 - รถและคนขับ

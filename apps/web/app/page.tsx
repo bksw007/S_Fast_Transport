@@ -107,7 +107,7 @@ export default function Home() {
   const [busyMessage, setBusyMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[0]);
-  const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[1]);
+  const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (nextUser) => {
@@ -355,14 +355,20 @@ function SectionMenu({
     ? driverMenuDetails
     : adminMenuDetails.filter((item) => !("mainOnly" in item && item.mainOnly) || isMainAdmin(profile));
   const activeScreen = mode === "driver" ? driverScreen : adminScreen;
+  const organizationLogoUrl = profile.organizationType === "main"
+    ? "/icons/truck-logo.png"
+    : profile.organizationLogoUrl;
 
   return (
     <nav id="primary-navigation" className={`section-menu ${open ? "mobile-open" : ""}`} aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
       <div className="menu-account-stack">
         <section className="menu-context-card">
-          <span className="menu-order">01</span>
-          <span className="menu-account-icon">
-            {profile.organizationType === "subcontract" ? <Building2 size={18} /> : <Truck size={18} />}
+          <span
+            className="menu-company-logo"
+            style={organizationLogoUrl ? { backgroundImage: `url(${organizationLogoUrl})` } : undefined}
+            aria-hidden="true"
+          >
+            {!organizationLogoUrl && <Building2 size={20} />}
           </span>
           <div>
             <small>{profile.organizationName || "S Fast Transport"}</small>
@@ -371,7 +377,6 @@ function SectionMenu({
         </section>
 
         <section className="menu-profile-card">
-          <span className="menu-order">02</span>
           <span
             className="menu-avatar"
             style={user.photoURL ? { backgroundImage: `url(${user.photoURL})` } : undefined}
@@ -382,7 +387,6 @@ function SectionMenu({
           <div className="menu-profile-copy">
             <strong>{profile.displayName || user.displayName || user.email}</strong>
             <span>{user.email}</span>
-            <small title={profile.uid}>ID: {profile.uid}</small>
           </div>
         </section>
 
@@ -517,7 +521,7 @@ function AdminMobileScreen({
   return <FeatureOverview screen={screen} />;
 }
 
-type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId" | "organizationType" | "organizationName">;
+type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId" | "organizationType" | "organizationName" | "organizationLogoUrl">;
 
 function AccessManagementScreen({ actor }: { actor: UserProfile }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -537,7 +541,8 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
       role: user.role,
       organizationId: user.organizationId ?? "main",
       organizationType: user.organizationType ?? "main",
-      organizationName: user.organizationName || "S Fast Transport"
+      organizationName: user.organizationName || "S Fast Transport",
+      organizationLogoUrl: user.organizationLogoUrl || ""
     };
   }
 
@@ -597,6 +602,7 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
               </select>
               <input value={draft.organizationId ?? ""} onChange={(event) => updateDraft(user, { organizationId: event.target.value })} placeholder="รหัสบริษัท" />
               <input value={draft.organizationName} onChange={(event) => updateDraft(user, { organizationName: event.target.value })} placeholder="ชื่อบริษัท" />
+              <input value={draft.organizationLogoUrl} onChange={(event) => updateDraft(user, { organizationLogoUrl: event.target.value })} placeholder="URL โลโก้บริษัท" />
               <div className="access-actions">
                 <button onClick={() => saveAccess(user)}>อนุมัติ / บันทึก</button>
                 <button className="danger-button" onClick={() => saveAccess(user, true)}>ระงับ</button>
