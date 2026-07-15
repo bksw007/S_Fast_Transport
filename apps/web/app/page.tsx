@@ -15,6 +15,7 @@ import {
   ListChecks,
   LogOut,
   MapPin,
+  Menu,
   Moon,
   Phone,
   Plus,
@@ -26,7 +27,8 @@ import {
   TextCursorInput,
   Truck,
   UserRoundCog,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import {
   GoogleAuthProvider,
@@ -103,6 +105,7 @@ export default function Home() {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [firebaseMessage, setFirebaseMessage] = useState("กำลังโหลดข้อมูลจาก Firestore...");
   const [busyMessage, setBusyMessage] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[0]);
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[1]);
 
@@ -208,11 +211,20 @@ export default function Home() {
             </div>
           </div>
           <div className="top-actions">
-            <button aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => Math.max(0.92, value - 0.08))}>
+            <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => Math.max(0.92, value - 0.08))}>
               <TextCursorInput size={18} />
             </button>
             <button aria-label="เปลี่ยนธีม" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
               {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+            <button
+              className="mobile-menu-toggle"
+              aria-label={mobileMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="primary-navigation"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
         </header>
@@ -229,13 +241,19 @@ export default function Home() {
 
         <StatusBar message={busyMessage || firebaseMessage} />
 
+        {mobileMenuOpen && (
+          <button className="mobile-menu-backdrop" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />
+        )}
+
         <SectionMenu
+          open={mobileMenuOpen}
           mode={mode}
           profile={profile}
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
           onAdminScreenChange={setAdminScreen}
+          onNavigate={() => setMobileMenuOpen(false)}
         />
 
         {mode === "driver" ? (
@@ -321,19 +339,23 @@ const adminMenuDetails = [
 ] as const;
 
 function SectionMenu({
+  open,
   mode,
   profile,
   driverScreen,
   adminScreen,
   onDriverScreenChange,
-  onAdminScreenChange
+  onAdminScreenChange,
+  onNavigate
 }: {
+  open: boolean;
   mode: "driver" | "admin";
   profile: UserProfile;
   driverScreen: DriverScreen;
   adminScreen: AdminScreen;
   onDriverScreenChange: (screen: DriverScreen) => void;
   onAdminScreenChange: (screen: AdminScreen) => void;
+  onNavigate: () => void;
 }) {
   const items = mode === "driver"
     ? driverMenuDetails
@@ -341,7 +363,7 @@ function SectionMenu({
   const activeScreen = mode === "driver" ? driverScreen : adminScreen;
 
   return (
-    <nav className="section-menu" aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
+    <nav id="primary-navigation" className={`section-menu ${open ? "mobile-open" : ""}`} aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
       <div className="section-menu-heading">
         <span>เมนูหลัก</span>
         <small>{mode === "driver" ? "สำหรับคนขับ" : "สำหรับผู้ดูแล"}</small>
@@ -362,6 +384,7 @@ function SectionMenu({
                 } else {
                   onAdminScreenChange(item.label as AdminScreen);
                 }
+                onNavigate();
               }}
             >
               <span className="section-menu-icon"><Icon size={19} /></span>

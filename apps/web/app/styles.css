@@ -400,6 +400,11 @@ a {
   border: 1px solid var(--border);
 }
 
+.mobile-menu-toggle,
+.mobile-menu-backdrop {
+  display: none;
+}
+
 .auth-card {
   margin: 0 18px 12px;
   padding: 12px;
@@ -1170,7 +1175,7 @@ h2 {
   }
 
   .phone-frame {
-    position: static;
+    position: relative;
     height: 100vh;
     min-height: 100vh;
     border: 0;
@@ -1179,6 +1184,101 @@ h2 {
 
   .desktop-panel {
     display: none;
+  }
+
+  .mobile-menu-toggle {
+    display: grid;
+  }
+
+  .mobile-menu-toggle[aria-expanded="true"] {
+    color: #ffffff;
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .mobile-menu-backdrop {
+    position: absolute;
+    z-index: 14;
+    inset: 70px 0 0;
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0;
+    background: rgba(8, 17, 26, .38);
+    backdrop-filter: blur(3px);
+  }
+
+  .section-menu {
+    position: absolute;
+    z-index: 15;
+    top: 70px;
+    left: 12px;
+    right: 12px;
+    display: none;
+    max-height: calc(100vh - 92px);
+    margin: 0;
+    padding: 14px;
+    border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(8, 17, 26, .28);
+    animation: mobile-menu-in 180ms ease-out;
+  }
+
+  .section-menu.mobile-open {
+    display: block;
+  }
+
+  .section-menu-heading {
+    position: sticky;
+    z-index: 1;
+    top: -14px;
+    margin: -14px -14px 12px;
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  @keyframes mobile-menu-in {
+    from { opacity: 0; transform: translateY(-8px) scale(.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+}
+
+@media (max-width: 520px) {
+  .font-scale-action {
+    display: none !important;
+  }
+
+  .topbar {
+    padding: 12px 14px 10px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand > div {
+    min-width: 0;
+  }
+
+  .brand strong,
+  .brand span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .top-actions button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .section-menu-grid {
+    grid-template-columns: 1fr;
   }
 }
 
