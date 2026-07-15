@@ -50,7 +50,7 @@ import {
   type JobStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
-import { auth } from "@/lib/firebase";
+import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import {
   createJob,
   createTrackingShareLink,
@@ -128,29 +128,52 @@ export default function Home() {
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
-      setProfile(null);
-      setAuthReady(false);
+    let active = true;
+    let unsubscribe = () => {};
 
-      if (!nextUser) {
-        setJobs([]);
-        setFirebaseMessage("ยังไม่ได้ล็อกอิน");
-        setAuthReady(true);
-        return;
-      }
-
+    async function restoreAuthSession() {
       try {
-        await ensureAccessProfile(nextUser.uid, nextUser.email ?? "", nextUser.displayName ?? "");
-        const nextProfile = await getUserProfile(nextUser.uid);
-        setProfile(nextProfile);
-        setFirebaseMessage(nextProfile ? `ล็อกอินเป็น ${nextProfile.role}` : "ล็อกอินแล้ว แต่ยังไม่พบโปรไฟล์");
+        await ensureLocalAuthPersistence();
       } catch (error) {
-        setFirebaseMessage(toMessage(error));
-      } finally {
-        setAuthReady(true);
+        if (active) {
+          setFirebaseMessage(`ไม่สามารถเก็บ session ถาวรได้: ${toMessage(error)}`);
+        }
       }
-    });
+
+      if (!active) return;
+
+      unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+        setUser(nextUser);
+        setProfile(null);
+        setAuthReady(false);
+
+        if (!nextUser) {
+          setJobs([]);
+          setFirebaseMessage("ยังไม่ได้ล็อกอิน");
+          setAuthReady(true);
+          return;
+        }
+
+        try {
+          await ensureAccessProfile(nextUser.uid, nextUser.email ?? "", nextUser.displayName ?? "");
+          const nextProfile = await getUserProfile(nextUser.uid);
+          if (!active) return;
+          setProfile(nextProfile);
+          setFirebaseMessage(nextProfile ? `ล็อกอินเป็น ${nextProfile.role}` : "ล็อกอินแล้ว แต่ยังไม่พบโปรไฟล์");
+        } catch (error) {
+          if (active) setFirebaseMessage(toMessage(error));
+        } finally {
+          if (active) setAuthReady(true);
+        }
+      });
+    }
+
+    void restoreAuthSession();
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -207,8 +230,12 @@ export default function Home() {
     }
   }
 
-  if (!authReady || !user) {
-    return <LoginScreen authReady={authReady} />;
+  if (!authReady) {
+    return <SessionLoadingScreen />;
+  }
+
+  if (!user) {
+    return <LoginScreen />;
   }
 
   if (!profile || !hasApprovedAccess(profile)) {
@@ -698,12 +725,33 @@ function EmptyState({ title, description }: { title: string; description: string
   );
 }
 
-function LoginScreen({ authReady }: { authReady: boolean }) {
+function SessionLoadingScreen() {
+  return (
+    <main className="login-shell" aria-busy="true" aria-live="polite">
+      <div className="login-backdrop" aria-hidden="true" />
+      <section className="login-card session-loading-card">
+        <Image className="login-logo" src="/icons/truck-logo.png" alt="S Fast Transport" width={72} height={72} priority />
+        <span className="session-loading-indicator" aria-hidden="true" />
+        <div className="login-copy">
+          <h1>กำลังเปิดระบบ</h1>
+          <p>กำลังตรวจสอบการเข้าสู่ระบบที่บันทึกไว้...</p>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function LoginScreen() {
   const [message, setMessage] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
 
   async function signInWithGoogle() {
+    if (signingIn) return;
+
+    setSigningIn(true);
     setMessage("กำลังเปิด Google...");
     try {
+      await ensureLocalAuthPersistence();
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const credential = await signInWithPopup(auth, provider);
@@ -715,6 +763,8 @@ function LoginScreen({ authReady }: { authReady: boolean }) {
       setMessage("สำเร็จ");
     } catch (error) {
       setMessage(toMessage(error));
+    } finally {
+      setSigningIn(false);
     }
   }
 
@@ -736,14 +786,14 @@ function LoginScreen({ authReady }: { authReady: boolean }) {
         </div>
 
         <div className="login-form">
-          <button className="google-button" type="button" onClick={signInWithGoogle}>
+          <button className="google-button" type="button" onClick={signInWithGoogle} disabled={signingIn}>
             <GoogleLogo />
-            เข้าสู่ระบบด้วย Google
+            {signingIn ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบด้วย Google"}
           </button>
         </div>
 
         <div className="login-footnote">
-          {!authReady ? "กำลังตรวจสอบ session..." : message || "บัญชีใหม่ต้องรอแอดมินบริษัทหลักอนุมัติก่อนเข้าใช้งาน"}
+          {message || "บัญชีใหม่ต้องรอแอดมินบริษัทหลักอนุมัติก่อนเข้าใช้งาน"}
         </div>
       </section>
     </main>

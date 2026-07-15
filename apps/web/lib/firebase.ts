@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -17,3 +17,13 @@ export const firebaseApp = getApps().length ? getApps()[0] : initializeApp(fireb
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
+
+let authPersistencePromise: Promise<void> | null = null;
+
+export function ensureLocalAuthPersistence() {
+  if (!authPersistencePromise) {
+    authPersistencePromise = setPersistence(auth, browserLocalPersistence);
+  }
+
+  return authPersistencePromise;
+}

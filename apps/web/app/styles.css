@@ -110,6 +110,24 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.session-loading-card {
+  justify-items: center;
+  text-align: center;
+}
+
+.session-loading-indicator {
+  width: 34px;
+  height: 34px;
+  border: 3px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: session-loading-spin 800ms linear infinite;
+}
+
+@keyframes session-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 .login-brand {
   display: flex;
   align-items: center;
@@ -236,6 +254,12 @@ a {
   justify-content: center;
   gap: 11px;
   box-shadow: 0 10px 24px rgba(19, 32, 39, 0.08);
+}
+
+.google-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
 }
 
 .google-logo {
