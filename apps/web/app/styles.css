@@ -310,6 +310,25 @@ a {
   flex-direction: column;
 }
 
+.mobile-primary-content {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+}
+
+@media (min-width: 1051px) {
+  .admin-shell .mobile-primary-content {
+    display: none;
+  }
+
+  .admin-shell .section-menu {
+    min-height: 0;
+    max-height: none;
+    flex: 1;
+    margin-bottom: 18px;
+  }
+}
+
 .topbar,
 .section-title,
 .job-card-head,

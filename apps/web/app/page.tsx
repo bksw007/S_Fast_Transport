@@ -245,7 +245,7 @@ export default function Home() {
   const mode = profile.role === "driver" ? "driver" : "admin";
 
   return (
-    <main className={`app-shell ${mode === "driver" ? "driver-shell" : ""}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
+    <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
@@ -291,29 +291,31 @@ export default function Home() {
           onNavigate={() => setMobileMenuOpen(false)}
         />
 
-        {mode === "driver" ? (
-          <DriverMobileScreen
-            screen={driverScreen}
-            jobs={activeJobs}
-            selectedJob={selectedJob}
-            selectedJobId={selectedJob.id}
-            canWrite={canWrite && jobs.length > 0}
-            onSelectJob={setSelectedJobId}
-            onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
-            onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
-          />
-        ) : (
-          <AdminMobileScreen
-            profile={profile}
-            screen={adminScreen}
-            activeJobs={activeJobs}
-            selectedJob={selectedJob}
-            selectedJobId={selectedJob.id}
-            onSelectJob={setSelectedJobId}
-            onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
-            canWrite={canWrite}
-          />
-        )}
+        <div className="mobile-primary-content">
+          {mode === "driver" ? (
+            <DriverMobileScreen
+              screen={driverScreen}
+              jobs={activeJobs}
+              selectedJob={selectedJob}
+              selectedJobId={selectedJob.id}
+              canWrite={canWrite && jobs.length > 0}
+              onSelectJob={setSelectedJobId}
+              onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
+              onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+            />
+          ) : (
+            <AdminMobileScreen
+              profile={profile}
+              screen={adminScreen}
+              activeJobs={activeJobs}
+              selectedJob={selectedJob}
+              selectedJobId={selectedJob.id}
+              onSelectJob={setSelectedJobId}
+              onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
+              canWrite={canWrite}
+            />
+          )}
+        </div>
 
       </section>
 
