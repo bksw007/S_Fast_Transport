@@ -11,6 +11,7 @@ import {
   CircleDot,
   Clock3,
   FileImage,
+  FilePenLine,
   Gauge,
   ListChecks,
   LogOut,
@@ -20,6 +21,8 @@ import {
   Phone,
   Plus,
   QrCode,
+  RotateCcw,
+  Save,
   Settings,
   ShieldAlert,
   Share2,
@@ -55,7 +58,6 @@ import {
   getUserProfile,
   hasApprovedAccess,
   isMainAdmin,
-  seedSampleJobs,
   subscribeTodayJobs,
   subscribeUserProfiles,
   updateJobStatus,
@@ -79,15 +81,31 @@ const statusOrder: JobStatus[] = [
   "completed"
 ];
 
-const emptyJobDraft: JobDraft = {
-  customer: "",
-  driverName: "",
-  driverPhone: "",
-  vehiclePlate: "",
-  pickupLocation: "",
-  deliveryLocation: "",
-  eta: ""
-};
+function createEmptyJobDraft(): JobDraft {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    workOrder: `W${Date.now()}`,
+    customer: "",
+    jobDate: today,
+    cargoType: "",
+    vehicleType: "",
+    tripCount: "1",
+    driverName: "",
+    driverPhone: "",
+    vehiclePlate: "",
+    assignedEmployee: "",
+    pickupLocation: "",
+    pickupDate: today,
+    pickupTime: "",
+    pickupContact: "",
+    deliveryLocation: "",
+    deliveryDate: today,
+    deliveryTime: "",
+    deliveryContact: "",
+    eta: "",
+    notes: ""
+  };
+}
 
 type DriverScreen = (typeof driverMenu)[number];
 type AdminScreen = (typeof adminMenu)[number];
@@ -266,7 +284,6 @@ export default function Home() {
             selectedJobId={selectedJob.id}
             onSelectJob={setSelectedJobId}
             onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
-            onSeed={() => runAction(seedSampleJobs)}
             canWrite={canWrite}
           />
         )}
@@ -281,7 +298,6 @@ export default function Home() {
               selectedJobId={selectedJob.id}
               onSelectJob={setSelectedJobId}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
-              onSeed={() => runAction(seedSampleJobs)}
               canWrite={canWrite}
               compact={false}
             />
@@ -478,7 +494,6 @@ function AdminMobileScreen({
   selectedJobId,
   onSelectJob,
   onCreateJob,
-  onSeed,
   canWrite
 }: {
   profile: UserProfile;
@@ -488,7 +503,6 @@ function AdminMobileScreen({
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => void;
-  onSeed: () => void;
   canWrite: boolean;
 }) {
   if (screen === "Dashboard") {
@@ -502,7 +516,6 @@ function AdminMobileScreen({
         selectedJobId={selectedJobId}
         onSelectJob={onSelectJob}
         onCreateJob={onCreateJob}
-        onSeed={onSeed}
         canWrite={canWrite}
       />
     );
@@ -1167,7 +1180,6 @@ function AdminView({
   selectedJobId,
   onSelectJob,
   onCreateJob,
-  onSeed,
   canWrite,
   compact = true
 }: {
@@ -1175,11 +1187,11 @@ function AdminView({
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => void;
-  onSeed: () => void;
   canWrite: boolean;
   compact?: boolean;
 }) {
-  const [draft, setDraft] = useState(emptyJobDraft);
+  const [draft, setDraft] = useState<JobDraft>(createEmptyJobDraft);
+  const [showForm, setShowForm] = useState(false);
   const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
   const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
 
@@ -1196,36 +1208,79 @@ function AdminView({
       vehiclePlate: draft.vehiclePlate || "-",
       pickupLocation: draft.pickupLocation || "จุดรับสินค้า",
       deliveryLocation: draft.deliveryLocation || "จุดส่งสินค้า",
-      eta: draft.eta || "วันนี้"
+      eta: draft.deliveryTime || draft.eta || "วันนี้"
     };
     onCreateJob(nextDraft);
-    setDraft(emptyJobDraft);
+    setDraft(createEmptyJobDraft());
+    setShowForm(false);
   }
 
   return (
     <section className={compact ? "screen" : "admin-wide"}>
       <div className="section-title">
         <div>
-          <h1>Live Tracking</h1>
-          <p>ติดตามรถตามใบงานแบบ Real-time</p>
+          <h1>Jobs / ใบงาน</h1>
+          <p>สร้าง มอบหมาย และติดตามใบงานขนส่ง</p>
         </div>
-        <button className="icon-text" onClick={onSeed} disabled={!canWrite}>
+        <button className={`icon-text ${showForm ? "active" : ""}`} onClick={() => setShowForm((current) => !current)} disabled={!canWrite}>
           <Plus size={17} />
-          Seed
+          Jobs
         </button>
       </div>
 
-      <form className="job-form" onSubmit={(event) => event.preventDefault()}>
-        <input value={draft.customer} onChange={(event) => updateDraft("customer", event.target.value)} placeholder="ลูกค้า" />
-        <input value={draft.driverName} onChange={(event) => updateDraft("driverName", event.target.value)} placeholder="คนขับ" />
-        <input value={draft.vehiclePlate} onChange={(event) => updateDraft("vehiclePlate", event.target.value)} placeholder="ทะเบียน" />
-        <input value={draft.pickupLocation} onChange={(event) => updateDraft("pickupLocation", event.target.value)} placeholder="จุดรับ" />
-        <input value={draft.deliveryLocation} onChange={(event) => updateDraft("deliveryLocation", event.target.value)} placeholder="จุดส่ง" />
-        <input value={draft.eta} onChange={(event) => updateDraft("eta", event.target.value)} placeholder="ETA" />
-        <button type="button" onClick={submitJob} disabled={!canWrite}>สร้างงาน</button>
-      </form>
+      {showForm && (
+        <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); submitJob(); }}>
+          <header className="dispatch-form-hero">
+            <div><span>DISPATCH CENTER</span><h2>ฟอร์มแจ้งงาน</h2><p>สร้างใบแจ้งงานและบันทึกเข้าระบบ</p></div>
+            <FilePenLine size={24} />
+          </header>
 
-      <GoogleLiveMap jobs={activeJobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
+          <div className="dispatch-form-body">
+            <div className="dispatch-general-grid">
+              <DispatchField label="เลขที่ใบส่งงาน"><input value={draft.workOrder} onChange={(event) => updateDraft("workOrder", event.target.value)} required /></DispatchField>
+              <DispatchField label="บริษัทผู้ว่าจ้าง" add><input value={draft.customer} onChange={(event) => updateDraft("customer", event.target.value)} placeholder="เลือกบริษัทผู้ว่าจ้าง" required /></DispatchField>
+              <DispatchField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" value={draft.jobDate} onChange={(event) => updateDraft("jobDate", event.target.value)} /></DispatchField>
+              <DispatchField label="ประเภทสินค้า" add><input value={draft.cargoType} onChange={(event) => updateDraft("cargoType", event.target.value)} placeholder="เลือกประเภทสินค้า" /></DispatchField>
+              <DispatchField label="ประเภทรถ" add><input value={draft.vehicleType} onChange={(event) => updateDraft("vehicleType", event.target.value)} placeholder="เลือกประเภทรถ" /></DispatchField>
+              <DispatchField label="จำนวนรอบ"><input type="number" min="1" value={draft.tripCount} onChange={(event) => updateDraft("tripCount", event.target.value)} /></DispatchField>
+            </div>
+
+            <div className="dispatch-stops">
+              <DispatchStop
+                title="รับงาน"
+                location={draft.pickupLocation}
+                date={draft.pickupDate}
+                time={draft.pickupTime}
+                contact={draft.pickupContact}
+                onChange={updateDraft}
+                fields={{ location: "pickupLocation", date: "pickupDate", time: "pickupTime", contact: "pickupContact" }}
+              />
+              <DispatchStop
+                title="ส่งงาน"
+                location={draft.deliveryLocation}
+                date={draft.deliveryDate}
+                time={draft.deliveryTime}
+                contact={draft.deliveryContact}
+                onChange={updateDraft}
+                fields={{ location: "deliveryLocation", date: "deliveryDate", time: "deliveryTime", contact: "deliveryContact" }}
+              />
+            </div>
+
+            <div className="dispatch-general-grid assignment-grid">
+              <DispatchField label="มอบหมายพนักงาน (แอพ)"><input value={draft.assignedEmployee} onChange={(event) => updateDraft("assignedEmployee", event.target.value)} placeholder="เลือกผู้รับงาน" /></DispatchField>
+              <DispatchField label="พนักงานขับรถ" add><input value={draft.driverName} onChange={(event) => updateDraft("driverName", event.target.value)} placeholder="เลือกพนักงานขับรถ" /></DispatchField>
+              <DispatchField label="เบอร์ติดต่อ"><input type="tel" value={draft.driverPhone} onChange={(event) => updateDraft("driverPhone", event.target.value)} placeholder="080-123-4567" /></DispatchField>
+              <DispatchField label="ทะเบียนรถ" add><input value={draft.vehiclePlate} onChange={(event) => updateDraft("vehiclePlate", event.target.value)} placeholder="เลือกทะเบียนรถ" /></DispatchField>
+              <DispatchField label="หมายเหตุ" wide><textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติมสำหรับงานนี้" /></DispatchField>
+            </div>
+
+            <div className="dispatch-form-actions">
+              <button className="save-job-button" type="submit" disabled={!canWrite}><Save size={17} /> บันทึกงาน</button>
+              <button type="button" onClick={() => setDraft(createEmptyJobDraft())}><RotateCcw size={17} /> ล้างข้อมูล</button>
+            </div>
+          </div>
+        </form>
+      )}
 
       <div className="stat-strip">
         <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.length}`} />
@@ -1253,6 +1308,43 @@ function AdminView({
         ))}
       </div>
     </section>
+  );
+}
+
+function DispatchField({ label, add = false, wide = false, children }: { label: string; add?: boolean; wide?: boolean; children: React.ReactNode }) {
+  return (
+    <label className={`dispatch-field ${wide ? "wide" : ""}`}>
+      <span>{label}</span>
+      <div>{children}{add && <b aria-hidden="true">+</b>}</div>
+    </label>
+  );
+}
+
+function DispatchStop({
+  title,
+  location,
+  date,
+  time,
+  contact,
+  onChange,
+  fields
+}: {
+  title: string;
+  location: string;
+  date: string;
+  time: string;
+  contact: string;
+  onChange: (field: keyof JobDraft, value: string) => void;
+  fields: { location: keyof JobDraft; date: keyof JobDraft; time: keyof JobDraft; contact: keyof JobDraft };
+}) {
+  return (
+    <fieldset className="dispatch-stop">
+      <legend>{title}</legend>
+      <DispatchField label="สถานที่" add><input value={location} onChange={(event) => onChange(fields.location, event.target.value)} placeholder={`พิมพ์ค้นหาสถานที่${title === "รับงาน" ? "รับ" : "ส่ง"}`} /></DispatchField>
+      <DispatchField label="วันที่"><input type="date" value={date} onChange={(event) => onChange(fields.date, event.target.value)} /></DispatchField>
+      <DispatchField label="เวลา"><input type="time" value={time} onChange={(event) => onChange(fields.time, event.target.value)} /></DispatchField>
+      <DispatchField label="ติดต่อ" add><input value={contact} onChange={(event) => onChange(fields.contact, event.target.value)} placeholder="เลือกผู้ติดต่อ" /></DispatchField>
+    </fieldset>
   );
 }
 

@@ -40,6 +40,11 @@ Hot collection for the active dashboard.
 
 - `organizationId`
 - `carrierName`
+- `workOrder`, `jobDate`, `cargoType`, `vehicleType`, `tripCount`
+- `pickupLocation`, `pickupDate`, `pickupTime`, `pickupContact`
+- `deliveryLocation`, `deliveryDate`, `deliveryTime`, `deliveryContact`
+- `assignedEmployee`, `driverName`, `driverPhone`, `vehiclePlate`
+- `notes`
 - `assignedDriverUid`
 - `status`
 - `pickupLocation`

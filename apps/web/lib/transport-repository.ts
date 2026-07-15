@@ -18,7 +18,7 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
-import { sampleJobs, statusLabels, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
+import { statusLabels, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
 
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
 export type OrganizationType = "main" | "subcontract";
@@ -43,13 +43,26 @@ export type UserAccessUpdate = Pick<
 >;
 
 export type JobDraft = {
+  workOrder: string;
   customer: string;
+  jobDate: string;
+  cargoType: string;
+  vehicleType: string;
+  tripCount: string;
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;
+  assignedEmployee: string;
   pickupLocation: string;
+  pickupDate: string;
+  pickupTime: string;
+  pickupContact: string;
   deliveryLocation: string;
+  deliveryDate: string;
+  deliveryTime: string;
+  deliveryContact: string;
   eta: string;
+  notes: string;
 };
 
 const defaultLocation = {
@@ -131,24 +144,9 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
   }
 }
 
-export async function seedSampleJobs(actor: UserProfile) {
-  await Promise.all(
-    sampleJobs.map((job) =>
-      setDoc(doc(db, "today_jobs", job.id), {
-        ...job,
-        assignedDriverUid: actor.uid,
-        organizationId: actor.organizationId ?? "main",
-        carrierName: actor.organizationName || "S Fast Transport",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      })
-    )
-  );
-}
-
 export async function createJob(draft: JobDraft, actor: UserProfile) {
   const now = new Date().toISOString();
-  const workOrder = `WO-${Date.now().toString().slice(-5)}`;
+  const workOrder = draft.workOrder.trim() || `WO-${Date.now().toString().slice(-5)}`;
 
   await addDoc(collection(db, "today_jobs"), {
     ...draft,
