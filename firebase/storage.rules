@@ -6,26 +6,47 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function role() {
-      return signedIn()
-        ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
-        : null;
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
-    function isAdmin() {
-      return role() in ["admin", "dispatcher", "owner"];
+    function activeUser() {
+      return signedIn()
+        && profile().data.active == true
+        && (
+          !profile().data.keys().hasAny(["approvalStatus"])
+          || profile().data.approvalStatus == "approved"
+        );
+    }
+
+    function isMainAdmin() {
+      return activeUser() && profile().data.role in ["admin", "dispatcher", "owner"];
+    }
+
+    function isSubcontractAdmin() {
+      return activeUser() && profile().data.role == "subcontract_admin";
+    }
+
+    function job(jobId) {
+      return firestore.get(/databases/(default)/documents/today_jobs/$(jobId));
+    }
+
+    function sameOrganization(jobId) {
+      return activeUser()
+        && profile().data.organizationId != null
+        && job(jobId).data.organizationId == profile().data.organizationId;
     }
 
     function isAssignedDriver(jobId) {
-      return signedIn()
-        && firestore.get(/databases/(default)/documents/today_jobs/$(jobId)).data.assignedDriverUid == request.auth.uid;
+      return activeUser() && job(jobId).data.assignedDriverUid == request.auth.uid;
     }
 
     match /proof_of_delivery/{jobId}/{uid}/{fileName} {
-      allow read: if isAdmin() || isAssignedDriver(jobId) || uid == request.auth.uid;
-      allow write: if signedIn()
+      allow read: if isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId);
+      allow write: if activeUser()
         && uid == request.auth.uid
-        && (isAdmin() || isAssignedDriver(jobId))
+        && (isMainAdmin() || isSubcontractAdmin() || isAssignedDriver(jobId))
+        && (isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId))
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches("image/.*|application/pdf");
     }

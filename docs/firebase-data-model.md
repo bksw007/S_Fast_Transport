@@ -1,18 +1,44 @@
 # Firebase Data Model
 
+## Tenant boundary
+
+Every tenant-owned operational document uses `organizationId`. The main company uses `main`; subcontract companies use stable generated IDs. Main admins can cross tenant boundaries, subcontract admins are restricted to their organization, and drivers are additionally restricted to assigned jobs.
+
 ## Collections
 
-### users
+### users/{uid}
 
-- `role`: `owner | admin | dispatcher | driver`
+- `email`
 - `displayName`
+- `role`: `owner | admin | dispatcher | subcontract_admin | driver`
+- `active`
+- `approvalStatus`: `pending | approved | suspended`
+- `organizationId`: `main | {subcontractId} | null`
+- `organizationType`: `main | subcontract | null`
+- `organizationName`
+- `authProvider`: `google.com`
+- `approvedByUid`
+- `approvedAt`
+
+New users may create only their own pending/inactive Google profile. Main admins perform approval and assignment.
+
+### organizations/{organizationId}
+
+- `type`: `main | subcontract`
+- `name`
+- `taxId`
+- `contactName`
 - `phone`
 - `active`
+- `createdAt`
+- `updatedAt`
 
-### today_jobs
+### today_jobs/{jobId}
 
-Hot collection for active daily jobs. The dashboard should read this first.
+Hot collection for the active dashboard.
 
+- `organizationId`
+- `carrierName`
 - `assignedDriverUid`
 - `status`
 - `pickupLocation`
@@ -20,69 +46,57 @@ Hot collection for active daily jobs. The dashboard should read this first.
 - `trackingEnabled`
 - `trackingStartedAt`
 - `trackingEndedAt`
-- `currentLocation.lat`
-- `currentLocation.lng`
-- `currentLocation.speed`
-- `currentLocation.heading`
-- `currentLocation.accuracy`
-- `currentLocation.updatedAt`
+- `currentLocation.{lat,lng,speed,heading,accuracy,updatedAt}`
 - `trackingStatus`
 
-### job_locations/{jobId}/points
+### job_locations/{jobId}/points/{pointId}
 
-Append-only route history. Drivers can create points for their assigned job but cannot edit history.
+Append-only route history. Assigned drivers may create points and cannot edit them.
 
 - `driverUid`
-- `lat`
-- `lng`
-- `speed`
-- `heading`
-- `accuracy`
+- `lat`, `lng`, `speed`, `heading`, `accuracy`
 - `batteryLevel`
 - `timestamp`
 - `source`: `gps | manual | background | offline_sync`
 
-### job_events
-
-Timeline for operations, customer support, and dispute resolution.
+### job_events/{eventId}
 
 - `jobId`
-- `type`
-- `message`
-- `actorUid`
-- `actorName`
-- `lat`
-- `lng`
-- `timestamp`
-- `metadata`
+- `organizationId`
+- `type`, `message`
+- `actorUid`, `actorName`
+- `lat`, `lng`, `timestamp`, `metadata`
 
-### driver_live_status
+### proof_of_delivery/{podId}
 
-Fast map overview per driver.
+- `jobId`
+- `organizationId`
+- `uploadedByUid`, `uploadedByName`
+- `fileName`, `storagePath`, `downloadUrl`
+- `contentType`, `size`, `createdAt`
 
-- `currentJobId`
-- `driverName`
-- `vehiclePlate`
-- `lat`
-- `lng`
-- `speed`
-- `heading`
-- `isOnline`
-- `isTracking`
-- `lastUpdatedAt`
-- `batteryLevel`
+### tracking_share_links/{token}
 
-## Tracking Frequency
+This is a public, customer-safe projection; it must not require a public read of `today_jobs`.
 
-- No accepted job: no tracking
-- Accepted but parked: every 3-5 minutes
-- Moving: every 15-30 seconds or when movement exceeds 100 meters
-- Stationary: every 2-5 minutes
-- Completed: stop immediately
+- `jobId`
+- `organizationId`
+- `enabled`
+- `expiresAt`
+- `workOrder`
+- `customerName`
+- `statusLabel`
+- `pickupLocation`, `deliveryLocation`
+- `vehicleLabel`, `carrierName`
+- `eta`, `lastUpdatedAt`
+- `currentLocation.{lat,lng}` (optional)
 
-## Privacy Rules
+Do not include driver personal phone numbers, internal notes, costs, or unrelated jobs.
 
-- Track location only for accepted jobs.
-- Stop tracking when a job is completed.
-- Admin can view route history only for relevant jobs.
-- Driver UI must always show whether tracking is active.
+## Tracking privacy
+
+- Track only for accepted, active jobs.
+- Stop immediately when completed or cancelled.
+- A driver always sees whether tracking is active.
+- Tenant admins see only their organization.
+- Public links expose only one job projection and expire automatically.

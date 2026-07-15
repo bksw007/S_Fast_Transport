@@ -47,6 +47,8 @@ export type TransportJob = {
   lastUpdatedMinutes: number;
   currentLocation: LocationPoint;
   alerts: string[];
+  organizationId?: string;
+  carrierName?: string;
 };
 
 export type TimelineEvent = {
@@ -84,18 +86,16 @@ export const driverActions = [
 
 export const adminMenu = [
   "Dashboard",
-  "Live Tracking",
   "Jobs / ใบงาน",
-  "Map View",
-  "Job History",
-  "Drivers",
-  "Vehicles",
-  "Locations",
-  "Customers",
+  "Live Tracking",
+  "บริษัทขนส่ง",
+  "รถและคนขับ",
+  "ลูกค้า",
   "Reports",
-  "Settings",
-  "User Management"
-];
+  "แจ้งเตือน",
+  "User Management",
+  "Settings"
+] as const;
 
 export const driverMenu = [
   "งานวันนี้",
@@ -104,7 +104,7 @@ export const driverMenu = [
   "อัปเดตหลักฐาน",
   "ประวัติงาน",
   "โปรไฟล์"
-];
+] as const;
 
 export const sampleJobs: TransportJob[] = [
   {

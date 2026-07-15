@@ -1,21 +1,37 @@
 # App Structure
 
-## Admin
+## Main-company admin
+
+Main-company admins can operate across every organization.
 
 - Dashboard
-- Live Tracking
 - Jobs / ใบงาน
-- Map View
-- Job History
-- Drivers
-- Vehicles
-- Locations
-- Customers
+- Live Tracking
+- บริษัทขนส่ง
+- รถและคนขับ
+- ลูกค้าและลิงก์ติดตาม
 - Reports
+- แจ้งเตือน
+- User Management / Google access approval
 - Settings
-- User Management
+
+## Subcontract-company admin
+
+Subcontract admins see only records whose `organizationId` matches their profile.
+
+- Dashboard
+- Jobs / ใบงาน
+- Live Tracking
+- รถและคนขับ
+- Reports
+- แจ้งเตือน
+- Settings / ข้อมูลบริษัท
+
+They cannot open main-company user management, customer management, or other subcontract companies.
 
 ## Driver
+
+Drivers see and update only jobs assigned to their Firebase UID.
 
 - งานวันนี้
 - กำลังขนส่ง
@@ -24,18 +40,25 @@
 - ประวัติงาน
 - โปรไฟล์
 
-## Core Workflows
+## Customer
 
-1. Admin creates job.
-2. Admin assigns driver.
-3. Driver receives push notification.
-4. Driver accepts job.
-5. App asks whether to enable tracking for this job.
-6. Driver starts route to pickup.
-7. App updates location in real time.
-8. Driver confirms pickup arrival and uploads evidence.
-9. Driver starts route to delivery.
-10. Admin follows vehicle on map.
-11. Driver confirms delivery arrival and uploads POD.
-12. Driver completes job.
-13. App stops tracking and writes route history.
+Customers do not log in. A customer receives an expiring `/track/{token}` link containing a safe, denormalized snapshot of one job. It includes status, origin, destination, ETA, carrier, vehicle label, and optional current coordinates. It excludes driver phone numbers, other jobs, internal reports, and costs.
+
+## Authentication and approval
+
+1. A user signs in with Google.
+2. A first-time profile is created as inactive with `approvalStatus: pending`.
+3. A main-company admin assigns the role, `organizationId`, and organization type.
+4. Only approved and active profiles can read operational data.
+5. Menu visibility and Firebase rules both enforce the same role boundary.
+
+## Core workflow
+
+1. Main admin creates or registers a subcontract organization.
+2. Main admin approves Google accounts and assigns them to an organization.
+3. Main admin creates a job and assigns it to the main company or a subcontract company.
+4. The relevant admin assigns a driver from that company.
+5. Driver accepts and executes the job in sequence.
+6. Admin follows the job and receives alerts.
+7. A customer can follow one job through an expiring share link.
+8. Driver completes the job and tracking stops.

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   AlertTriangle,
+  BarChart3,
   Bell,
+  Building2,
   CheckCircle2,
   CircleDot,
   Clock3,
@@ -17,18 +19,18 @@ import {
   Phone,
   Plus,
   QrCode,
-  Route,
   Settings,
+  ShieldAlert,
   Share2,
   Sun,
   TextCursorInput,
-  Truck
+  Truck,
+  UserRoundCog,
+  Users
 } from "lucide-react";
 import {
-  createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type User
@@ -46,13 +48,19 @@ import {
 import { auth } from "@/lib/firebase";
 import {
   createJob,
-  ensureDriverProfile,
+  createTrackingShareLink,
+  ensureAccessProfile,
   getUserProfile,
+  hasApprovedAccess,
+  isMainAdmin,
   seedSampleJobs,
   subscribeTodayJobs,
+  subscribeUserProfiles,
   updateJobStatus,
+  updateUserAccess,
   uploadProof,
   type JobDraft,
+  type UserAccessUpdate,
   type UserProfile
 } from "@/lib/transport-repository";
 
@@ -88,15 +96,14 @@ let googleMapsLoader: Promise<void> | null = null;
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [fontScale, setFontScale] = useState(1);
-  const [mode, setMode] = useState<"driver" | "admin">("driver");
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [jobs, setJobs] = useState<TransportJob[]>(sampleJobs);
-  const [selectedJobId, setSelectedJobId] = useState(sampleJobs[0]?.id ?? "");
-  const [firebaseMessage, setFirebaseMessage] = useState("ใช้ข้อมูลตัวอย่างจนกว่าจะล็อกอินและอ่าน Firestore ได้");
+  const [jobs, setJobs] = useState<TransportJob[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [firebaseMessage, setFirebaseMessage] = useState("กำลังโหลดข้อมูลจาก Firestore...");
   const [busyMessage, setBusyMessage] = useState("");
-  const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[1]);
+  const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[0]);
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[1]);
 
   useEffect(() => {
@@ -106,14 +113,14 @@ export default function Home() {
       setAuthReady(false);
 
       if (!nextUser) {
-        setJobs(sampleJobs);
-        setFirebaseMessage("ยังไม่ได้ล็อกอิน: แสดงข้อมูลตัวอย่าง");
+        setJobs([]);
+        setFirebaseMessage("ยังไม่ได้ล็อกอิน");
         setAuthReady(true);
         return;
       }
 
       try {
-        await ensureDriverProfile(nextUser.uid, nextUser.email ?? "", nextUser.displayName ?? "");
+        await ensureAccessProfile(nextUser.uid, nextUser.email ?? "", nextUser.displayName ?? "");
         const nextProfile = await getUserProfile(nextUser.uid);
         setProfile(nextProfile);
         setFirebaseMessage(nextProfile ? `ล็อกอินเป็น ${nextProfile.role}` : "ล็อกอินแล้ว แต่ยังไม่พบโปรไฟล์");
@@ -145,7 +152,7 @@ export default function Home() {
     [jobs, selectedJobId]
   );
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
-  const canWrite = Boolean(profile && ["owner", "admin", "dispatcher", "driver"].includes(profile.role));
+  const canWrite = Boolean(profile && hasApprovedAccess(profile));
 
   async function runAction(action: (actor: UserProfile) => Promise<void>) {
     if (!profile) {
@@ -164,12 +171,33 @@ export default function Home() {
     }
   }
 
+  async function shareSelectedJob() {
+    if (!profile || jobs.length === 0) return;
+    setBusyMessage("กำลังสร้างลิงก์ติดตาม...");
+    try {
+      const token = await createTrackingShareLink(selectedJob, profile);
+      const url = `${window.location.origin}/track/${token}`;
+      await navigator.clipboard.writeText(url);
+      setFirebaseMessage("สร้างลิงก์อายุ 7 วันและคัดลอกแล้ว");
+    } catch (error) {
+      setFirebaseMessage(toMessage(error));
+    } finally {
+      setBusyMessage("");
+    }
+  }
+
   if (!authReady || !user) {
     return <LoginScreen authReady={authReady} />;
   }
 
+  if (!profile || !hasApprovedAccess(profile)) {
+    return <PendingAccessScreen user={user} profile={profile} />;
+  }
+
+  const mode = profile.role === "driver" ? "driver" : "admin";
+
   return (
-    <main className="app-shell" data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
+    <main className={`app-shell ${mode === "driver" ? "driver-shell" : ""}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
@@ -191,21 +219,19 @@ export default function Home() {
 
         <UserBadge user={user} profile={profile} />
 
-        <div className="mode-switch" role="tablist" aria-label="เลือกโหมด">
-          <button className={mode === "driver" ? "selected" : ""} onClick={() => setMode("driver")}>
-            <Truck size={17} />
-            Driver
-          </button>
-          <button className={mode === "admin" ? "selected" : ""} onClick={() => setMode("admin")}>
-            <Gauge size={17} />
-            Admin
-          </button>
+        <div className="organization-badge">
+          {profile.organizationType === "subcontract" ? <Building2 size={17} /> : <Truck size={17} />}
+          <div>
+            <strong>{profile.organizationName || "S Fast Transport"}</strong>
+            <span>{profile.organizationType === "subcontract" ? "บริษัทขนส่งซับคอนแท็ค" : mode === "driver" ? "คนขับบริษัทหลัก" : "ผู้ดูแลบริษัทหลัก"}</span>
+          </div>
         </div>
 
         <StatusBar message={busyMessage || firebaseMessage} />
 
         <SectionMenu
           mode={mode}
+          profile={profile}
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
@@ -218,13 +244,14 @@ export default function Home() {
             jobs={activeJobs}
             selectedJob={selectedJob}
             selectedJobId={selectedJob.id}
-            canWrite={canWrite}
+            canWrite={canWrite && jobs.length > 0}
             onSelectJob={setSelectedJobId}
             onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
             onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
           />
         ) : (
           <AdminMobileScreen
+            profile={profile}
             screen={adminScreen}
             activeJobs={activeJobs}
             selectedJob={selectedJob}
@@ -238,22 +265,37 @@ export default function Home() {
 
       </section>
 
-      <aside className="desktop-panel">
-        <AdminView
-          activeJobs={activeJobs}
-          selectedJobId={selectedJob.id}
-          onSelectJob={setSelectedJobId}
-          onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
-          onSeed={() => runAction(seedSampleJobs)}
-          canWrite={canWrite}
-          compact={false}
-        />
-        <JobDetail
-          job={selectedJob}
-          canWrite={canWrite}
-          onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
-        />
-      </aside>
+      {mode === "admin" && (
+        <aside className="desktop-panel">
+          {adminScreen === "Jobs / ใบงาน" ? <>
+            <AdminView
+              activeJobs={activeJobs}
+              selectedJobId={selectedJob.id}
+              onSelectJob={setSelectedJobId}
+              onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
+              onSeed={() => runAction(seedSampleJobs)}
+              canWrite={canWrite}
+              compact={false}
+            />
+            {activeJobs.length > 0 && <JobDetail
+              job={selectedJob}
+              canWrite={canWrite}
+              onShare={shareSelectedJob}
+              onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+            />}
+          </> : adminScreen === "Live Tracking" ? (
+            activeJobs.length > 0
+              ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
+              : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
+          ) : adminScreen === "Dashboard" ? (
+            <AdminDashboard activeJobs={jobs} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
+          ) : adminScreen === "User Management" ? (
+            <AccessManagementScreen actor={profile} />
+          ) : (
+            <FeatureOverview screen={adminScreen} />
+          )}
+        </aside>
+      )}
     </main>
   );
 }
@@ -267,25 +309,35 @@ const driverMenuDetails = [
 
 const adminMenuDetails = [
   { label: adminMenu[0], description: "ภาพรวมวันนี้", icon: Gauge },
-  { label: adminMenu[1], description: "ติดตามรถแบบสด", icon: MapPin },
-  { label: adminMenu[2], description: "สร้างและจัดการงาน", icon: ListChecks },
-  { label: adminMenu[3], description: "ดูรถทั้งหมดบนแผนที่", icon: Route }
+  { label: adminMenu[1], description: "สร้างและจัดการงาน", icon: ListChecks },
+  { label: adminMenu[2], description: "ติดตามรถแบบสด", icon: MapPin },
+  { label: adminMenu[3], description: "ซับคอนแท็ค", icon: Building2, mainOnly: true },
+  { label: adminMenu[4], description: "รถและผู้ปฏิบัติงาน", icon: Users },
+  { label: adminMenu[5], description: "ลูกค้าและลิงก์ติดตาม", icon: Share2, mainOnly: true },
+  { label: adminMenu[6], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
+  { label: adminMenu[7], description: "เหตุผิดปกติ", icon: ShieldAlert },
+  { label: adminMenu[8], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
+  { label: adminMenu[9], description: "ข้อมูลบริษัท", icon: Settings }
 ] as const;
 
 function SectionMenu({
   mode,
+  profile,
   driverScreen,
   adminScreen,
   onDriverScreenChange,
   onAdminScreenChange
 }: {
   mode: "driver" | "admin";
+  profile: UserProfile;
   driverScreen: DriverScreen;
   adminScreen: AdminScreen;
   onDriverScreenChange: (screen: DriverScreen) => void;
   onAdminScreenChange: (screen: AdminScreen) => void;
 }) {
-  const items = mode === "driver" ? driverMenuDetails : adminMenuDetails;
+  const items = mode === "driver"
+    ? driverMenuDetails
+    : adminMenuDetails.filter((item) => !("mainOnly" in item && item.mainOnly) || isMainAdmin(profile));
   const activeScreen = mode === "driver" ? driverScreen : adminScreen;
 
   return (
@@ -344,6 +396,10 @@ function DriverMobileScreen({
   onAction: (status: JobStatus) => void;
   onUpload: (file: File) => void;
 }) {
+  if (jobs.length === 0) {
+    return <EmptyState title="ยังไม่มีงานที่ได้รับมอบหมาย" description="งานใหม่จะปรากฏที่นี่หลังจากผู้ดูแลมอบหมายให้คุณ" />;
+  }
+
   if (screen === "งานวันนี้") {
     return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
   }
@@ -360,6 +416,7 @@ function DriverMobileScreen({
 }
 
 function AdminMobileScreen({
+  profile,
   screen,
   activeJobs,
   selectedJob,
@@ -369,6 +426,7 @@ function AdminMobileScreen({
   onSeed,
   canWrite
 }: {
+  profile: UserProfile;
   screen: AdminScreen;
   activeJobs: TransportJob[];
   selectedJob: TransportJob;
@@ -395,29 +453,183 @@ function AdminMobileScreen({
     );
   }
 
-  return <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+  if (screen === "Live Tracking") {
+    return activeJobs.length > 0
+      ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
+      : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />;
+  }
+
+  if (screen === "User Management" && isMainAdmin(profile)) {
+    return <AccessManagementScreen actor={profile} />;
+  }
+
+  return <FeatureOverview screen={screen} />;
 }
 
-function LoginScreen({ authReady }: { authReady: boolean }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [message, setMessage] = useState("");
+type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId" | "organizationType" | "organizationName">;
 
-  async function submit(kind: "login" | "signup") {
-    setMessage("กำลังตรวจสอบ...");
+function AccessManagementScreen({ actor }: { actor: UserProfile }) {
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, AccessDraft>>({});
+  const [message, setMessage] = useState("กำลังโหลดรายชื่อผู้ใช้...");
+
+  useEffect(() => subscribeUserProfiles(
+    (nextUsers) => {
+      setUsers(nextUsers);
+      setMessage(nextUsers.length ? "เลือกบทบาทและบริษัทก่อนอนุมัติ" : "ยังไม่มีคำขอเข้าใช้งาน");
+    },
+    (error) => setMessage(error)
+  ), []);
+
+  function draftFor(user: UserProfile): AccessDraft {
+    return drafts[user.uid] ?? {
+      role: user.role,
+      organizationId: user.organizationId ?? "main",
+      organizationType: user.organizationType ?? "main",
+      organizationName: user.organizationName || "S Fast Transport"
+    };
+  }
+
+  function updateDraft(user: UserProfile, patch: Partial<AccessDraft>) {
+    setDrafts((current) => ({ ...current, [user.uid]: { ...draftFor(user), ...patch } }));
+  }
+
+  async function saveAccess(user: UserProfile, suspended = false) {
+    const draft = draftFor(user);
+    setMessage(`กำลังอัปเดต ${user.displayName}...`);
     try {
-      if (kind === "signup") {
-        const credential = await createUserWithEmailAndPassword(auth, email, password);
-        await ensureDriverProfile(credential.user.uid, credential.user.email ?? email, displayName || email);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-      setMessage("สำเร็จ");
+      await updateUserAccess(user.uid, {
+        ...draft,
+        active: !suspended,
+        approvalStatus: suspended ? "suspended" : "approved"
+      }, actor);
+      setMessage(suspended ? "ระงับบัญชีแล้ว" : "อนุมัติสิทธิ์แล้ว");
     } catch (error) {
       setMessage(toMessage(error));
     }
   }
+
+  return (
+    <section className="screen access-screen">
+      <div className="section-title">
+        <div><h1>ผู้ใช้งานและสิทธิ์</h1><p>อนุมัติ Google Login และกำหนดขอบเขตบริษัท</p></div>
+        <span className="live-dot">{users.filter((user) => user.approvalStatus === "pending").length} รออนุมัติ</span>
+      </div>
+      <div className="sync-bar access-message"><UserRoundCog size={16} /><span>{message}</span></div>
+      <div className="access-list">
+        {users.map((user) => {
+          const draft = draftFor(user);
+          return (
+            <article key={user.uid} className="access-row">
+              <div className="access-person">
+                <strong>{user.displayName}</strong><span>{user.email}</span>
+                <small className={`approval ${user.approvalStatus}`}>{user.approvalStatus}</small>
+              </div>
+              <select value={draft.role} onChange={(event) => updateDraft(user, { role: event.target.value as UserProfile["role"] })}>
+                <option value="driver">คนขับ</option>
+                <option value="subcontract_admin">แอดมินซับคอนแท็ค</option>
+                <option value="admin">แอดมินบริษัทหลัก</option>
+              </select>
+              <select
+                value={draft.organizationType ?? "main"}
+                onChange={(event) => {
+                  const organizationType = event.target.value as "main" | "subcontract";
+                  updateDraft(user, {
+                    organizationType,
+                    organizationId: organizationType === "main" ? "main" : draft.organizationId,
+                    organizationName: organizationType === "main" ? "S Fast Transport" : draft.organizationName
+                  });
+                }}
+              >
+                <option value="main">บริษัทหลัก</option>
+                <option value="subcontract">ซับคอนแท็ค</option>
+              </select>
+              <input value={draft.organizationId ?? ""} onChange={(event) => updateDraft(user, { organizationId: event.target.value })} placeholder="รหัสบริษัท" />
+              <input value={draft.organizationName} onChange={(event) => updateDraft(user, { organizationName: event.target.value })} placeholder="ชื่อบริษัท" />
+              <div className="access-actions">
+                <button onClick={() => saveAccess(user)}>อนุมัติ / บันทึก</button>
+                <button className="danger-button" onClick={() => saveAccess(user, true)}>ระงับ</button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+const featureDetails: Record<string, { title: string; description: string; items: string[] }> = {
+  "บริษัทขนส่ง": {
+    title: "บริษัทขนส่งซับคอนแท็ค",
+    description: "เพิ่มบริษัทคู่สัญญาและกำหนดขอบเขตข้อมูลของแต่ละบริษัท",
+    items: ["รายชื่อบริษัทซับคอนแท็ค", "ผู้ดูแลของแต่ละบริษัท", "รถและคนขับในสังกัด", "งานที่มอบหมายให้บริษัท"]
+  },
+  "รถและคนขับ": {
+    title: "รถและคนขับ",
+    description: "ข้อมูลทรัพยากรที่อยู่ในขอบเขตบริษัทของคุณ",
+    items: ["สถานะรถและ GPS", "ข้อมูลคนขับ", "เอกสารและวันหมดอายุ", "ประวัติการปฏิบัติงาน"]
+  },
+  "ลูกค้า": {
+    title: "ลูกค้าและลิงก์ติดตาม",
+    description: "จัดการลูกค้าและแชร์สถานะงานโดยไม่ต้องให้ลูกค้าล็อกอิน",
+    items: ["รายชื่อลูกค้า", "งานของลูกค้า", "สร้างลิงก์ติดตามเฉพาะงาน", "กำหนดวันหมดอายุของลิงก์"]
+  },
+  "Reports": {
+    title: "รายงาน",
+    description: "สรุปผลงานขนส่งตามบริษัท รถ คนขับ และลูกค้า",
+    items: ["อัตราส่งตรงเวลา", "งานสำเร็จและงานล่าช้า", "ประสิทธิภาพรถและคนขับ", "ส่งออก Excel หรือ PDF"]
+  },
+  "แจ้งเตือน": {
+    title: "ศูนย์แจ้งเตือน",
+    description: "รวมเหตุผิดปกติที่ต้องตรวจสอบและติดตามการแก้ไข",
+    items: ["รถออกนอกเส้นทาง", "GPS ขาดการเชื่อมต่อ", "งานล่าช้า", "สถานะการตรวจสอบเหตุการณ์"]
+  },
+  "User Management": {
+    title: "ผู้ใช้งานและสิทธิ์ Google",
+    description: "อนุมัติบัญชี Google และกำหนดบทบาทกับบริษัทก่อนเข้าใช้งาน",
+    items: ["คำขอที่รออนุมัติ", "แอดมินบริษัทหลัก", "แอดมินซับคอนแท็ค", "คนขับและบริษัทต้นสังกัด"]
+  },
+  "Settings": {
+    title: "จัดการบริษัท",
+    description: "ข้อมูลบริษัท รูปแบบงาน และค่าระบบที่ใช้ภายในขอบเขตของคุณ",
+    items: ["ข้อมูลและโลโก้บริษัท", "รูปแบบเลขที่งาน", "การแจ้งเตือน", "ข้อมูลติดต่อผู้ดูแล"]
+  }
+};
+
+function FeatureOverview({ screen }: { screen: AdminScreen }) {
+  const feature = featureDetails[screen] ?? featureDetails.Settings;
+
+  return (
+    <section className="screen feature-screen">
+      <div className="feature-hero">
+        <span className="eyebrow">WORKSPACE</span>
+        <h1>{feature.title}</h1>
+        <p>{feature.description}</p>
+      </div>
+      <div className="feature-list">
+        {feature.items.map((item, index) => (
+          <article key={item}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{item}</strong>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <section className="screen empty-state">
+      <div className="empty-state-icon"><ListChecks size={28} /></div>
+      <h1>{title}</h1>
+      <p>{description}</p>
+    </section>
+  );
+}
+
+function LoginScreen({ authReady }: { authReady: boolean }) {
+  const [message, setMessage] = useState("");
 
   async function signInWithGoogle() {
     setMessage("กำลังเปิด Google...");
@@ -425,7 +637,7 @@ function LoginScreen({ authReady }: { authReady: boolean }) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const credential = await signInWithPopup(auth, provider);
-      await ensureDriverProfile(
+      await ensureAccessProfile(
         credential.user.uid,
         credential.user.email ?? "",
         credential.user.displayName ?? credential.user.email ?? ""
@@ -449,44 +661,39 @@ function LoginScreen({ authReady }: { authReady: boolean }) {
         </div>
 
         <div className="login-copy">
-          <h1>เข้าสู่ระบบก่อนใช้งาน</h1>
-          <p>จัดการใบงาน ติดตามรถ อัปเดตสถานะ และแนบหลักฐานส่งของในที่เดียว</p>
+          <h1>เข้าสู่ระบบด้วย Google</h1>
+          <p>บัญชีและสิทธิ์ใช้งานควบคุมโดยผู้ดูแล S Fast Transport</p>
         </div>
 
-        <form className="login-form" onSubmit={(event) => event.preventDefault()}>
-          <input
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="อีเมล"
-            type="email"
-            autoComplete="email"
-          />
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="รหัสผ่าน"
-            type="password"
-            autoComplete="current-password"
-          />
-          <input
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="ชื่อสำหรับสมัคร driver"
-            autoComplete="name"
-          />
-          <div className="auth-actions">
-            <button className="login-primary" type="button" onClick={() => submit("login")}>เข้าสู่ระบบ</button>
-            <button className="login-secondary" type="button" onClick={() => submit("signup")}>สมัคร driver</button>
-          </div>
+        <div className="login-form">
           <button className="google-button" type="button" onClick={signInWithGoogle}>
             <GoogleLogo />
             เข้าสู่ระบบด้วย Google
           </button>
-        </form>
+        </div>
 
         <div className="login-footnote">
-          {!authReady ? "กำลังตรวจสอบ session..." : message || "บัญชีใหม่จะเริ่มต้นเป็น driver และสามารถเปลี่ยน role เป็น admin ได้ใน Firestore"}
+          {!authReady ? "กำลังตรวจสอบ session..." : message || "บัญชีใหม่ต้องรอแอดมินบริษัทหลักอนุมัติก่อนเข้าใช้งาน"}
         </div>
+      </section>
+    </main>
+  );
+}
+
+function PendingAccessScreen({ user, profile }: { user: User; profile: UserProfile | null }) {
+  const suspended = profile?.approvalStatus === "suspended";
+
+  return (
+    <main className="login-shell">
+      <section className="login-card pending-card">
+        <div className="pending-icon"><UserRoundCog size={30} /></div>
+        <div className="login-copy">
+          <span className="eyebrow">GOOGLE ACCESS CONTROL</span>
+          <h1>{suspended ? "บัญชีถูกระงับการใช้งาน" : "กำลังรออนุมัติสิทธิ์"}</h1>
+          <p>{user.email}</p>
+          <p>{suspended ? "กรุณาติดต่อแอดมินบริษัทหลักเพื่อเปิดใช้งานบัญชี" : "แอดมินบริษัทหลักจะกำหนดบริษัทและบทบาทให้บัญชีนี้"}</p>
+        </div>
+        <button className="login-secondary pending-signout" onClick={() => signOut(auth)}><LogOut size={17} /> ออกจากระบบ</button>
       </section>
     </main>
   );
@@ -1018,10 +1225,12 @@ function AdminView({
 function JobDetail({
   job,
   canWrite,
+  onShare,
   onUpload
 }: {
   job: TransportJob;
   canWrite: boolean;
+  onShare: () => void;
   onUpload: (file: File) => void;
 }) {
   return (
@@ -1032,7 +1241,7 @@ function JobDetail({
           <p>{job.customer}</p>
         </div>
         <div className="detail-actions">
-          <button><Share2 size={18} /> Share</button>
+          <button onClick={onShare}><Share2 size={18} /> Share</button>
           <button><QrCode size={18} /> QR</button>
           <button><Settings size={18} /></button>
         </div>

@@ -4,6 +4,15 @@
       "collectionGroup": "today_jobs",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "currentLocation.updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "today_jobs",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "assignedDriverUid", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "trackingEnabled", "order": "ASCENDING" }
@@ -31,6 +40,15 @@
       "fields": [
         { "fieldPath": "jobId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracking_share_links",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "jobId", "order": "ASCENDING" },
+        { "fieldPath": "enabled", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
       ]
     }
   ],

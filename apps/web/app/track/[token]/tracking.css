@@ -1,0 +1,52 @@
+.tracking-shell,
+.tracking-state {
+  --track-ink: #0a2030;
+  --track-muted: #667883;
+  --track-border: #dce7e4;
+  --track-accent: #0f8f8c;
+  min-height: 100vh;
+  color: var(--track-ink);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: linear-gradient(150deg, #f5faf8, #e9f3f2);
+}
+
+.tracking-shell { padding: clamp(18px, 4vw, 46px); }
+.tracking-header { max-width: 1100px; margin: 0 auto 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.tracking-brand { display: flex; align-items: center; gap: 12px; }
+.tracking-brand img { border-radius: 12px; background: white; border: 1px solid var(--track-border); padding: 4px; }
+.tracking-brand strong, .tracking-brand span { display: block; }
+.tracking-brand span { color: var(--track-muted); font-size: .8rem; }
+.tracking-live { display: flex; align-items: center; gap: 8px; color: var(--track-accent); font-size: .78rem; font-weight: 900; }
+.tracking-live > span { width: 9px; height: 9px; border-radius: 50%; background: var(--track-accent); box-shadow: 0 0 0 5px rgba(15,143,140,.12); }
+.tracking-hero { max-width: 1100px; margin: 0 auto 18px; padding: clamp(22px, 5vw, 46px); display: flex; justify-content: space-between; align-items: end; gap: 24px; border-radius: 24px; color: white; background: linear-gradient(125deg, #08283f, #0f8f8c); box-shadow: 0 24px 70px rgba(8,40,63,.2); }
+.tracking-kicker { color: #9af1e9; font-size: .72rem; font-weight: 900; letter-spacing: .11em; }
+.tracking-hero h1 { margin: 10px 0 8px; font-size: clamp(2rem, 5vw, 4rem); }
+.tracking-hero p { color: rgba(255,255,255,.72); }
+.tracking-eta { min-width: 180px; padding: 16px; border: 1px solid rgba(255,255,255,.22); border-radius: 14px; background: rgba(255,255,255,.1); backdrop-filter: blur(10px); }
+.tracking-eta span, .tracking-eta strong { display: block; }
+.tracking-eta span { margin: 8px 0 3px; font-size: .72rem; opacity: .72; }
+.tracking-eta strong { font-size: 1.5rem; }
+.tracking-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1.4fr .8fr; gap: 18px; }
+.tracking-route, .tracking-summary { border: 1px solid var(--track-border); border-radius: 18px; background: white; box-shadow: 0 16px 44px rgba(20,65,80,.08); }
+.tracking-route { padding: clamp(20px, 4vw, 32px); }
+.tracking-section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+.tracking-section-title svg { color: var(--track-accent); }
+.tracking-section-title strong, .tracking-section-title span { display: block; }
+.tracking-section-title span { color: var(--track-muted); font-size: .75rem; }
+.tracking-stop { display: flex; align-items: center; gap: 14px; }
+.tracking-stop > span { width: 15px; height: 15px; border: 4px solid var(--track-accent); border-radius: 50%; }
+.tracking-stop .destination { border-radius: 3px; background: var(--track-accent); }
+.tracking-stop small, .tracking-stop strong { display: block; }
+.tracking-stop small { color: var(--track-muted); margin-bottom: 3px; }
+.tracking-line { width: 2px; height: 46px; margin-left: 6px; background: repeating-linear-gradient(var(--track-accent) 0 6px, transparent 6px 11px); }
+.tracking-map-link { margin-top: 26px; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; color: white; background: var(--track-accent); font-weight: 900; }
+.tracking-summary { padding: 10px 22px; }
+.tracking-summary > div { display: grid; grid-template-columns: 28px 1fr; gap: 3px 10px; padding: 18px 0; border-bottom: 1px solid var(--track-border); }
+.tracking-summary > div:last-child { border: 0; }
+.tracking-summary svg { grid-row: 1 / 3; color: var(--track-accent); }
+.tracking-summary span { color: var(--track-muted); font-size: .73rem; }
+.tracking-footer { max-width: 1100px; margin: 22px auto 0; color: var(--track-muted); font-size: .78rem; text-align: center; }
+.tracking-state { display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; }
+.tracking-state svg { color: var(--track-accent); }
+.tracking-state p { color: var(--track-muted); }
+@media (max-width: 720px) { .tracking-hero { align-items: stretch; flex-direction: column; } .tracking-grid { grid-template-columns: 1fr; } .tracking-live { display: none; } }

@@ -6,134 +6,205 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function role() {
-      return signedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : null;
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function isAdmin() {
-      return role() in ["admin", "dispatcher", "owner"];
+    function activeUser() {
+      return signedIn()
+        && profile().data.active == true
+        && (
+          !profile().data.keys().hasAny(["approvalStatus"])
+          || profile().data.approvalStatus == "approved"
+        );
+    }
+
+    function role() {
+      return activeUser() ? profile().data.role : null;
+    }
+
+    function organizationId() {
+      return activeUser() ? profile().data.organizationId : null;
+    }
+
+    function isMainAdmin() {
+      return role() in ["owner", "admin", "dispatcher"];
+    }
+
+    function isSubcontractAdmin() {
+      return role() == "subcontract_admin";
     }
 
     function isDriver() {
       return role() == "driver";
     }
 
+    function sameOrganization(data) {
+      return activeUser()
+        && organizationId() != null
+        && data.organizationId == organizationId();
+    }
+
     function isAssignedDriver(jobId) {
-      return signedIn()
+      return isDriver()
         && get(/databases/$(database)/documents/today_jobs/$(jobId)).data.assignedDriverUid == request.auth.uid;
     }
 
+    function canReadJob(data) {
+      return isMainAdmin() || sameOrganization(data) || data.assignedDriverUid == request.auth.uid;
+    }
+
     match /users/{uid} {
-      allow read: if signedIn() && (uid == request.auth.uid || isAdmin());
+      allow read: if activeUser() && (
+        uid == request.auth.uid
+        || isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data))
+      );
+
       allow create: if signedIn()
         && uid == request.auth.uid
         && request.resource.data.role == "driver"
-        && request.resource.data.active == true;
-      allow update: if isAdmin()
+        && request.resource.data.active == false
+        && request.resource.data.approvalStatus == "pending"
+        && request.resource.data.organizationId == null
+        && request.resource.data.authProvider == "google.com";
+
+      allow update: if isMainAdmin()
         || (
-          signedIn()
+          activeUser()
           && uid == request.auth.uid
           && request.resource.data.role == resource.data.role
+          && request.resource.data.organizationId == resource.data.organizationId
+          && request.resource.data.approvalStatus == resource.data.approvalStatus
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "displayName",
-            "phone",
-            "fcmToken",
-            "updatedAt"
+            "displayName", "phone", "fcmToken", "updatedAt"
           ])
         );
-      allow delete: if isAdmin();
+      allow delete: if isMainAdmin();
+    }
+
+    match /organizations/{orgId} {
+      allow read: if isMainAdmin() || (activeUser() && orgId == organizationId());
+      allow write: if isMainAdmin();
     }
 
     match /today_jobs/{jobId} {
-      allow read: if isAdmin() || isAssignedDriver(jobId);
-      allow create: if isAdmin()
+      allow read: if activeUser() && canReadJob(resource.data);
+      allow create: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+      allow delete: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
+      allow update: if isMainAdmin()
         || (
-          isDriver()
-          && request.resource.data.assignedDriverUid == request.auth.uid
-        );
-      allow delete: if isAdmin();
-      allow update: if isAdmin()
+          isSubcontractAdmin()
+          && sameOrganization(resource.data)
+          && request.resource.data.organizationId == resource.data.organizationId
+        )
         || (
           isAssignedDriver(jobId)
           && request.resource.data.assignedDriverUid == resource.data.assignedDriverUid
+          && request.resource.data.organizationId == resource.data.organizationId
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "status",
-            "trackingEnabled",
-            "trackingStartedAt",
-            "trackingEndedAt",
-            "currentLocation",
-            "trackingStatus",
-            "updatedAt"
+            "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
+            "currentLocation", "trackingStatus", "updatedAt"
           ])
         );
     }
 
     match /jobs/{jobId} {
-      allow read: if isAdmin() || isAssignedDriver(jobId);
-      allow write: if isAdmin();
+      allow read: if activeUser() && canReadJob(resource.data);
+      allow write: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
 
     match /job_locations/{jobId}/points/{pointId} {
-      allow read: if isAdmin() || isAssignedDriver(jobId);
+      allow read: if isMainAdmin()
+        || isAssignedDriver(jobId)
+        || sameOrganization(get(/databases/$(database)/documents/today_jobs/$(jobId)).data);
       allow create: if isAssignedDriver(jobId)
         && request.resource.data.driverUid == request.auth.uid
         && request.resource.data.keys().hasOnly([
-          "driverUid",
-          "lat",
-          "lng",
-          "speed",
-          "heading",
-          "accuracy",
-          "batteryLevel",
-          "timestamp",
-          "source"
+          "driverUid", "lat", "lng", "speed", "heading", "accuracy",
+          "batteryLevel", "timestamp", "source"
         ]);
       allow update, delete: if false;
     }
 
     match /job_events/{eventId} {
-      allow read: if isAdmin() || isAssignedDriver(resource.data.jobId);
-      allow create: if isAdmin() || isAssignedDriver(request.resource.data.jobId);
-      allow update, delete: if isAdmin();
+      allow read: if activeUser()
+        && canReadJob(get(/databases/$(database)/documents/today_jobs/$(resource.data.jobId)).data);
+      allow create: if activeUser()
+        && canReadJob(get(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data);
+      allow update, delete: if isMainAdmin();
     }
 
     match /driver_live_status/{driverUid} {
-      allow read: if isAdmin() || driverUid == request.auth.uid;
-      allow write: if driverUid == request.auth.uid || isAdmin();
+      allow read: if isMainAdmin()
+        || driverUid == request.auth.uid
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
+      allow write: if driverUid == request.auth.uid
+        || isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
 
     match /proof_of_delivery/{podId} {
-      allow read: if isAdmin() || isAssignedDriver(resource.data.jobId);
-      allow create: if (isAdmin() || isAssignedDriver(request.resource.data.jobId))
-        && request.resource.data.uploadedByUid == request.auth.uid;
-      allow update: if isAdmin() || isAssignedDriver(request.resource.data.jobId);
-      allow delete: if isAdmin();
+      allow read: if activeUser()
+        && canReadJob(get(/databases/$(database)/documents/today_jobs/$(resource.data.jobId)).data);
+      allow create: if activeUser()
+        && request.resource.data.uploadedByUid == request.auth.uid
+        && canReadJob(get(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data);
+      allow update, delete: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
     }
 
     match /tracking_share_links/{linkId} {
       allow read: if resource.data.enabled == true && request.time < resource.data.expiresAt;
-      allow write: if isAdmin();
+      allow create: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+      allow update, delete: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data))
+        || (
+          isAssignedDriver(resource.data.jobId)
+          && request.resource.data.organizationId == resource.data.organizationId
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "statusLabel", "eta", "lastUpdatedAt", "currentLocation", "updatedAt"
+          ])
+        );
     }
 
     match /vehicles/{docId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+      allow read: if isMainAdmin() || sameOrganization(resource.data);
+      allow write: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
 
-    match /locations/{docId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+    match /drivers/{docId} {
+      allow read: if isMainAdmin() || sameOrganization(resource.data);
+      allow write: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
 
     match /customers/{docId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+      allow read: if isMainAdmin() || sameOrganization(resource.data);
+      allow write: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+    }
+
+    match /locations/{docId} {
+      allow read: if activeUser();
+      allow write: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
 
     match /notifications/{docId} {
-      allow read: if signedIn() && (resource.data.recipientUid == request.auth.uid || isAdmin());
-      allow create: if signedIn();
-      allow update, delete: if isAdmin();
+      allow read: if activeUser() && (
+        resource.data.recipientUid == request.auth.uid
+        || isMainAdmin()
+        || sameOrganization(resource.data)
+      );
+      allow create: if activeUser();
+      allow update, delete: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
     }
   }
 }
