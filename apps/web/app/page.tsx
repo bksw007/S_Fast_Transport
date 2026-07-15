@@ -229,18 +229,6 @@ export default function Home() {
           </div>
         </header>
 
-        <UserBadge user={user} profile={profile} />
-
-        <div className="organization-badge">
-          {profile.organizationType === "subcontract" ? <Building2 size={17} /> : <Truck size={17} />}
-          <div>
-            <strong>{profile.organizationName || "S Fast Transport"}</strong>
-            <span>{profile.organizationType === "subcontract" ? "บริษัทขนส่งซับคอนแท็ค" : mode === "driver" ? "คนขับบริษัทหลัก" : "ผู้ดูแลบริษัทหลัก"}</span>
-          </div>
-        </div>
-
-        <StatusBar message={busyMessage || firebaseMessage} />
-
         {mobileMenuOpen && (
           <button className="mobile-menu-backdrop" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />
         )}
@@ -248,7 +236,9 @@ export default function Home() {
         <SectionMenu
           open={mobileMenuOpen}
           mode={mode}
+          user={user}
           profile={profile}
+          statusMessage={busyMessage || firebaseMessage}
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
@@ -341,7 +331,9 @@ const adminMenuDetails = [
 function SectionMenu({
   open,
   mode,
+  user,
   profile,
+  statusMessage,
   driverScreen,
   adminScreen,
   onDriverScreenChange,
@@ -350,7 +342,9 @@ function SectionMenu({
 }: {
   open: boolean;
   mode: "driver" | "admin";
+  user: User;
   profile: UserProfile;
+  statusMessage: string;
   driverScreen: DriverScreen;
   adminScreen: AdminScreen;
   onDriverScreenChange: (screen: DriverScreen) => void;
@@ -364,6 +358,40 @@ function SectionMenu({
 
   return (
     <nav id="primary-navigation" className={`section-menu ${open ? "mobile-open" : ""}`} aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
+      <div className="menu-account-stack">
+        <section className="menu-context-card">
+          <span className="menu-order">01</span>
+          <span className="menu-account-icon">
+            {profile.organizationType === "subcontract" ? <Building2 size={18} /> : <Truck size={18} />}
+          </span>
+          <div>
+            <small>{profile.organizationName || "S Fast Transport"}</small>
+            <strong>{profile.organizationType === "subcontract" ? "ผู้ดูแลบริษัทซับคอนแท็ค" : mode === "driver" ? "คนขับบริษัทหลัก" : "ผู้ดูแลบริษัทหลัก"}</strong>
+          </div>
+        </section>
+
+        <section className="menu-profile-card">
+          <span className="menu-order">02</span>
+          <span
+            className="menu-avatar"
+            style={user.photoURL ? { backgroundImage: `url(${user.photoURL})` } : undefined}
+            aria-hidden="true"
+          >
+            {!user.photoURL && (profile.displayName || user.email || "U").slice(0, 1).toUpperCase()}
+          </span>
+          <div className="menu-profile-copy">
+            <strong>{profile.displayName || user.displayName || user.email}</strong>
+            <span>{user.email}</span>
+            <small title={profile.uid}>ID: {profile.uid}</small>
+          </div>
+        </section>
+
+        <section className="menu-session-card">
+          <div><Bell size={15} /><span>{statusMessage}</span></div>
+          <button onClick={() => signOut(auth)}><LogOut size={16} /> ออกจากระบบ</button>
+        </section>
+      </div>
+
       <div className="section-menu-heading">
         <span>เมนูหลัก</span>
         <small>{mode === "driver" ? "สำหรับคนขับ" : "สำหรับผู้ดูแล"}</small>
@@ -742,29 +770,6 @@ function GoogleLogo() {
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06L5.84 9.9C6.71 7.3 9.14 5.38 12 5.38z"
       />
     </svg>
-  );
-}
-
-function UserBadge({ user, profile }: { user: User; profile: UserProfile | null }) {
-  return (
-    <section className="auth-card signed-in">
-      <div>
-        <strong>{profile?.displayName || user.displayName || user.email}</strong>
-        <span>{profile?.role || "กำลังโหลด role"}</span>
-      </div>
-      <button onClick={() => signOut(auth)} aria-label="ออกจากระบบ">
-        <LogOut size={17} />
-      </button>
-    </section>
-  );
-}
-
-function StatusBar({ message }: { message: string }) {
-  return (
-    <div className="sync-bar">
-      <Bell size={16} />
-      <span>{message}</span>
-    </div>
   );
 }
 

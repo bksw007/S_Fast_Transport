@@ -295,37 +295,6 @@ a {
   align-items: center;
 }
 
-.organization-badge {
-  margin: 0 18px 12px;
-  padding: 11px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-}
-
-.organization-badge > svg {
-  color: var(--accent);
-  flex: 0 0 auto;
-}
-
-.organization-badge strong,
-.organization-badge span {
-  display: block;
-}
-
-.organization-badge strong {
-  font-size: 0.84rem;
-}
-
-.organization-badge span {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 0.7rem;
-}
-
 .topbar {
   justify-content: space-between;
   padding: 18px 18px 12px;
@@ -405,33 +374,6 @@ a {
   display: none;
 }
 
-.auth-card {
-  margin: 0 18px 12px;
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
-}
-
-.auth-card.signed-in {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
-
-.auth-card strong,
-.auth-card span {
-  display: block;
-}
-
-.auth-card span,
-.auth-card p {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.auth-card button,
 .job-form button {
   min-height: 38px;
   border-radius: 8px;
@@ -483,6 +425,144 @@ a {
   background: var(--surface-2);
   max-height: 310px;
   overflow-y: auto;
+}
+
+.menu-account-stack {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.menu-context-card,
+.menu-profile-card {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px 11px 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.menu-order {
+  position: absolute;
+  top: 9px;
+  left: 10px;
+  color: var(--accent);
+  font-size: .6rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.menu-account-icon,
+.menu-avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-2));
+}
+
+.menu-avatar {
+  color: #ffffff;
+  background-color: var(--accent);
+  background-position: center;
+  background-size: cover;
+  font-weight: 900;
+}
+
+.menu-context-card strong,
+.menu-context-card small,
+.menu-profile-copy strong,
+.menu-profile-copy span,
+.menu-profile-copy small {
+  display: block;
+}
+
+.menu-context-card small,
+.menu-profile-copy span,
+.menu-profile-copy small {
+  color: var(--muted);
+}
+
+.menu-context-card small {
+  margin-bottom: 2px;
+  font-size: .66rem;
+}
+
+.menu-context-card strong,
+.menu-profile-copy strong {
+  overflow: hidden;
+  font-size: .78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-profile-copy {
+  min-width: 0;
+}
+
+.menu-profile-copy span {
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: .68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-profile-copy small {
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: .6rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-session-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: 9px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.menu-session-card > div,
+.menu-session-card button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.menu-session-card > div {
+  min-width: 0;
+  font-size: .66rem;
+  font-weight: 800;
+}
+
+.menu-session-card > div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-session-card button {
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: .66rem;
+  font-weight: 900;
 }
 
 .section-menu-heading {
