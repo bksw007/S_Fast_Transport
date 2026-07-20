@@ -1888,6 +1888,33 @@ h2 {
 
 .document-upload-card > label input { display: none; }
 
+.file-preview {
+  width: 100%;
+  height: 180px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  object-fit: contain;
+  background:
+    linear-gradient(45deg, var(--surface-2) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--surface-2) 25%, transparent 25%),
+    var(--surface);
+  background-size: 16px 16px;
+}
+
+.file-preview.compact {
+  grid-column: 1 / -1;
+  height: 120px;
+}
+
+.file-preview.pdf {
+  align-content: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
 .profile-save-bar {
   position: sticky;
   bottom: 8px;

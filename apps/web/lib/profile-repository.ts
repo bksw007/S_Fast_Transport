@@ -3,6 +3,7 @@ import { getBlob, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
 
 export const nameTitles = ["นาย", "นาง", "นางสาว"] as const;
+export const driverLicenseTypes = ["บ.1", "บ.2", "ท.1", "ท.2", "ท.3", "ท.4"] as const;
 export type NameTitle = (typeof nameTitles)[number];
 export type PersonalDocumentKind = "id-card-front" | "driver-license-front";
 
@@ -30,6 +31,13 @@ const documentTypes = new Set([...imageTypes, "application/pdf"]);
 
 function cleanText(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+export function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
 function safeObjectName(file: File) {
@@ -76,6 +84,11 @@ export async function updateOwnProfile(uid: string, draft: PersonalProfileDraft,
   if (!firstName || firstName.length > 50) throw new Error("กรุณากรอกชื่อจริงไม่เกิน 50 ตัวอักษร");
   if (!lastName || lastName.length > 50) throw new Error("กรุณากรอกนามสกุลจริงไม่เกิน 50 ตัวอักษร");
   const fullName = `${title}${firstName} ${lastName}`;
+  const phone = formatPhoneNumber(draft.phone);
+  if (phone && !/^\d{3}-\d{3}-\d{4}$/.test(phone)) throw new Error("กรุณากรอกเบอร์ติดต่อให้ครบ 10 หลัก");
+  if (draft.licenseType && !driverLicenseTypes.includes(draft.licenseType as (typeof driverLicenseTypes)[number])) {
+    throw new Error("กรุณาเลือกประเภทใบขับขี่จากรายการ");
+  }
 
   await updateDoc(doc(db, "users", uid), {
     title,
@@ -83,7 +96,7 @@ export async function updateOwnProfile(uid: string, draft: PersonalProfileDraft,
     lastName,
     fullName,
     displayName: fullName,
-    phone: cleanText(draft.phone).slice(0, 30),
+    phone,
     licenseNumber: cleanText(draft.licenseNumber).slice(0, 50),
     licenseType: cleanText(draft.licenseType).slice(0, 30),
     licenseExpiry: draft.licenseExpiry,

@@ -73,6 +73,19 @@ service cloud.firestore {
         || data.photoURL.matches('https://(lh3[.]googleusercontent[.]com|firebasestorage[.]googleapis[.]com)/.*');
     }
 
+    function validPersonalProfile(data) {
+      return (
+          !data.keys().hasAny(["phone"])
+          || data.phone == ""
+          || data.phone.matches('[0-9]{3}-[0-9]{3}-[0-9]{4}')
+        )
+        && (
+          !data.keys().hasAny(["licenseType"])
+          || data.licenseType == ""
+          || data.licenseType in ["บ.1", "บ.2", "ท.1", "ท.2", "ท.3", "ท.4"]
+        );
+    }
+
     match /users/{uid} {
       allow read: if (signedIn() && uid == request.auth.uid)
         || (
@@ -132,6 +145,7 @@ service cloud.firestore {
           && request.resource.data.organizationId == resource.data.organizationId
           && request.resource.data.approvalStatus == resource.data.approvalStatus
           && validProfilePhoto(request.resource.data)
+          && validPersonalProfile(request.resource.data)
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
             "title", "firstName", "lastName", "fullName", "displayName", "phone",
             "photoURL", "googlePhotoURL", "profilePhotoPath",

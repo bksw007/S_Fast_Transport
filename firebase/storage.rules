@@ -46,15 +46,14 @@ service firebase.storage {
     }
 
     function canReadUserFile(uid) {
-      return activeUser() && (
-        request.auth.uid == uid
-        || isMainAdmin()
+      return (signedIn() && request.auth.uid == uid)
+        || (activeUser() && (
+          isMainAdmin()
         || (
           isSubcontractAdmin()
           && profile().data.organizationId != null
           && userProfile(uid).data.organizationId == profile().data.organizationId
-        )
-      );
+        )));
     }
 
     match /proof_of_delivery/{jobId}/{uid}/{fileName} {
@@ -70,7 +69,7 @@ service firebase.storage {
 
     match /user_profiles/{uid}/profile/{fileName} {
       allow read: if canReadUserFile(uid);
-      allow create, update: if activeUser()
+      allow create, update: if signedIn()
         && request.auth.uid == uid
         && request.resource.size > 0
         && request.resource.size <= 5 * 1024 * 1024
@@ -80,7 +79,7 @@ service firebase.storage {
 
     match /user_documents/{uid}/{documentKind}/{fileName} {
       allow read: if canReadUserFile(uid);
-      allow create, update: if activeUser()
+      allow create, update: if signedIn()
         && request.auth.uid == uid
         && documentKind in ["id-card-front", "driver-license-front"]
         && request.resource.size > 0

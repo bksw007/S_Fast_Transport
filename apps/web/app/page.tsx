@@ -62,6 +62,8 @@ import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/compone
 import { subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
 import {
   downloadPrivateDocument,
+  driverLicenseTypes,
+  formatPhoneNumber,
   nameTitles,
   updateOwnProfile,
   uploadPersonalDocument,
@@ -1031,7 +1033,7 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
     title: (nameTitles.includes(profile.title as NameTitle) ? profile.title : "") as NameTitle | "",
     firstName: profile.firstName,
     lastName: profile.lastName,
-    phone: profile.phone,
+    phone: formatPhoneNumber(profile.phone),
     licenseNumber: profile.licenseNumber,
     licenseType: profile.licenseType,
     licenseExpiry: profile.licenseExpiry
@@ -1047,24 +1049,30 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
     if (saving) return;
     setSaving(true);
     setMessage("กำลังบันทึกโปรไฟล์และอัปโหลดเอกสาร...");
+    let generalProfileSaved = false;
     try {
+      await updateOwnProfile(profile.uid, draft);
+      generalProfileSaved = true;
+      await onProfileUpdated();
       const [photo, idCard, driverLicense] = await Promise.all([
         photoFile ? uploadProfilePhoto(profile.uid, photoFile) : null,
         idCardFile ? uploadPersonalDocument(profile.uid, "id-card-front", idCardFile) : null,
         licenseFile ? uploadPersonalDocument(profile.uid, "driver-license-front", licenseFile) : null
       ]);
-      await updateOwnProfile(profile.uid, draft, {
-        ...(photo ? { photoURL: photo.photoURL, profilePhotoPath: photo.storagePath } : {}),
-        ...(idCard ? { idCardFrontPath: idCard.storagePath, idCardFrontFileName: idCard.fileName } : {}),
-        ...(driverLicense ? { driverLicenseFrontPath: driverLicense.storagePath, driverLicenseFrontFileName: driverLicense.fileName } : {})
-      });
-      await onProfileUpdated();
+      if (photo || idCard || driverLicense) {
+        await updateOwnProfile(profile.uid, draft, {
+          ...(photo ? { photoURL: photo.photoURL, profilePhotoPath: photo.storagePath } : {}),
+          ...(idCard ? { idCardFrontPath: idCard.storagePath, idCardFrontFileName: idCard.fileName } : {}),
+          ...(driverLicense ? { driverLicenseFrontPath: driverLicense.storagePath, driverLicenseFrontFileName: driverLicense.fileName } : {})
+        });
+        await onProfileUpdated();
+      }
       setPhotoFile(null);
       setIdCardFile(null);
       setLicenseFile(null);
       setMessage("บันทึกโปรไฟล์เรียบร้อย ข้อมูลเชื่อมกับหน้ารถและคนขับแล้ว");
     } catch (error) {
-      setMessage(toMessage(error));
+      setMessage(generalProfileSaved ? `บันทึกข้อมูลทั่วไปแล้ว แต่แนบไฟล์ไม่สำเร็จ: ${toMessage(error)}` : toMessage(error));
     } finally {
       setSaving(false);
     }
@@ -1090,12 +1098,12 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
       <form className="profile-form" onSubmit={saveProfile}>
         <section className="profile-panel">
           <header><Camera size={20} /><div><h2>รูปและชื่อจริง</h2><p>หากไม่อัปโหลดรูป ระบบจะใช้รูปจากบัญชี Google หรือรูปเริ่มต้น</p></div></header>
-          <label className="profile-upload-row"><span><Upload size={17} /> รูปโปรไฟล์</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)} /><small>{photoFile?.name || (profile.profilePhotoPath ? "ใช้รูปที่อัปโหลดเอง" : profile.photoURL ? "ใช้รูปจาก Google" : "ยังไม่มีรูป")}</small></label>
+          <label className="profile-upload-row"><span><Upload size={17} /> รูปโปรไฟล์</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)} /><small>{photoFile?.name || (profile.profilePhotoPath ? "ใช้รูปที่อัปโหลดเอง" : profile.photoURL ? "ใช้รูปจาก Google" : "ยังไม่มีรูป")}</small>{photoFile && <FilePreview key={`${photoFile.name}-${photoFile.lastModified}`} file={photoFile} alt="ตัวอย่างรูปโปรไฟล์" compact />}</label>
           <div className="profile-field-grid name-fields">
             <label><span>คำนำหน้าชื่อ *</span><select required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value as NameTitle })}><option value="">เลือก</option>{nameTitles.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label><span>ชื่อจริง *</span><input required maxLength={50} autoComplete="given-name" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></label>
             <label><span>นามสกุลจริง *</span><input required maxLength={50} autoComplete="family-name" value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></label>
-            <label><span>เบอร์ติดต่อ</span><input type="tel" maxLength={30} autoComplete="tel" value={draft.phone} placeholder="080-000-0000" onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></label>
+            <label><span>เบอร์ติดต่อ</span><input type="tel" inputMode="numeric" maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" autoComplete="tel" value={draft.phone} placeholder="080-000-0000" onChange={(event) => setDraft({ ...draft, phone: formatPhoneNumber(event.target.value) })} /></label>
           </div>
         </section>
 
@@ -1103,7 +1111,7 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
           <header><FileImage size={20} /><div><h2>ข้อมูลและเอกสารส่วนตัว</h2><p>รองรับ JPG, PNG, WEBP หรือ PDF ขนาดไม่เกิน 5 MB</p></div></header>
           <div className="profile-field-grid">
             <label><span>เลขที่ใบขับขี่</span><input maxLength={50} value={draft.licenseNumber} onChange={(event) => setDraft({ ...draft, licenseNumber: event.target.value })} /></label>
-            <label><span>ประเภทใบขับขี่</span><input maxLength={30} placeholder="ท.2 / ท.3 / ท.4" value={draft.licenseType} onChange={(event) => setDraft({ ...draft, licenseType: event.target.value })} /></label>
+            <label><span>ประเภทใบขับขี่</span><select value={draft.licenseType} onChange={(event) => setDraft({ ...draft, licenseType: event.target.value })}><option value="">เลือกประเภทใบขับขี่</option>{driverLicenseTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label><span>ใบขับขี่หมดอายุ</span><input type="date" value={draft.licenseExpiry} onChange={(event) => setDraft({ ...draft, licenseExpiry: event.target.value })} /></label>
           </div>
           <div className="personal-document-grid">
@@ -1122,10 +1130,29 @@ function DocumentUpload({ label, currentName, selectedFile, onChange, onDownload
   return (
     <article className="document-upload-card">
       <div><FileImage size={20} /><span><strong>{label}</strong><small>{selectedFile?.name || currentName || "ยังไม่ได้แนบเอกสาร"}</small></span></div>
+      {selectedFile && <FilePreview key={`${selectedFile.name}-${selectedFile.lastModified}`} file={selectedFile} alt={`ตัวอย่าง${label}`} />}
       <label><Upload size={15} /> {currentName ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => onChange(event.target.files?.[0] ?? null)} /></label>
       {onDownload && <button type="button" onClick={onDownload}><Download size={15} /> ดาวน์โหลดไฟล์เดิม</button>}
     </article>
   );
+}
+
+function FilePreview({ file, alt, compact = false }: { file: File; alt: string; compact?: boolean }) {
+  const [previewURL, setPreviewURL] = useState("");
+
+  useEffect(() => {
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => setPreviewURL(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
+    return () => reader.abort();
+  }, [file]);
+
+  if (!previewURL) {
+    return <div className={`file-preview pdf ${compact ? "compact" : ""}`}><FileImage size={24} /><span>ไฟล์ PDF พร้อมอัปโหลด</span></div>;
+  }
+
+  return <Image className={`file-preview ${compact ? "compact" : ""}`} src={previewURL} alt={alt} width={900} height={600} unoptimized />;
 }
 
 function GoogleLogo() {
