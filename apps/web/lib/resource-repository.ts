@@ -53,6 +53,7 @@ export type DriverStatus = "available" | "assigned" | "leave" | "inactive";
 export type TransportDriver = {
   id: string;
   organizationId: string;
+  userUid: string;
   name: string;
   phone: string;
   email: string;
@@ -314,6 +315,7 @@ function toDriver(id: string, data: DocumentData): TransportDriver {
   return {
     id,
     organizationId: data.organizationId ?? "",
+    userUid: data.userUid ?? "",
     name: data.name ?? "",
     phone: data.phone ?? "",
     email: data.email ?? "",
@@ -347,6 +349,7 @@ function driverPayload(organizationId: string, draft: DriverDraft) {
   if (!licenseNumber) throw new Error("กรุณากรอกเลขที่ใบขับขี่");
   return {
     organizationId,
+    userUid: draft.userUid,
     name,
     phone: cleanText(draft.phone),
     email: cleanText(draft.email),
@@ -378,7 +381,9 @@ export async function updateDriver(driver: TransportDriver, draft: DriverDraft, 
   assertOrganizationAccess(actor, driver.organizationId);
   const payload = driverPayload(driver.organizationId, draft);
   const currentRef = doc(db, "drivers", driver.id);
-  const nextRef = doc(db, "drivers", resourceDocumentId(driver.organizationId, payload.licenseNumber));
+  const nextRef = driver.userUid
+    ? currentRef
+    : doc(db, "drivers", resourceDocumentId(driver.organizationId, payload.licenseNumber));
   if (currentRef.path === nextRef.path) {
     const batch = writeBatch(db);
     batch.update(currentRef, { ...payload, updatedByUid: actor.uid, updatedAt: serverTimestamp() });

@@ -7,6 +7,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -30,6 +31,19 @@ export type UserProfile = {
   email: string;
   displayName: string;
   photoURL: string;
+  profilePhotoPath: string;
+  title: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  phone: string;
+  licenseNumber: string;
+  licenseType: string;
+  licenseExpiry: string;
+  idCardFrontPath: string;
+  idCardFrontFileName: string;
+  driverLicenseFrontPath: string;
+  driverLicenseFrontFileName: string;
   role: UserRole;
   active: boolean;
   organizationId: string | null;
@@ -134,6 +148,19 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     email: data.email ?? "",
     displayName: data.displayName ?? data.email ?? "ผู้ใช้งาน",
     photoURL: data.photoURL ?? "",
+    profilePhotoPath: data.profilePhotoPath ?? "",
+    title: data.title ?? "",
+    firstName: data.firstName ?? "",
+    lastName: data.lastName ?? "",
+    fullName: data.fullName ?? data.accessRequestName ?? "",
+    phone: data.phone ?? "",
+    licenseNumber: data.licenseNumber ?? "",
+    licenseType: data.licenseType ?? "",
+    licenseExpiry: data.licenseExpiry ?? "",
+    idCardFrontPath: data.idCardFrontPath ?? "",
+    idCardFrontFileName: data.idCardFrontFileName ?? "",
+    driverLicenseFrontPath: data.driverLicenseFrontPath ?? "",
+    driverLicenseFrontFileName: data.driverLicenseFrontFileName ?? "",
     role: data.role ?? "driver",
     active: data.active ?? true,
     organizationId: data.organizationId ?? null,
@@ -157,6 +184,20 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
       email,
       displayName: googleDisplayName,
       photoURL,
+      googlePhotoURL: photoURL,
+      profilePhotoPath: "",
+      title: "",
+      firstName: "",
+      lastName: "",
+      fullName: "",
+      phone: "",
+      licenseNumber: "",
+      licenseType: "",
+      licenseExpiry: "",
+      idCardFrontPath: "",
+      idCardFrontFileName: "",
+      driverLicenseFrontPath: "",
+      driverLicenseFrontFileName: "",
       role: "driver",
       active: false,
       approvalStatus: "pending",
@@ -175,11 +216,13 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
 
   const current = existing.data();
   const authProfile: Record<string, unknown> = {};
-  if (googleDisplayName && current.displayName !== googleDisplayName) {
+  const canSyncGoogleProfile = current.approvalStatus !== "pending" || !current.accessRequestSubmittedAt;
+  if (canSyncGoogleProfile && !current.fullName && googleDisplayName && current.displayName !== googleDisplayName) {
     authProfile.displayName = googleDisplayName;
   }
-  if (photoURL && current.photoURL !== photoURL) {
+  if (canSyncGoogleProfile && !current.profilePhotoPath && photoURL && current.photoURL !== photoURL) {
     authProfile.photoURL = photoURL;
+    authProfile.googlePhotoURL = photoURL;
   }
   if (Object.keys(authProfile).length > 0) {
     await updateDoc(profileRef, {
@@ -191,20 +234,38 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
 
 export async function submitAccessRequest(
   uid: string,
-  accessRequestName: string,
+  title: string,
+  firstName: string,
+  lastName: string,
   accessRequestMessage: string
 ) {
-  const cleanName = accessRequestName.trim().replace(/\s+/g, " ");
+  const cleanTitle = title.trim();
+  const cleanFirstName = firstName.trim().replace(/\s+/g, " ");
+  const cleanLastName = lastName.trim().replace(/\s+/g, " ");
+  if (!["นาย", "นาง", "นางสาว"].includes(cleanTitle)) throw new Error("กรุณาเลือกคำนำหน้าชื่อ");
+  if (!cleanFirstName || cleanFirstName.length > 50) throw new Error("กรุณากรอกชื่อจริงไม่เกิน 50 ตัวอักษร");
+  if (!cleanLastName || cleanLastName.length > 50) throw new Error("กรุณากรอกนามสกุลจริงไม่เกิน 50 ตัวอักษร");
+  const cleanName = `${cleanTitle}${cleanFirstName} ${cleanLastName}`;
   const cleanMessage = accessRequestMessage.trim().replace(/\s+/g, " ");
-  if (cleanName.length < 2) throw new Error("กรุณากรอกชื่อ–สกุล");
-  if (cleanName.length > 100) throw new Error("ชื่อ–สกุลต้องไม่เกิน 100 ตัวอักษร");
+  if (!cleanMessage) throw new Error("กรุณาระบุบริษัทต้นสังกัดในข้อความถึงแอดมิน");
   if (cleanMessage.length > 500) throw new Error("ข้อความต้องไม่เกิน 500 ตัวอักษร");
 
-  await updateDoc(doc(db, "users", uid), {
-    accessRequestName: cleanName,
-    accessRequestMessage: cleanMessage,
-    accessRequestSubmittedAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+  await runTransaction(db, async (transaction) => {
+    const profileRef = doc(db, "users", uid);
+    const snapshot = await transaction.get(profileRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบโปรไฟล์ผู้ใช้งาน");
+    if (snapshot.data().accessRequestSubmittedAt) throw new Error("ส่งข้อมูลให้แอดมินแล้ว กรุณารอการอนุมัติ");
+    transaction.update(profileRef, {
+      title: cleanTitle,
+      firstName: cleanFirstName,
+      lastName: cleanLastName,
+      fullName: cleanName,
+      displayName: cleanName,
+      accessRequestName: cleanName,
+      accessRequestMessage: cleanMessage,
+      accessRequestSubmittedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
   });
 }
 
@@ -517,6 +578,19 @@ export function subscribeUserProfiles(
           email: data.email ?? "",
           displayName: data.displayName ?? data.email ?? "ผู้ใช้งาน",
           photoURL: data.photoURL ?? "",
+          profilePhotoPath: data.profilePhotoPath ?? "",
+          title: data.title ?? "",
+          firstName: data.firstName ?? "",
+          lastName: data.lastName ?? "",
+          fullName: data.fullName ?? data.accessRequestName ?? "",
+          phone: data.phone ?? "",
+          licenseNumber: data.licenseNumber ?? "",
+          licenseType: data.licenseType ?? "",
+          licenseExpiry: data.licenseExpiry ?? "",
+          idCardFrontPath: data.idCardFrontPath ?? "",
+          idCardFrontFileName: data.idCardFrontFileName ?? "",
+          driverLicenseFrontPath: data.driverLicenseFrontPath ?? "",
+          driverLicenseFrontFileName: data.driverLicenseFrontFileName ?? "",
           role: data.role ?? "driver",
           active: data.active ?? true,
           organizationId: data.organizationId ?? null,
@@ -530,6 +604,52 @@ export function subscribeUserProfiles(
         } as UserProfile;
       });
       onUsers(users.sort((a, b) => a.displayName.localeCompare(b.displayName, "th")));
+    },
+    (error) => onError(error.message)
+  );
+}
+
+export function subscribeOrganizationUserProfiles(
+  organizationId: string,
+  onUsers: (users: UserProfile[]) => void,
+  onError: (message: string) => void
+): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, "users"), where("organizationId", "==", organizationId)),
+    (snapshot) => {
+      const users = snapshot.docs.map((userDoc) => {
+        const data = userDoc.data();
+        return {
+          uid: userDoc.id,
+          email: data.email ?? "",
+          displayName: data.displayName ?? data.email ?? "ผู้ใช้งาน",
+          photoURL: data.photoURL ?? "",
+          profilePhotoPath: data.profilePhotoPath ?? "",
+          title: data.title ?? "",
+          firstName: data.firstName ?? "",
+          lastName: data.lastName ?? "",
+          fullName: data.fullName ?? data.accessRequestName ?? "",
+          phone: data.phone ?? "",
+          licenseNumber: data.licenseNumber ?? "",
+          licenseType: data.licenseType ?? "",
+          licenseExpiry: data.licenseExpiry ?? "",
+          idCardFrontPath: data.idCardFrontPath ?? "",
+          idCardFrontFileName: data.idCardFrontFileName ?? "",
+          driverLicenseFrontPath: data.driverLicenseFrontPath ?? "",
+          driverLicenseFrontFileName: data.driverLicenseFrontFileName ?? "",
+          role: data.role ?? "driver",
+          active: data.active ?? true,
+          organizationId: data.organizationId ?? null,
+          organizationType: data.organizationType ?? null,
+          organizationName: data.organizationName ?? "",
+          organizationLogoUrl: data.organizationLogoUrl ?? "",
+          approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved"),
+          accessRequestName: data.accessRequestName ?? "",
+          accessRequestMessage: data.accessRequestMessage ?? "",
+          accessRequestSubmittedAt: timestampToIso(data.accessRequestSubmittedAt)
+        } as UserProfile;
+      });
+      onUsers(users.filter((user) => user.active).sort((a, b) => (a.fullName || a.displayName).localeCompare(b.fullName || b.displayName, "th")));
     },
     (error) => onError(error.message)
   );
@@ -555,12 +675,50 @@ export async function updateUserAccess(
     throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่จัดการสิทธิ์ได้");
   }
 
-  await updateDoc(doc(db, "users", uid), {
+  const userRef = doc(db, "users", uid);
+  const userSnapshot = await getDoc(userRef);
+  if (!userSnapshot.exists()) throw new Error("ไม่พบบัญชีผู้ใช้งาน");
+  const userData = userSnapshot.data();
+  const batch = writeBatch(db);
+  batch.update(userRef, {
     ...access,
     approvedByUid: actor.uid,
     approvedAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   } as UpdateData<DocumentData>);
+
+  if (access.role === "driver" && access.active && access.approvalStatus === "approved" && access.organizationId) {
+    const linkedDrivers = await getDocs(query(collection(db, "drivers"), where("userUid", "==", uid)));
+    const driverRef = linkedDrivers.docs[0]?.ref ?? doc(db, "drivers", `user--${uid}`);
+    const isNewDriver = linkedDrivers.empty;
+    const driverName = userData.fullName || userData.accessRequestName || userData.displayName || userData.email || "ผู้ใช้งาน";
+    batch.set(driverRef, {
+      organizationId: access.organizationId,
+      userUid: uid,
+      name: driverName,
+      phone: userData.phone ?? "",
+      email: userData.email ?? "",
+      licenseNumber: userData.licenseNumber ?? "",
+      licenseType: userData.licenseType ?? "",
+      licenseExpiry: userData.licenseExpiry ?? "",
+      ...(isNewDriver ? { assignedVehicleId: "", status: "available", createdByUid: actor.uid, createdAt: serverTimestamp() } : {}),
+      updatedByUid: actor.uid,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    const normalizedName = driverName.trim().replace(/\s+/g, " ").toLocaleLowerCase("th-TH");
+    batch.set(doc(db, "organizations", access.organizationId, "list_options", `driver--${encodeURIComponent(normalizedName)}`), {
+      organizationId: access.organizationId,
+      field: "driver",
+      value: driverName,
+      normalizedValue: normalizedName,
+      createdByUid: actor.uid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  await batch.commit();
 }
 
 function timestampToIso(value: unknown) {

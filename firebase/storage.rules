@@ -41,6 +41,22 @@ service firebase.storage {
       return activeUser() && job(jobId).data.assignedDriverUid == request.auth.uid;
     }
 
+    function userProfile(uid) {
+      return firestore.get(/databases/(default)/documents/users/$(uid));
+    }
+
+    function canReadUserFile(uid) {
+      return activeUser() && (
+        request.auth.uid == uid
+        || isMainAdmin()
+        || (
+          isSubcontractAdmin()
+          && profile().data.organizationId != null
+          && userProfile(uid).data.organizationId == profile().data.organizationId
+        )
+      );
+    }
+
     match /proof_of_delivery/{jobId}/{uid}/{fileName} {
       allow read: if isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId);
       allow write: if activeUser()
@@ -49,6 +65,28 @@ service firebase.storage {
         && (isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId))
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches("image/.*|application/pdf");
+    }
+
+
+    match /user_profiles/{uid}/profile/{fileName} {
+      allow read: if canReadUserFile(uid);
+      allow create, update: if activeUser()
+        && request.auth.uid == uid
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches("image/jpeg|image/png|image/webp");
+      allow delete: if activeUser() && request.auth.uid == uid;
+    }
+
+    match /user_documents/{uid}/{documentKind}/{fileName} {
+      allow read: if canReadUserFile(uid);
+      allow create, update: if activeUser()
+        && request.auth.uid == uid
+        && documentKind in ["id-card-front", "driver-license-front"]
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches("image/jpeg|image/png|image/webp|application/pdf");
+      allow delete: if activeUser() && request.auth.uid == uid;
     }
   }
 }

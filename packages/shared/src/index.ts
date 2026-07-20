@@ -94,6 +94,7 @@ export const adminMenu = [
   "Reports",
   "แจ้งเตือน",
   "User Management",
+  "โปรไฟล์",
   "Settings"
 ] as const;
 

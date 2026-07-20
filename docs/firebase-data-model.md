@@ -11,6 +11,11 @@ Every tenant-owned operational document uses `organizationId`. The main company 
 - `email`
 - `displayName`
 - `photoURL`: รูปโปรไฟล์จากบัญชี Google
+- `profilePhotoPath`: รูปที่ผู้ใช้อัปโหลดแทนรูป Google
+- `title`, `firstName`, `lastName`, `fullName`: ชื่อจริงสำหรับมอบหมายงาน
+- `phone`, `licenseNumber`, `licenseType`, `licenseExpiry`
+- `idCardFrontPath`, `idCardFrontFileName`: บัตรประชาชนด้านหน้า (private Storage)
+- `driverLicenseFrontPath`, `driverLicenseFrontFileName`: ใบขับขี่ด้านหน้า (private Storage)
 - `role`: `owner | admin | dispatcher | subcontract_admin | driver`
 - `active`
 - `approvalStatus`: `pending | approved | suspended`
@@ -24,6 +29,7 @@ Every tenant-owned operational document uses `organizationId`. The main company 
 - `approvedAt`
 
 New users may create only their own pending/inactive Google profile. Main admins perform approval and assignment.
+คำขอเข้าใช้งานส่งได้ครั้งเดียว โดยบันทึกชื่อจริงและบริษัทต้นสังกัดก่อนรออนุมัติ
 
 ### organizations/{organizationId}
 
@@ -37,6 +43,12 @@ New users may create only their own pending/inactive Google profile. Main admins
 - `active`
 - `createdAt`
 - `updatedAt`
+
+### drivers/{driverId}
+
+- `userUid`: อ้างอิง `users/{uid}` สำหรับบัญชีคนขับที่เข้าสู่ระบบ
+- ข้อมูลชื่อ รูป เบอร์ และเอกสารจะแสดงจากโปรไฟล์ที่เชื่อมไว้แบบ real-time
+- คนขับที่ไม่มีบัญชีระบบยังคงเก็บ `name`, `phone`, `email` ในเอกสารนี้ได้ตามเดิม
 
 ### organizations/{organizationId}/list_options/{field--normalizedValue}
 

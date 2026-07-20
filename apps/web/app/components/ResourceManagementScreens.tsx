@@ -36,7 +36,8 @@ import {
   type TransportVehicle,
   type VehicleDraft
 } from "@/lib/resource-repository";
-import type { UserProfile } from "@/lib/transport-repository";
+import { subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
+import { downloadPrivateDocument } from "@/lib/profile-repository";
 
 const emptyOrganizationDraft: OrganizationDraft = {
   code: "",
@@ -61,6 +62,7 @@ const emptyVehicleDraft: VehicleDraft = {
 };
 
 const emptyDriverDraft: DriverDraft = {
+  userUid: "",
   name: "",
   phone: "",
   email: "",
@@ -240,6 +242,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
   const [organizationId, setOrganizationId] = useState(mainAdmin ? "main" : actor.organizationId ?? "");
   const [vehicles, setVehicles] = useState<TransportVehicle[]>([]);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [tab, setTab] = useState<"vehicles" | "drivers">("vehicles");
   const [vehicleDraft, setVehicleDraft] = useState<VehicleDraft>(emptyVehicleDraft);
   const [driverDraft, setDriverDraft] = useState<DriverDraft>(emptyDriverDraft);
@@ -266,7 +269,12 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
       (items) => { setDrivers(items); setMessage("ข้อมูลรถและคนขับอัปเดตแบบ real-time"); },
       (error) => setMessage(`โหลดข้อมูลคนขับไม่สำเร็จ: ${error}`)
     );
-    return () => { unsubscribeVehicles(); unsubscribeDrivers(); };
+    const unsubscribeProfiles = subscribeOrganizationUserProfiles(
+      organizationId,
+      setUserProfiles,
+      (error) => setMessage(`โหลดบัญชีผู้ใช้ไม่สำเร็จ: ${error}`)
+    );
+    return () => { unsubscribeVehicles(); unsubscribeDrivers(); unsubscribeProfiles(); };
   }, [organizationId]);
 
   const organizationName = organizationId === "main"
@@ -332,6 +340,32 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
     setEditingDriver(item);
     setDriverDraft({ ...item });
     setShowForm(true);
+  }
+
+  function linkDriverProfile(userUid: string) {
+    const linkedProfile = userProfiles.find((item) => item.uid === userUid);
+    setDriverDraft({
+      ...driverDraft,
+      userUid,
+      ...(linkedProfile ? {
+        name: linkedProfile.fullName || linkedProfile.displayName,
+        phone: linkedProfile.phone,
+        email: linkedProfile.email,
+        licenseNumber: linkedProfile.licenseNumber,
+        licenseType: linkedProfile.licenseType,
+        licenseExpiry: linkedProfile.licenseExpiry
+      } : {})
+    });
+  }
+
+  async function downloadDriverDocument(path: string, fileName: string) {
+    try {
+      setMessage("กำลังเปิดเอกสารส่วนตัว...");
+      await downloadPrivateDocument(path, fileName);
+      setMessage("ดาวน์โหลดเอกสารแล้ว");
+    } catch (error) {
+      setMessage(toMessage(error));
+    }
   }
 
   async function toggleVehicle(item: TransportVehicle) {
@@ -401,10 +435,11 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
         <form className="resource-form" onSubmit={saveDriver}>
           <header><div><small>{editingDriver ? "EDIT DRIVER" : "NEW DRIVER"}</small><h2>{editingDriver ? "แก้ไขข้อมูลคนขับ" : "เพิ่มคนขับ"}</h2></div><UserRound size={24} /></header>
           <div className="resource-form-grid">
+            <ResourceField label="เชื่อมบัญชีผู้ใช้งาน" wide><select value={driverDraft.userUid} onChange={(event) => linkDriverProfile(event.target.value)}><option value="">ไม่เชื่อมบัญชี</option>{userProfiles.filter((item) => item.role === "driver").map((item) => <option key={item.uid} value={item.uid}>{item.fullName || item.displayName} · {item.email}</option>)}</select></ResourceField>
             <ResourceField label="ชื่อ–นามสกุล *"><input required value={driverDraft.name} placeholder="ชื่อคนขับ" onChange={(event) => setDriverDraft({ ...driverDraft, name: event.target.value })} /></ResourceField>
             <ResourceField label="เบอร์ติดต่อ *"><input type="tel" required value={driverDraft.phone} placeholder="080-000-0000" onChange={(event) => setDriverDraft({ ...driverDraft, phone: event.target.value })} /></ResourceField>
             <ResourceField label="อีเมล"><input type="email" value={driverDraft.email} placeholder="driver@company.com" onChange={(event) => setDriverDraft({ ...driverDraft, email: event.target.value })} /></ResourceField>
-            <ResourceField label="เลขที่ใบขับขี่ *"><input required disabled={Boolean(editingDriver)} value={driverDraft.licenseNumber} onChange={(event) => setDriverDraft({ ...driverDraft, licenseNumber: event.target.value })} /></ResourceField>
+            <ResourceField label="เลขที่ใบขับขี่ *"><input required disabled={Boolean(editingDriver?.licenseNumber)} value={driverDraft.licenseNumber} onChange={(event) => setDriverDraft({ ...driverDraft, licenseNumber: event.target.value })} /></ResourceField>
             <ResourceField label="ประเภทใบขับขี่"><input value={driverDraft.licenseType} placeholder="ท.2 / ท.3 / ท.4" onChange={(event) => setDriverDraft({ ...driverDraft, licenseType: event.target.value })} /></ResourceField>
             <ResourceField label="ใบขับขี่หมดอายุ"><input type="date" value={driverDraft.licenseExpiry} onChange={(event) => setDriverDraft({ ...driverDraft, licenseExpiry: event.target.value })} /></ResourceField>
             <ResourceField label="รถที่มอบหมาย"><select value={driverDraft.assignedVehicleId} onChange={(event) => setDriverDraft({ ...driverDraft, assignedVehicleId: event.target.value })}><option value="">ยังไม่มอบหมายรถ</option>{vehicles.map((item) => <option key={item.id} value={item.id} disabled={item.status === "inactive" && item.id !== driverDraft.assignedVehicleId}>{item.plate} · {item.vehicleType}{item.status === "inactive" ? " · ระงับ" : ""}</option>)}</select></ResourceField>
@@ -417,7 +452,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
       {tab === "vehicles" ? (
         <div className="fleet-card-grid">{!vehicles.length && <div className="resource-empty"><Truck size={25} /><strong>ยังไม่มีรถในบริษัทนี้</strong><span>กด “เพิ่มรถ” เพื่อสร้างรายการแรก</span></div>}{vehicles.map((item) => <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className="fleet-icon"><Truck size={21} /></span><div><small>{item.vehicleType || "ไม่ระบุประเภท"}</small><h2>{item.plate}</h2></div><span className={`resource-status ${item.status}`}>{vehicleStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt>ยี่ห้อ / รุ่น</dt><dd>{[item.brand, item.model].filter(Boolean).join(" ") || "—"}</dd></div><div><dt>บรรทุก</dt><dd>{item.capacityKg ? `${item.capacityKg.toLocaleString()} กก.` : "—"}</dd></div><div><dt>GPS</dt><dd>{item.gpsDeviceId || "ยังไม่ผูก"}</dd></div><div className={expiryClass(item.registrationExpiry)}><dt>ทะเบียนหมดอายุ</dt><dd>{item.registrationExpiry || "—"}</dd></div><div className={expiryClass(item.insuranceExpiry)}><dt>ประกันหมดอายุ</dt><dd>{item.insuranceExpiry || "—"}</dd></div></dl><footer><button onClick={() => editVehicle(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleVehicle(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>)}</div>
       ) : (
-        <div className="fleet-card-grid">{!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}{drivers.map((item) => { const vehicle = vehicles.find((entry) => entry.id === item.assignedVehicleId); return <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className="fleet-icon driver"><UserRound size={21} /></span><div><small>{item.licenseType || "พนักงานขับรถ"}</small><h2>{item.name}</h2></div><span className={`resource-status ${item.status}`}>{driverStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{item.phone}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{item.email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{item.licenseNumber}</dd></div><div className={expiryClass(item.licenseExpiry)}><dt>หมดอายุ</dt><dd>{item.licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl><footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>; })}</div>
+        <div className="fleet-card-grid">{!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}{drivers.map((item) => { const vehicle = vehicles.find((entry) => entry.id === item.assignedVehicleId); const linked = userProfiles.find((entry) => entry.uid === item.userUid); const name = linked?.fullName || item.name; const phone = linked?.phone || item.phone; const email = linked?.email || item.email; const licenseNumber = linked?.licenseNumber || item.licenseNumber; const licenseExpiry = linked?.licenseExpiry || item.licenseExpiry; return <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className={`fleet-icon driver ${linked?.photoURL ? "has-photo" : ""}`} style={linked?.photoURL ? { backgroundImage: `url(${linked.photoURL})` } : undefined}>{!linked?.photoURL && <UserRound size={21} />}</span><div><small>{linked ? "เชื่อมกับบัญชีผู้ใช้" : item.licenseType || "พนักงานขับรถ"}</small><h2>{name}</h2></div><span className={`resource-status ${item.status}`}>{driverStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>{linked && <div className="linked-driver-documents"><span>เอกสารจากโปรไฟล์</span>{linked.idCardFrontPath ? <button onClick={() => void downloadDriverDocument(linked.idCardFrontPath, linked.idCardFrontFileName)}>บัตรประชาชน</button> : <small>ยังไม่มีบัตรประชาชน</small>}{linked.driverLicenseFrontPath ? <button onClick={() => void downloadDriverDocument(linked.driverLicenseFrontPath, linked.driverLicenseFrontFileName)}>ใบขับขี่</button> : <small>ยังไม่มีรูปใบขับขี่</small>}</div>}<footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>; })}</div>
       )}
     </section>
   );

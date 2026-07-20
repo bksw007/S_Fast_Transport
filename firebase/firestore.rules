@@ -67,6 +67,12 @@ service cloud.firestore {
       return isMainAdmin() || sameOrganization(data) || data.assignedDriverUid == request.auth.uid;
     }
 
+    function validProfilePhoto(data) {
+      return !data.keys().hasAny(["photoURL"])
+        || data.photoURL == ""
+        || data.photoURL.matches('https://(lh3[.]googleusercontent[.]com|firebasestorage[.]googleapis[.]com)/.*');
+    }
+
     match /users/{uid} {
       allow read: if (signedIn() && uid == request.auth.uid)
         || (
@@ -82,7 +88,8 @@ service cloud.firestore {
         && request.resource.data.active == false
         && request.resource.data.approvalStatus == "pending"
         && request.resource.data.organizationId == null
-        && request.resource.data.authProvider == "google.com";
+        && request.resource.data.authProvider == "google.com"
+        && validProfilePhoto(request.resource.data);
 
       allow update: if isMainAdmin()
         || (
@@ -90,9 +97,32 @@ service cloud.firestore {
           && uid == request.auth.uid
           && resource.data.active == false
           && resource.data.approvalStatus == "pending"
+          && !resource.data.keys().hasAny(["accessRequestSubmittedAt"])
+          && validProfilePhoto(request.resource.data)
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "displayName", "photoURL", "accessRequestName", "accessRequestMessage",
-            "accessRequestSubmittedAt", "updatedAt"
+            "displayName", "photoURL", "googlePhotoURL", "updatedAt"
+          ])
+        )
+        || (
+          signedIn()
+          && uid == request.auth.uid
+          && resource.data.active == false
+          && resource.data.approvalStatus == "pending"
+          && !resource.data.keys().hasAny(["accessRequestSubmittedAt"])
+          && request.resource.data.accessRequestSubmittedAt == request.time
+          && request.resource.data.title in ["นาย", "นาง", "นางสาว"]
+          && request.resource.data.firstName is string
+          && request.resource.data.firstName.size() > 0
+          && request.resource.data.firstName.size() <= 50
+          && request.resource.data.lastName is string
+          && request.resource.data.lastName.size() > 0
+          && request.resource.data.lastName.size() <= 50
+          && request.resource.data.accessRequestMessage is string
+          && request.resource.data.accessRequestMessage.size() > 0
+          && request.resource.data.accessRequestMessage.size() <= 500
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "title", "firstName", "lastName", "fullName", "displayName",
+            "accessRequestName", "accessRequestMessage", "accessRequestSubmittedAt", "updatedAt"
           ])
         )
         || (
@@ -101,8 +131,14 @@ service cloud.firestore {
           && request.resource.data.role == resource.data.role
           && request.resource.data.organizationId == resource.data.organizationId
           && request.resource.data.approvalStatus == resource.data.approvalStatus
+          && validProfilePhoto(request.resource.data)
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "displayName", "photoURL", "phone", "fcmToken", "updatedAt"
+            "title", "firstName", "lastName", "fullName", "displayName", "phone",
+            "photoURL", "googlePhotoURL", "profilePhotoPath",
+            "licenseNumber", "licenseType", "licenseExpiry",
+            "idCardFrontPath", "idCardFrontFileName",
+            "driverLicenseFrontPath", "driverLicenseFrontFileName",
+            "fcmToken", "updatedAt"
           ])
         );
       allow delete: if isMainAdmin();

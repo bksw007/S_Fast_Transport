@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  Camera,
   CheckCircle2,
   ChevronDown,
   CircleDot,
@@ -34,6 +35,8 @@ import {
   UserRound,
   UserRoundCog,
   Users,
+  Download,
+  Upload,
   X
 } from "lucide-react";
 import {
@@ -57,6 +60,15 @@ import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
 import { subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
+import {
+  downloadPrivateDocument,
+  nameTitles,
+  updateOwnProfile,
+  uploadPersonalDocument,
+  uploadProfilePhoto,
+  type NameTitle,
+  type PersonalProfileDraft
+} from "@/lib/profile-repository";
 import {
   createJob,
   createTrackingShareLink,
@@ -237,6 +249,12 @@ export default function Home() {
     }
   }
 
+  async function refreshCurrentProfile() {
+    if (!user) return;
+    const nextProfile = await getUserProfile(user.uid);
+    if (nextProfile) setProfile(nextProfile);
+  }
+
   async function shareSelectedJob() {
     if (!profile || jobs.length === 0) return;
     setBusyMessage("กำลังสร้างลิงก์ติดตาม...");
@@ -328,6 +346,7 @@ export default function Home() {
         <div className="mobile-primary-content">
           {mode === "driver" ? (
             <DriverMobileScreen
+              profile={profile}
               screen={driverScreen}
               jobs={activeJobs}
               selectedJob={selectedJob}
@@ -336,6 +355,7 @@ export default function Home() {
               onSelectJob={setSelectedJobId}
               onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
               onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+              onProfileUpdated={refreshCurrentProfile}
             />
           ) : (
             <AdminMobileScreen
@@ -347,6 +367,7 @@ export default function Home() {
               onSelectJob={setSelectedJobId}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               canWrite={canWrite}
+              onProfileUpdated={refreshCurrentProfile}
             />
           )}
         </div>
@@ -383,6 +404,8 @@ export default function Home() {
             <FleetAndDriversScreen actor={profile} />
           ) : adminScreen === "User Management" ? (
             <AccessManagementScreen actor={profile} />
+          ) : adminScreen === "โปรไฟล์" ? (
+            <ProfileScreen profile={profile} onProfileUpdated={refreshCurrentProfile} />
           ) : (
             <FeatureOverview screen={adminScreen} />
           )}
@@ -396,7 +419,9 @@ const driverMenuDetails = [
   { label: driverMenu[0], description: "รายการใบงาน", icon: ListChecks },
   { label: driverMenu[1], description: "สถานะงานปัจจุบัน", icon: Truck },
   { label: driverMenu[2], description: "ตำแหน่งและเส้นทาง", icon: MapPin },
-  { label: driverMenu[3], description: "รูปและเอกสาร POD", icon: FileImage }
+  { label: driverMenu[3], description: "รูปและเอกสาร POD", icon: FileImage },
+  { label: driverMenu[4], description: "งานที่ดำเนินการแล้ว", icon: Clock3 },
+  { label: driverMenu[5], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound }
 ] as const;
 
 const adminMenuDetails = [
@@ -409,7 +434,8 @@ const adminMenuDetails = [
   { label: adminMenu[6], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
   { label: adminMenu[7], description: "เหตุผิดปกติ", icon: ShieldAlert },
   { label: adminMenu[8], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
-  { label: adminMenu[9], description: "ข้อมูลบริษัท", icon: Settings }
+  { label: adminMenu[9], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
+  { label: adminMenu[10], description: "ข้อมูลบริษัท", icon: Settings }
 ] as const;
 
 function SectionMenu({
@@ -465,13 +491,13 @@ function SectionMenu({
         <section className="menu-profile-card">
           <span
             className="menu-avatar"
-            style={user.photoURL ? { backgroundImage: `url(${user.photoURL})` } : undefined}
+            style={profile.photoURL ? { backgroundImage: `url(${profile.photoURL})` } : undefined}
             aria-hidden="true"
           >
-            {!user.photoURL && (profile.displayName || user.email || "U").slice(0, 1).toUpperCase()}
+            {!profile.photoURL && <UserRound size={21} />}
           </span>
           <div className="menu-profile-copy">
-            <strong>{profile.displayName || user.displayName || user.email}</strong>
+            <strong>{profile.fullName || profile.displayName || user.displayName || user.email}</strong>
             <span>{user.email}</span>
           </div>
         </section>
@@ -520,6 +546,7 @@ function SectionMenu({
 }
 
 function DriverMobileScreen({
+  profile,
   screen,
   jobs,
   selectedJob,
@@ -527,8 +554,10 @@ function DriverMobileScreen({
   canWrite,
   onSelectJob,
   onAction,
-  onUpload
+  onUpload,
+  onProfileUpdated
 }: {
+  profile: UserProfile;
   screen: DriverScreen;
   jobs: TransportJob[];
   selectedJob: TransportJob;
@@ -537,7 +566,12 @@ function DriverMobileScreen({
   onSelectJob: (jobId: string) => void;
   onAction: (status: JobStatus) => void;
   onUpload: (file: File) => void;
+  onProfileUpdated: () => Promise<void>;
 }) {
+  if (screen === "โปรไฟล์") {
+    return <ProfileScreen profile={profile} onProfileUpdated={onProfileUpdated} />;
+  }
+
   if (jobs.length === 0) {
     return <EmptyState title="ยังไม่มีงานที่ได้รับมอบหมาย" description="งานใหม่จะปรากฏที่นี่หลังจากผู้ดูแลมอบหมายให้คุณ" />;
   }
@@ -554,6 +588,10 @@ function DriverMobileScreen({
     return <ProofScreen job={selectedJob} canWrite={canWrite} onUpload={onUpload} />;
   }
 
+  if (screen === "ประวัติงาน") {
+    return <EmptyState title="ยังไม่มีประวัติงาน" description="งานที่ปิดแล้วจะแสดงในส่วนนี้" />;
+  }
+
   return <DriverView job={selectedJob} canWrite={canWrite} onAction={onAction} />;
 }
 
@@ -565,7 +603,8 @@ function AdminMobileScreen({
   selectedJobId,
   onSelectJob,
   onCreateJob,
-  canWrite
+  canWrite,
+  onProfileUpdated
 }: {
   profile: UserProfile;
   screen: AdminScreen;
@@ -575,6 +614,7 @@ function AdminMobileScreen({
   onSelectJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => void;
   canWrite: boolean;
+  onProfileUpdated: () => Promise<void>;
 }) {
   if (screen === "Dashboard") {
     return <AdminDashboard activeJobs={activeJobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
@@ -609,6 +649,10 @@ function AdminMobileScreen({
 
   if (screen === "User Management" && isMainAdmin(profile)) {
     return <AccessManagementScreen actor={profile} />;
+  }
+
+  if (screen === "โปรไฟล์") {
+    return <ProfileScreen profile={profile} onProfileUpdated={onProfileUpdated} />;
   }
 
   return <FeatureOverview screen={screen} />;
@@ -687,9 +731,9 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
     updateDraft(user, { organizationId, role });
   }
 
-  const pendingCount = users.filter((user) => user.approvalStatus === "pending").length;
+  const pendingCount = users.filter((user) => user.approvalStatus === "pending" && user.accessRequestSubmittedAt).length;
   const shownUsers = [...users]
-    .filter((user) => filter === "all" || user.approvalStatus === "pending")
+    .filter((user) => filter === "all" || (user.approvalStatus === "pending" && user.accessRequestSubmittedAt))
     .sort((a, b) => {
       if (a.approvalStatus === "pending" && b.approvalStatus !== "pending") return -1;
       if (a.approvalStatus !== "pending" && b.approvalStatus === "pending") return 1;
@@ -724,17 +768,10 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
           return (
             <article key={user.uid} className={`access-card ${isPending ? "pending" : ""}`}>
               <header className="access-card-identity">
-                <span
-                  className={`access-avatar ${user.photoURL ? "has-photo" : ""}`}
-                  style={user.photoURL ? { backgroundImage: `url(${user.photoURL})` } : undefined}
-                  aria-label={user.photoURL ? `รูปโปรไฟล์ Google ของ ${user.displayName}` : undefined}
-                  aria-hidden={user.photoURL ? undefined : true}
-                >
-                  {!user.photoURL && (user.accessRequestName || user.displayName || user.email).slice(0, 1).toUpperCase()}
-                </span>
+                <ProfileAvatar profile={user} className="access-avatar" />
                 <div>
                   <small>{isPending ? "ผู้ขอใช้งาน" : "ผู้ใช้งาน"}</small>
-                  <h2>{user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ"}</h2>
+                  <h2>{user.fullName || user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ"}</h2>
                   <span>{user.email}</span>
                 </div>
                 <span className={`approval ${user.approvalStatus}`}>{user.approvalStatus === "pending" ? "รออนุมัติ" : user.approvalStatus === "approved" ? "ใช้งานอยู่" : "ระงับ"}</span>
@@ -911,11 +948,13 @@ function LoginScreen() {
 
 function PendingAccessScreen({ user, profile }: { user: User; profile: UserProfile | null }) {
   const suspended = profile?.approvalStatus === "suspended";
-  const [requestName, setRequestName] = useState(profile?.accessRequestName || user.displayName || "");
+  const [title, setTitle] = useState<NameTitle | "">((profile?.title as NameTitle) || "");
+  const [firstName, setFirstName] = useState(profile?.firstName || "");
+  const [lastName, setLastName] = useState(profile?.lastName || "");
   const [requestMessage, setRequestMessage] = useState(profile?.accessRequestMessage || "");
   const [submitted, setSubmitted] = useState(Boolean(profile?.accessRequestSubmittedAt));
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(submitted ? "ส่งข้อมูลให้แอดมินแล้ว คุณสามารถแก้ไขและส่งใหม่ได้" : "");
+  const [message, setMessage] = useState("");
 
   async function sendRequest(event: React.FormEvent) {
     event.preventDefault();
@@ -923,9 +962,9 @@ function PendingAccessScreen({ user, profile }: { user: User; profile: UserProfi
     setSaving(true);
     setMessage("กำลังส่งคำขอ...");
     try {
-      await submitAccessRequest(user.uid, requestName, requestMessage);
+      await submitAccessRequest(user.uid, title, firstName, lastName, requestMessage);
       setSubmitted(true);
-      setMessage("ส่งคำขอให้แอดมินแล้ว ระบบจะแจ้งเตือนแอดมินทันที");
+      setMessage("");
     } catch (error) {
       setMessage(toMessage(error));
     } finally {
@@ -937,7 +976,7 @@ function PendingAccessScreen({ user, profile }: { user: User; profile: UserProfi
     <main className="login-shell">
       <section className="login-card pending-card">
         <div className="pending-head">
-          <div className="pending-icon"><UserRoundCog size={30} /></div>
+          {profile ? <ProfileAvatar profile={profile} className="pending-profile-avatar" /> : <div className="pending-icon"><UserRoundCog size={30} /></div>}
           <div className="login-copy">
             <span className="eyebrow">ACCESS REQUEST</span>
             <h1>{suspended ? "บัญชีถูกระงับการใช้งาน" : submitted ? "ส่งคำขอแล้ว" : "แนะนำตัวกับแอดมิน"}</h1>
@@ -947,18 +986,145 @@ function PendingAccessScreen({ user, profile }: { user: User; profile: UserProfi
 
         {suspended ? (
           <div className="pending-notice danger">กรุณาติดต่อแอดมินบริษัทหลักเพื่อเปิดใช้งานบัญชีอีกครั้ง</div>
+        ) : submitted ? (
+          <div className="pending-submitted" role="status">
+            <span><CheckCircle2 size={24} /></span>
+            <div>
+              <strong>ส่งข้อมูลให้แอดมินแล้ว</strong>
+              <p>ระบบได้รับชื่อจริงและข้อมูลบริษัทต้นสังกัดของคุณแล้ว กรุณารอแอดมินตรวจสอบและอนุมัติสิทธิ์</p>
+            </div>
+          </div>
         ) : (
           <form className="access-request-form" onSubmit={sendRequest}>
-            <label><span>ชื่อ–สกุลของคุณ *</span><input required maxLength={100} value={requestName} placeholder="กรอกชื่อและนามสกุลจริง" onChange={(event) => setRequestName(event.target.value)} /></label>
-            <label><span>ข้อความถึงแอดมิน</span><textarea maxLength={500} rows={3} value={requestMessage} placeholder="เช่น คนขับของบริษัท ABC หรือเจ้าหน้าที่แผนกจัดส่ง" onChange={(event) => setRequestMessage(event.target.value)} /></label>
-            <button className="login-primary access-request-submit" disabled={saving}>{saving ? "กำลังส่ง..." : submitted ? "อัปเดตข้อมูลให้แอดมิน" : "ส่งคำขอให้แอดมิน"}</button>
-            {message && <div className={`pending-notice ${submitted ? "success" : ""}`} role="status">{message}</div>}
+            <div className="access-name-grid">
+              <label><span>คำนำหน้าชื่อ *</span><select required value={title} onChange={(event) => setTitle(event.target.value as NameTitle)}><option value="">เลือก</option>{nameTitles.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              <label><span>ชื่อจริง *</span><input required maxLength={50} value={firstName} placeholder="ชื่อจริง" autoComplete="given-name" onChange={(event) => setFirstName(event.target.value)} /></label>
+              <label><span>นามสกุลจริง *</span><input required maxLength={50} value={lastName} placeholder="นามสกุลจริง" autoComplete="family-name" onChange={(event) => setLastName(event.target.value)} /></label>
+            </div>
+            <label><span>ข้อความถึงแอดมิน *</span><textarea required maxLength={500} rows={3} value={requestMessage} placeholder="ระบุบริษัทต้นสังกัด เช่น บริษัท ABC Transport และหน้าที่ของคุณ" onChange={(event) => setRequestMessage(event.target.value)} /></label>
+            <button className="login-primary access-request-submit" disabled={saving}>{saving ? "กำลังส่ง..." : "ส่งข้อมูลให้แอดมิน"}</button>
+            {message && <div className="pending-notice" role="alert">{message}</div>}
           </form>
         )}
 
         <button className="login-secondary pending-signout" onClick={() => signOut(auth)}><LogOut size={17} /> ออกจากระบบ</button>
       </section>
     </main>
+  );
+}
+
+function ProfileAvatar({ profile, className }: { profile: UserProfile; className: string }) {
+  return (
+    <span
+      className={`${className} ${profile.photoURL ? "has-photo" : "is-default"}`}
+      style={profile.photoURL ? { backgroundImage: `url(${profile.photoURL})` } : undefined}
+      role="img"
+      aria-label={profile.photoURL ? `รูปโปรไฟล์ของ ${profile.fullName || profile.displayName}` : "รูปโปรไฟล์เริ่มต้น"}
+    >
+      {!profile.photoURL && <UserRound size={22} />}
+    </span>
+  );
+}
+
+function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; onProfileUpdated: () => Promise<void> }) {
+  const [draft, setDraft] = useState<PersonalProfileDraft>({
+    title: (nameTitles.includes(profile.title as NameTitle) ? profile.title : "") as NameTitle | "",
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    phone: profile.phone,
+    licenseNumber: profile.licenseNumber,
+    licenseType: profile.licenseType,
+    licenseExpiry: profile.licenseExpiry
+  });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [idCardFile, setIdCardFile] = useState<File | null>(null);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("ข้อมูลเอกสารส่วนตัวจะเห็นได้เฉพาะคุณและแอดมินที่มีสิทธิ์");
+
+  async function saveProfile(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setMessage("กำลังบันทึกโปรไฟล์และอัปโหลดเอกสาร...");
+    try {
+      const [photo, idCard, driverLicense] = await Promise.all([
+        photoFile ? uploadProfilePhoto(profile.uid, photoFile) : null,
+        idCardFile ? uploadPersonalDocument(profile.uid, "id-card-front", idCardFile) : null,
+        licenseFile ? uploadPersonalDocument(profile.uid, "driver-license-front", licenseFile) : null
+      ]);
+      await updateOwnProfile(profile.uid, draft, {
+        ...(photo ? { photoURL: photo.photoURL, profilePhotoPath: photo.storagePath } : {}),
+        ...(idCard ? { idCardFrontPath: idCard.storagePath, idCardFrontFileName: idCard.fileName } : {}),
+        ...(driverLicense ? { driverLicenseFrontPath: driverLicense.storagePath, driverLicenseFrontFileName: driverLicense.fileName } : {})
+      });
+      await onProfileUpdated();
+      setPhotoFile(null);
+      setIdCardFile(null);
+      setLicenseFile(null);
+      setMessage("บันทึกโปรไฟล์เรียบร้อย ข้อมูลเชื่อมกับหน้ารถและคนขับแล้ว");
+    } catch (error) {
+      setMessage(toMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function downloadDocument(path: string, fileName: string) {
+    try {
+      setMessage("กำลังเปิดเอกสารส่วนตัว...");
+      await downloadPrivateDocument(path, fileName);
+      setMessage("ดาวน์โหลดเอกสารแล้ว");
+    } catch (error) {
+      setMessage(toMessage(error));
+    }
+  }
+
+  return (
+    <section className="screen profile-screen">
+      <div className="profile-page-head">
+        <div><span className="eyebrow">PERSONAL PROFILE</span><h1>โปรไฟล์ของฉัน</h1><p>ข้อมูลนี้ใช้ระบุตัวตนและมอบหมายงานในระบบ</p></div>
+        <ProfileAvatar profile={profile} className="profile-hero-avatar" />
+      </div>
+
+      <form className="profile-form" onSubmit={saveProfile}>
+        <section className="profile-panel">
+          <header><Camera size={20} /><div><h2>รูปและชื่อจริง</h2><p>หากไม่อัปโหลดรูป ระบบจะใช้รูปจากบัญชี Google หรือรูปเริ่มต้น</p></div></header>
+          <label className="profile-upload-row"><span><Upload size={17} /> รูปโปรไฟล์</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)} /><small>{photoFile?.name || (profile.profilePhotoPath ? "ใช้รูปที่อัปโหลดเอง" : profile.photoURL ? "ใช้รูปจาก Google" : "ยังไม่มีรูป")}</small></label>
+          <div className="profile-field-grid name-fields">
+            <label><span>คำนำหน้าชื่อ *</span><select required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value as NameTitle })}><option value="">เลือก</option>{nameTitles.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label><span>ชื่อจริง *</span><input required maxLength={50} autoComplete="given-name" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></label>
+            <label><span>นามสกุลจริง *</span><input required maxLength={50} autoComplete="family-name" value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></label>
+            <label><span>เบอร์ติดต่อ</span><input type="tel" maxLength={30} autoComplete="tel" value={draft.phone} placeholder="080-000-0000" onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></label>
+          </div>
+        </section>
+
+        <section className="profile-panel">
+          <header><FileImage size={20} /><div><h2>ข้อมูลและเอกสารส่วนตัว</h2><p>รองรับ JPG, PNG, WEBP หรือ PDF ขนาดไม่เกิน 5 MB</p></div></header>
+          <div className="profile-field-grid">
+            <label><span>เลขที่ใบขับขี่</span><input maxLength={50} value={draft.licenseNumber} onChange={(event) => setDraft({ ...draft, licenseNumber: event.target.value })} /></label>
+            <label><span>ประเภทใบขับขี่</span><input maxLength={30} placeholder="ท.2 / ท.3 / ท.4" value={draft.licenseType} onChange={(event) => setDraft({ ...draft, licenseType: event.target.value })} /></label>
+            <label><span>ใบขับขี่หมดอายุ</span><input type="date" value={draft.licenseExpiry} onChange={(event) => setDraft({ ...draft, licenseExpiry: event.target.value })} /></label>
+          </div>
+          <div className="personal-document-grid">
+            <DocumentUpload label="บัตรประชาชน (ด้านหน้า)" currentName={profile.idCardFrontFileName} selectedFile={idCardFile} onChange={setIdCardFile} onDownload={profile.idCardFrontPath ? () => downloadDocument(profile.idCardFrontPath, profile.idCardFrontFileName) : undefined} />
+            <DocumentUpload label="ใบขับขี่ (ด้านหน้า)" currentName={profile.driverLicenseFrontFileName} selectedFile={licenseFile} onChange={setLicenseFile} onDownload={profile.driverLicenseFrontPath ? () => downloadDocument(profile.driverLicenseFrontPath, profile.driverLicenseFrontFileName) : undefined} />
+          </div>
+        </section>
+
+        <div className="profile-save-bar"><span role="status">{message}</span><button disabled={saving}><Save size={17} /> {saving ? "กำลังบันทึก..." : "บันทึกโปรไฟล์"}</button></div>
+      </form>
+    </section>
+  );
+}
+
+function DocumentUpload({ label, currentName, selectedFile, onChange, onDownload }: { label: string; currentName: string; selectedFile: File | null; onChange: (file: File | null) => void; onDownload?: () => void }) {
+  return (
+    <article className="document-upload-card">
+      <div><FileImage size={20} /><span><strong>{label}</strong><small>{selectedFile?.name || currentName || "ยังไม่ได้แนบเอกสาร"}</small></span></div>
+      <label><Upload size={15} /> {currentName ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => onChange(event.target.files?.[0] ?? null)} /></label>
+      {onDownload && <button type="button" onClick={onDownload}><Download size={15} /> ดาวน์โหลดไฟล์เดิม</button>}
+    </article>
   );
 }
 
