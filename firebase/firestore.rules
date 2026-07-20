@@ -91,7 +91,8 @@ service cloud.firestore {
           && resource.data.active == false
           && resource.data.approvalStatus == "pending"
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "accessRequestName", "accessRequestMessage", "accessRequestSubmittedAt", "updatedAt"
+            "displayName", "photoURL", "accessRequestName", "accessRequestMessage",
+            "accessRequestSubmittedAt", "updatedAt"
           ])
         )
         || (
@@ -101,7 +102,7 @@ service cloud.firestore {
           && request.resource.data.organizationId == resource.data.organizationId
           && request.resource.data.approvalStatus == resource.data.approvalStatus
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "displayName", "phone", "fcmToken", "updatedAt"
+            "displayName", "photoURL", "phone", "fcmToken", "updatedAt"
           ])
         );
       allow delete: if isMainAdmin();

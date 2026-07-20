@@ -164,7 +164,12 @@ export default function Home() {
         }
 
         try {
-          await ensureAccessProfile(nextUser.uid, nextUser.email ?? "", nextUser.displayName ?? "");
+          await ensureAccessProfile(
+            nextUser.uid,
+            nextUser.email ?? "",
+            nextUser.displayName ?? "",
+            nextUser.photoURL ?? ""
+          );
           const nextProfile = await getUserProfile(nextUser.uid);
           if (!active) return;
           setProfile(nextProfile);
@@ -719,7 +724,14 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
           return (
             <article key={user.uid} className={`access-card ${isPending ? "pending" : ""}`}>
               <header className="access-card-identity">
-                <span className="access-avatar">{(user.accessRequestName || user.displayName || user.email).slice(0, 1).toUpperCase()}</span>
+                <span
+                  className={`access-avatar ${user.photoURL ? "has-photo" : ""}`}
+                  style={user.photoURL ? { backgroundImage: `url(${user.photoURL})` } : undefined}
+                  aria-label={user.photoURL ? `รูปโปรไฟล์ Google ของ ${user.displayName}` : undefined}
+                  aria-hidden={user.photoURL ? undefined : true}
+                >
+                  {!user.photoURL && (user.accessRequestName || user.displayName || user.email).slice(0, 1).toUpperCase()}
+                </span>
                 <div>
                   <small>{isPending ? "ผู้ขอใช้งาน" : "ผู้ใช้งาน"}</small>
                   <h2>{user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ"}</h2>
@@ -854,7 +866,8 @@ function LoginScreen() {
       await ensureAccessProfile(
         credential.user.uid,
         credential.user.email ?? "",
-        credential.user.displayName ?? credential.user.email ?? ""
+        credential.user.displayName ?? credential.user.email ?? "",
+        credential.user.photoURL ?? ""
       );
       setMessage("สำเร็จ");
     } catch (error) {

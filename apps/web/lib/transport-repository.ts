@@ -29,6 +29,7 @@ export type UserProfile = {
   uid: string;
   email: string;
   displayName: string;
+  photoURL: string;
   role: UserRole;
   active: boolean;
   organizationId: string | null;
@@ -132,6 +133,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     uid,
     email: data.email ?? "",
     displayName: data.displayName ?? data.email ?? "ผู้ใช้งาน",
+    photoURL: data.photoURL ?? "",
     role: data.role ?? "driver",
     active: data.active ?? true,
     organizationId: data.organizationId ?? null,
@@ -145,14 +147,16 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   };
 }
 
-export async function ensureAccessProfile(uid: string, email: string, displayName: string) {
+export async function ensureAccessProfile(uid: string, email: string, displayName: string, photoURL: string) {
   const profileRef = doc(db, "users", uid);
   const existing = await getDoc(profileRef);
+  const googleDisplayName = displayName || email;
 
   if (!existing.exists()) {
     await setDoc(profileRef, {
       email,
-      displayName: displayName || email,
+      displayName: googleDisplayName,
+      photoURL,
       role: "driver",
       active: false,
       approvalStatus: "pending",
@@ -164,6 +168,22 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
       accessRequestMessage: "",
       authProvider: "google.com",
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    return;
+  }
+
+  const current = existing.data();
+  const authProfile: Record<string, unknown> = {};
+  if (googleDisplayName && current.displayName !== googleDisplayName) {
+    authProfile.displayName = googleDisplayName;
+  }
+  if (photoURL && current.photoURL !== photoURL) {
+    authProfile.photoURL = photoURL;
+  }
+  if (Object.keys(authProfile).length > 0) {
+    await updateDoc(profileRef, {
+      ...authProfile,
       updatedAt: serverTimestamp()
     });
   }
@@ -496,6 +516,7 @@ export function subscribeUserProfiles(
           uid: userDoc.id,
           email: data.email ?? "",
           displayName: data.displayName ?? data.email ?? "ผู้ใช้งาน",
+          photoURL: data.photoURL ?? "",
           role: data.role ?? "driver",
           active: data.active ?? true,
           organizationId: data.organizationId ?? null,

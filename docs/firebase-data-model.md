@@ -10,6 +10,7 @@ Every tenant-owned operational document uses `organizationId`. The main company 
 
 - `email`
 - `displayName`
+- `photoURL`: รูปโปรไฟล์จากบัญชี Google
 - `role`: `owner | admin | dispatcher | subcontract_admin | driver`
 - `active`
 - `approvalStatus`: `pending | approved | suspended`
