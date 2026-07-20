@@ -21,6 +21,7 @@ import {
   Menu,
   Moon,
   Phone,
+  Power,
   QrCode,
   RotateCcw,
   Save,
@@ -55,6 +56,7 @@ import {
 import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
+import { subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
 import {
   createJob,
   createTrackingShareLink,
@@ -62,6 +64,8 @@ import {
   getUserProfile,
   hasApprovedAccess,
   isMainAdmin,
+  submitAccessRequest,
+  subscribePendingAccessRequestCount,
   subscribeTodayJobs,
   subscribeUserProfiles,
   updateJobStatus,
@@ -130,6 +134,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[0]);
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
+  const [pendingAccessCount, setPendingAccessCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -194,6 +199,14 @@ export default function Home() {
       (message) => setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`)
     );
   }, [user, profile]);
+
+  useEffect(() => {
+    if (!profile || !hasApprovedAccess(profile) || !isMainAdmin(profile)) return;
+    return subscribePendingAccessRequestCount(
+      setPendingAccessCount,
+      (message) => setFirebaseMessage(`อ่านคำขอสิทธิ์ไม่สำเร็จ: ${message}`)
+    );
+  }, [profile]);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? sampleJobs[0],
@@ -260,6 +273,17 @@ export default function Home() {
             </div>
           </div>
           <div className="top-actions">
+            {mode === "admin" && isMainAdmin(profile) && (
+              <button
+                className="notification-action"
+                aria-label={`คำขอสิทธิ์ใหม่ ${pendingAccessCount} รายการ`}
+                title="คำขอสิทธิ์ใหม่"
+                onClick={() => { setAdminScreen("User Management" as AdminScreen); setMobileMenuOpen(false); }}
+              >
+                <Bell size={18} />
+                {pendingAccessCount > 0 && <span>{pendingAccessCount > 99 ? "99+" : pendingAccessCount}</span>}
+              </button>
+            )}
             <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => Math.max(0.92, value - 0.08))}>
               <TextCursorInput size={18} />
             </button>
@@ -288,6 +312,7 @@ export default function Home() {
           user={user}
           profile={profile}
           statusMessage={busyMessage || firebaseMessage}
+          pendingAccessCount={pendingAccessCount}
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
@@ -388,6 +413,7 @@ function SectionMenu({
   user,
   profile,
   statusMessage,
+  pendingAccessCount,
   driverScreen,
   adminScreen,
   onDriverScreenChange,
@@ -399,6 +425,7 @@ function SectionMenu({
   user: User;
   profile: UserProfile;
   statusMessage: string;
+  pendingAccessCount: number;
   driverScreen: DriverScreen;
   adminScreen: AdminScreen;
   onDriverScreenChange: (screen: DriverScreen) => void;
@@ -478,6 +505,7 @@ function SectionMenu({
                 <strong>{item.label}</strong>
                 <small>{item.description}</small>
               </span>
+              {item.label === "User Management" && pendingAccessCount > 0 && <span className="menu-notification-badge">{pendingAccessCount}</span>}
             </button>
           );
         })}
@@ -581,11 +609,14 @@ function AdminMobileScreen({
   return <FeatureOverview screen={screen} />;
 }
 
-type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId" | "organizationType" | "organizationName" | "organizationLogoUrl">;
+type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId">;
 
 function AccessManagementScreen({ actor }: { actor: UserProfile }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [organizations, setOrganizations] = useState<SubcontractOrganization[]>([]);
   const [drafts, setDrafts] = useState<Record<string, AccessDraft>>({});
+  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [busyUid, setBusyUid] = useState("");
   const [message, setMessage] = useState("กำลังโหลดรายชื่อผู้ใช้...");
 
   useEffect(() => subscribeUserProfiles(
@@ -596,13 +627,15 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
     (error) => setMessage(error)
   ), []);
 
+  useEffect(() => subscribeSubcontractOrganizations(
+    setOrganizations,
+    (error) => setMessage(`โหลดรายชื่อบริษัทไม่สำเร็จ: ${error}`)
+  ), []);
+
   function draftFor(user: UserProfile): AccessDraft {
     return drafts[user.uid] ?? {
       role: user.role,
-      organizationId: user.organizationId ?? "main",
-      organizationType: user.organizationType ?? "main",
-      organizationName: user.organizationName || "S Fast Transport",
-      organizationLogoUrl: user.organizationLogoUrl || ""
+      organizationId: user.organizationId ?? "main"
     };
   }
 
@@ -612,64 +645,107 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
 
   async function saveAccess(user: UserProfile, suspended = false) {
     const draft = draftFor(user);
-    setMessage(`กำลังอัปเดต ${user.displayName}...`);
+    const selectedOrganization = draft.organizationId === "main"
+      ? null
+      : organizations.find((item) => item.id === draft.organizationId);
+    if (draft.organizationId !== "main" && !selectedOrganization) {
+      setMessage("กรุณาเลือกบริษัทที่ถูกต้อง");
+      return;
+    }
+
+    setBusyUid(user.uid);
+    setMessage(`กำลังอัปเดต ${user.accessRequestName || user.displayName}...`);
     try {
       await updateUserAccess(user.uid, {
-        ...draft,
+        role: draft.role,
+        organizationId: draft.organizationId,
+        organizationType: draft.organizationId === "main" ? "main" : "subcontract",
+        organizationName: draft.organizationId === "main" ? "S Fast Transport" : selectedOrganization?.name ?? "",
+        organizationLogoUrl: draft.organizationId === "main" ? "" : selectedOrganization?.logoUrl ?? "",
         active: !suspended,
         approvalStatus: suspended ? "suspended" : "approved"
       }, actor);
       setMessage(suspended ? "ระงับบัญชีแล้ว" : "อนุมัติสิทธิ์แล้ว");
     } catch (error) {
       setMessage(toMessage(error));
+    } finally {
+      setBusyUid("");
     }
   }
 
+  function changeOrganization(user: UserProfile, organizationId: string) {
+    const current = draftFor(user);
+    const mainRoles: UserProfile["role"][] = ["owner", "admin", "dispatcher"];
+    const role = organizationId === "main"
+      ? current.role === "subcontract_admin" ? "dispatcher" : current.role
+      : mainRoles.includes(current.role) ? "subcontract_admin" : current.role;
+    updateDraft(user, { organizationId, role });
+  }
+
+  const pendingCount = users.filter((user) => user.approvalStatus === "pending").length;
+  const shownUsers = [...users]
+    .filter((user) => filter === "all" || user.approvalStatus === "pending")
+    .sort((a, b) => {
+      if (a.approvalStatus === "pending" && b.approvalStatus !== "pending") return -1;
+      if (a.approvalStatus !== "pending" && b.approvalStatus === "pending") return 1;
+      return (a.accessRequestName || a.displayName).localeCompare(b.accessRequestName || b.displayName, "th");
+    });
+
   return (
     <section className="screen access-screen">
-      <div className="section-title">
-        <div><h1>ผู้ใช้งานและสิทธิ์</h1><p>อนุมัติ Google Login และกำหนดขอบเขตบริษัท</p></div>
-        <span className="live-dot">{users.filter((user) => user.approvalStatus === "pending").length} รออนุมัติ</span>
+      <div className="access-page-head">
+        <div><span className="eyebrow">ACCESS INBOX</span><h1>ผู้ใช้งานและสิทธิ์</h1><p>อ่านข้อความแนะนำตัว แล้วเลือกเพียงบทบาทและบริษัท</p></div>
+        <span className="access-pending-count"><Bell size={16} /> {pendingCount} รออนุมัติ</span>
       </div>
-      <div className="sync-bar access-message"><UserRoundCog size={16} /><span>{message}</span></div>
-      <div className="access-list">
-        {users.map((user) => {
+      <div className="access-toolbar">
+        <div className="access-filter"><button className={filter === "pending" ? "selected" : ""} onClick={() => setFilter("pending")}>คำขอใหม่ <span>{pendingCount}</span></button><button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>ผู้ใช้ทั้งหมด <span>{users.length}</span></button></div>
+        <div className="access-message" role="status"><UserRoundCog size={15} /><span>{message}</span></div>
+      </div>
+      <div className="access-card-list">
+        {shownUsers.map((user) => {
           const draft = draftFor(user);
+          const isPending = user.approvalStatus === "pending";
+          const roleOptions = draft.organizationId === "main"
+            ? [
+                { value: "driver", label: "คนขับบริษัทหลัก" },
+                { value: "dispatcher", label: "เจ้าหน้าที่จัดงาน" },
+                { value: "admin", label: "แอดมินบริษัทหลัก" },
+                { value: "owner", label: "เจ้าของระบบ" }
+              ]
+            : [
+                { value: "driver", label: "คนขับบริษัทรอง" },
+                { value: "subcontract_admin", label: "แอดมินบริษัทรอง" }
+              ];
           return (
-            <article key={user.uid} className="access-row">
-              <div className="access-person">
-                <strong>{user.displayName}</strong><span>{user.email}</span>
-                <small className={`approval ${user.approvalStatus}`}>{user.approvalStatus}</small>
+            <article key={user.uid} className={`access-card ${isPending ? "pending" : ""}`}>
+              <header className="access-card-identity">
+                <span className="access-avatar">{(user.accessRequestName || user.displayName || user.email).slice(0, 1).toUpperCase()}</span>
+                <div>
+                  <small>{isPending ? "ผู้ขอใช้งาน" : "ผู้ใช้งาน"}</small>
+                  <h2>{user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ"}</h2>
+                  <span>{user.email}</span>
+                </div>
+                <span className={`approval ${user.approvalStatus}`}>{user.approvalStatus === "pending" ? "รออนุมัติ" : user.approvalStatus === "approved" ? "ใช้งานอยู่" : "ระงับ"}</span>
+              </header>
+
+              <div className={`access-request-copy ${user.accessRequestMessage ? "has-message" : ""}`}>
+                <span>{user.accessRequestSubmittedAt ? "ข้อความจากผู้ขอใช้งาน" : "ยังไม่ได้ส่งข้อมูลแนะนำตัว"}</span>
+                <p>{user.accessRequestMessage || (user.accessRequestName ? `แจ้งชื่อว่า ${user.accessRequestName}` : "ระบบจะแจ้งเตือนอีกครั้งเมื่อผู้ใช้กรอกชื่อ–สกุลและส่งคำขอ")}</p>
+                {user.accessRequestSubmittedAt && <small>ส่งเมื่อ {new Date(user.accessRequestSubmittedAt).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}</small>}
               </div>
-              <select value={draft.role} onChange={(event) => updateDraft(user, { role: event.target.value as UserProfile["role"] })}>
-                <option value="driver">คนขับ</option>
-                <option value="subcontract_admin">แอดมินซับคอนแท็ค</option>
-                <option value="admin">แอดมินบริษัทหลัก</option>
-              </select>
-              <select
-                value={draft.organizationType ?? "main"}
-                onChange={(event) => {
-                  const organizationType = event.target.value as "main" | "subcontract";
-                  updateDraft(user, {
-                    organizationType,
-                    organizationId: organizationType === "main" ? "main" : draft.organizationId,
-                    organizationName: organizationType === "main" ? "S Fast Transport" : draft.organizationName
-                  });
-                }}
-              >
-                <option value="main">บริษัทหลัก</option>
-                <option value="subcontract">ซับคอนแท็ค</option>
-              </select>
-              <input value={draft.organizationId ?? ""} onChange={(event) => updateDraft(user, { organizationId: event.target.value })} placeholder="รหัสบริษัท" />
-              <input value={draft.organizationName} onChange={(event) => updateDraft(user, { organizationName: event.target.value })} placeholder="ชื่อบริษัท" />
-              <input value={draft.organizationLogoUrl} onChange={(event) => updateDraft(user, { organizationLogoUrl: event.target.value })} placeholder="URL โลโก้บริษัท" />
-              <div className="access-actions">
-                <button onClick={() => saveAccess(user)}>อนุมัติ / บันทึก</button>
-                <button className="danger-button" onClick={() => saveAccess(user, true)}>ระงับ</button>
+
+              <div className="access-decision-grid">
+                <label><span>บริษัท</span><select value={draft.organizationId ?? "main"} onChange={(event) => changeOrganization(user, event.target.value)}><option value="main">S Fast Transport · บริษัทหลัก</option>{organizations.map((item) => <option key={item.id} value={item.id} disabled={!item.active}>{item.name}{item.active ? "" : " · ระงับ"}</option>)}</select></label>
+                <label><span>บทบาท</span><select value={draft.role} onChange={(event) => updateDraft(user, { role: event.target.value as UserProfile["role"] })}>{roleOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+              </div>
+              <div className="access-card-actions">
+                <button disabled={busyUid === user.uid} onClick={() => void saveAccess(user)}><Save size={15} /> {isPending ? "อนุมัติสิทธิ์" : "บันทึกการเปลี่ยนแปลง"}</button>
+                <button className="danger-button" disabled={busyUid === user.uid || actor.uid === user.uid} onClick={() => void saveAccess(user, true)}><Power size={15} /> ระงับบัญชี</button>
               </div>
             </article>
           );
         })}
+        {!shownUsers.length && <div className="access-empty"><UserRoundCog size={26} /><strong>{filter === "pending" ? "ไม่มีคำขอใหม่" : "ยังไม่มีผู้ใช้งาน"}</strong><span>รายการใหม่จะแสดงอัตโนมัติแบบ real-time</span></div>}
       </div>
     </section>
   );
@@ -822,17 +898,51 @@ function LoginScreen() {
 
 function PendingAccessScreen({ user, profile }: { user: User; profile: UserProfile | null }) {
   const suspended = profile?.approvalStatus === "suspended";
+  const [requestName, setRequestName] = useState(profile?.accessRequestName || user.displayName || "");
+  const [requestMessage, setRequestMessage] = useState(profile?.accessRequestMessage || "");
+  const [submitted, setSubmitted] = useState(Boolean(profile?.accessRequestSubmittedAt));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(submitted ? "ส่งข้อมูลให้แอดมินแล้ว คุณสามารถแก้ไขและส่งใหม่ได้" : "");
+
+  async function sendRequest(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setMessage("กำลังส่งคำขอ...");
+    try {
+      await submitAccessRequest(user.uid, requestName, requestMessage);
+      setSubmitted(true);
+      setMessage("ส่งคำขอให้แอดมินแล้ว ระบบจะแจ้งเตือนแอดมินทันที");
+    } catch (error) {
+      setMessage(toMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <main className="login-shell">
       <section className="login-card pending-card">
-        <div className="pending-icon"><UserRoundCog size={30} /></div>
-        <div className="login-copy">
-          <span className="eyebrow">GOOGLE ACCESS CONTROL</span>
-          <h1>{suspended ? "บัญชีถูกระงับการใช้งาน" : "กำลังรออนุมัติสิทธิ์"}</h1>
-          <p>{user.email}</p>
-          <p>{suspended ? "กรุณาติดต่อแอดมินบริษัทหลักเพื่อเปิดใช้งานบัญชี" : "แอดมินบริษัทหลักจะกำหนดบริษัทและบทบาทให้บัญชีนี้"}</p>
+        <div className="pending-head">
+          <div className="pending-icon"><UserRoundCog size={30} /></div>
+          <div className="login-copy">
+            <span className="eyebrow">ACCESS REQUEST</span>
+            <h1>{suspended ? "บัญชีถูกระงับการใช้งาน" : submitted ? "ส่งคำขอแล้ว" : "แนะนำตัวกับแอดมิน"}</h1>
+            <p>{user.email}</p>
+          </div>
         </div>
+
+        {suspended ? (
+          <div className="pending-notice danger">กรุณาติดต่อแอดมินบริษัทหลักเพื่อเปิดใช้งานบัญชีอีกครั้ง</div>
+        ) : (
+          <form className="access-request-form" onSubmit={sendRequest}>
+            <label><span>ชื่อ–สกุลของคุณ *</span><input required maxLength={100} value={requestName} placeholder="กรอกชื่อและนามสกุลจริง" onChange={(event) => setRequestName(event.target.value)} /></label>
+            <label><span>ข้อความถึงแอดมิน</span><textarea maxLength={500} rows={3} value={requestMessage} placeholder="เช่น คนขับของบริษัท ABC หรือเจ้าหน้าที่แผนกจัดส่ง" onChange={(event) => setRequestMessage(event.target.value)} /></label>
+            <button className="login-primary access-request-submit" disabled={saving}>{saving ? "กำลังส่ง..." : submitted ? "อัปเดตข้อมูลให้แอดมิน" : "ส่งคำขอให้แอดมิน"}</button>
+            {message && <div className={`pending-notice ${submitted ? "success" : ""}`} role="status">{message}</div>}
+          </form>
+        )}
+
         <button className="login-secondary pending-signout" onClick={() => signOut(auth)}><LogOut size={17} /> ออกจากระบบ</button>
       </section>
     </main>

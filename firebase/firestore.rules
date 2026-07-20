@@ -68,11 +68,13 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if activeUser() && (
-        uid == request.auth.uid
-        || isMainAdmin()
-        || (isSubcontractAdmin() && sameOrganization(resource.data))
-      );
+      allow read: if (signedIn() && uid == request.auth.uid)
+        || (
+          activeUser() && (
+            isMainAdmin()
+            || (isSubcontractAdmin() && sameOrganization(resource.data))
+          )
+        );
 
       allow create: if signedIn()
         && uid == request.auth.uid
@@ -83,6 +85,15 @@ service cloud.firestore {
         && request.resource.data.authProvider == "google.com";
 
       allow update: if isMainAdmin()
+        || (
+          signedIn()
+          && uid == request.auth.uid
+          && resource.data.active == false
+          && resource.data.approvalStatus == "pending"
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "accessRequestName", "accessRequestMessage", "accessRequestSubmittedAt", "updatedAt"
+          ])
+        )
         || (
           activeUser()
           && uid == request.auth.uid

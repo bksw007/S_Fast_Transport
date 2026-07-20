@@ -18,6 +18,7 @@ Every tenant-owned operational document uses `organizationId`. The main company 
 - `organizationName`
 - `organizationLogoUrl`
 - `authProvider`: `google.com`
+- `accessRequestName`, `accessRequestMessage`, `accessRequestSubmittedAt`
 - `approvedByUid`
 - `approvedAt`
 

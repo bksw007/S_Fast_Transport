@@ -36,6 +36,9 @@ export type UserProfile = {
   organizationName: string;
   organizationLogoUrl: string;
   approvalStatus: ApprovalStatus;
+  accessRequestName: string;
+  accessRequestMessage: string;
+  accessRequestSubmittedAt: string;
 };
 
 export type UserAccessUpdate = Pick<
@@ -135,7 +138,10 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     organizationType: data.organizationType ?? (data.role === "subcontract_admin" ? "subcontract" : "main"),
     organizationName: data.organizationName ?? "S Fast Transport",
     organizationLogoUrl: data.organizationLogoUrl ?? "",
-    approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved")
+    approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved"),
+    accessRequestName: data.accessRequestName ?? "",
+    accessRequestMessage: data.accessRequestMessage ?? "",
+    accessRequestSubmittedAt: timestampToIso(data.accessRequestSubmittedAt)
   };
 }
 
@@ -154,11 +160,32 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
       organizationType: null,
       organizationName: "",
       organizationLogoUrl: "",
+      accessRequestName: "",
+      accessRequestMessage: "",
       authProvider: "google.com",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
   }
+}
+
+export async function submitAccessRequest(
+  uid: string,
+  accessRequestName: string,
+  accessRequestMessage: string
+) {
+  const cleanName = accessRequestName.trim().replace(/\s+/g, " ");
+  const cleanMessage = accessRequestMessage.trim().replace(/\s+/g, " ");
+  if (cleanName.length < 2) throw new Error("กรุณากรอกชื่อ–สกุล");
+  if (cleanName.length > 100) throw new Error("ชื่อ–สกุลต้องไม่เกิน 100 ตัวอักษร");
+  if (cleanMessage.length > 500) throw new Error("ข้อความต้องไม่เกิน 500 ตัวอักษร");
+
+  await updateDoc(doc(db, "users", uid), {
+    accessRequestName: cleanName,
+    accessRequestMessage: cleanMessage,
+    accessRequestSubmittedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
 }
 
 export async function createJob(draft: JobDraft, actor: UserProfile) {
@@ -475,11 +502,25 @@ export function subscribeUserProfiles(
           organizationType: data.organizationType ?? null,
           organizationName: data.organizationName ?? "",
           organizationLogoUrl: data.organizationLogoUrl ?? "",
-          approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved")
+          approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved"),
+          accessRequestName: data.accessRequestName ?? "",
+          accessRequestMessage: data.accessRequestMessage ?? "",
+          accessRequestSubmittedAt: timestampToIso(data.accessRequestSubmittedAt)
         } as UserProfile;
       });
       onUsers(users.sort((a, b) => a.displayName.localeCompare(b.displayName, "th")));
     },
+    (error) => onError(error.message)
+  );
+}
+
+export function subscribePendingAccessRequestCount(
+  onCount: (count: number) => void,
+  onError: (message: string) => void
+): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, "users"), where("approvalStatus", "==", "pending")),
+    (snapshot) => onCount(snapshot.docs.filter((item) => Boolean(item.data().accessRequestSubmittedAt)).length),
     (error) => onError(error.message)
   );
 }
@@ -499,6 +540,11 @@ export async function updateUserAccess(
     approvedAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   } as UpdateData<DocumentData>);
+}
+
+function timestampToIso(value: unknown) {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  return typeof value === "string" ? value : "";
 }
 
 function toTrackingStatus(status: JobStatus) {
