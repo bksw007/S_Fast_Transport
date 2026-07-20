@@ -1929,6 +1929,17 @@ h2 {
   white-space: nowrap;
 }
 
+.file-preview-retry {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 12px;
+  color: var(--accent);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 @keyframes document-preview-loading {
   to { background-position-x: -200%; }
 }

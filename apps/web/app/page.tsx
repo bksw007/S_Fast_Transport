@@ -64,7 +64,7 @@ import {
   downloadPrivateDocument,
   driverLicenseTypes,
   formatPhoneNumber,
-  loadPrivateDocument,
+  getPrivateDocumentPreviewURL,
   nameTitles,
   updateOwnProfile,
   uploadPersonalDocument,
@@ -1049,17 +1049,16 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
     event.preventDefault();
     if (saving) return;
     setSaving(true);
-    setMessage("กำลังบันทึกโปรไฟล์และอัปโหลดเอกสาร...");
+    setMessage("กำลังบีบอัดรูปและบันทึกโปรไฟล์...");
     let generalProfileSaved = false;
     try {
       await updateOwnProfile(profile.uid, draft);
       generalProfileSaved = true;
       await onProfileUpdated();
-      const [photo, idCard, driverLicense] = await Promise.all([
-        photoFile ? uploadProfilePhoto(profile.uid, photoFile) : null,
-        idCardFile ? uploadPersonalDocument(profile.uid, "id-card-front", idCardFile) : null,
-        licenseFile ? uploadPersonalDocument(profile.uid, "driver-license-front", licenseFile) : null
-      ]);
+      // Process large camera photos one at a time to avoid exhausting memory on mobile browsers.
+      const photo = photoFile ? await uploadProfilePhoto(profile.uid, photoFile) : null;
+      const idCard = idCardFile ? await uploadPersonalDocument(profile.uid, "id-card-front", idCardFile) : null;
+      const driverLicense = licenseFile ? await uploadPersonalDocument(profile.uid, "driver-license-front", licenseFile) : null;
       if (photo || idCard || driverLicense) {
         await updateOwnProfile(profile.uid, draft, {
           ...(photo ? { photoURL: photo.photoURL, profilePhotoPath: photo.storagePath } : {}),
@@ -1099,7 +1098,7 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
       <form className="profile-form" onSubmit={saveProfile}>
         <section className="profile-panel">
           <header><Camera size={20} /><div><h2>รูปและชื่อจริง</h2><p>หากไม่อัปโหลดรูป ระบบจะใช้รูปจากบัญชี Google หรือรูปเริ่มต้น</p></div></header>
-          <label className="profile-upload-row"><span><Upload size={17} /> รูปโปรไฟล์</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)} /><small>{photoFile?.name || (profile.profilePhotoPath ? "ใช้รูปที่อัปโหลดเอง" : profile.photoURL ? "ใช้รูปจาก Google" : "ยังไม่มีรูป")}</small>{photoFile && <FilePreview key={`${photoFile.name}-${photoFile.lastModified}`} file={photoFile} alt="ตัวอย่างรูปโปรไฟล์" compact />}</label>
+          <label className="profile-upload-row"><span><Upload size={17} /> รูปโปรไฟล์</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)} /><small>{photoFile?.name || (profile.profilePhotoPath ? "ใช้รูปที่อัปโหลดเอง" : profile.photoURL ? "ใช้รูปจาก Google" : "ยังไม่มีรูป")} · ระบบบีบอัดรูปให้ไม่เกิน 1 MB</small>{photoFile && <FilePreview key={`${photoFile.name}-${photoFile.lastModified}`} file={photoFile} alt="ตัวอย่างรูปโปรไฟล์" compact />}</label>
           <div className="profile-field-grid name-fields">
             <label><span>คำนำหน้าชื่อ *</span><select required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value as NameTitle })}><option value="">เลือก</option>{nameTitles.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label><span>ชื่อจริง *</span><input required maxLength={50} autoComplete="given-name" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></label>
@@ -1109,7 +1108,7 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
         </section>
 
         <section className="profile-panel">
-          <header><FileImage size={20} /><div><h2>ข้อมูลและเอกสารส่วนตัว</h2><p>รองรับ JPG, PNG, WEBP หรือ PDF ขนาดไม่เกิน 5 MB</p></div></header>
+          <header><FileImage size={20} /><div><h2>ข้อมูลและเอกสารส่วนตัว</h2><p>รูปต้นฉบับไม่เกิน 20 MB จะถูกบีบอัดเหลือไม่เกิน 1 MB · PDF ไม่เกิน 5 MB</p></div></header>
           <div className="profile-field-grid">
             <label><span>เลขที่ใบขับขี่</span><input maxLength={50} value={draft.licenseNumber} onChange={(event) => setDraft({ ...draft, licenseNumber: event.target.value })} /></label>
             <label><span>ประเภทใบขับขี่</span><select value={draft.licenseType} onChange={(event) => setDraft({ ...draft, licenseType: event.target.value })}><option value="">เลือกประเภทใบขับขี่</option>{driverLicenseTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -1140,21 +1139,17 @@ function DocumentUpload({ label, currentName, currentPath, selectedFile, onChang
 }
 
 function StoredFilePreview({ storagePath, fileName, alt }: { storagePath: string; fileName: string; alt: string }) {
-  const [preview, setPreview] = useState<{ status: "loading" | "image" | "pdf" | "error"; url: string }>({ status: "loading", url: "" });
+  const isPdf = /\.pdf$/i.test(fileName);
+  const [retryKey, setRetryKey] = useState(0);
+  const [preview, setPreview] = useState<{ status: "loading" | "image" | "error"; url: string }>({ status: "loading", url: "" });
 
   useEffect(() => {
     let cancelled = false;
-    let objectURL = "";
+    if (isPdf) return;
 
-    loadPrivateDocument(storagePath)
-      .then((blob) => {
-        if (cancelled) return;
-        if (blob.type.startsWith("image/")) {
-          objectURL = URL.createObjectURL(blob);
-          setPreview({ status: "image", url: objectURL });
-          return;
-        }
-        setPreview({ status: "pdf", url: "" });
+    getPrivateDocumentPreviewURL(storagePath)
+      .then((url) => {
+        if (!cancelled) setPreview({ status: "image", url });
       })
       .catch(() => {
         if (!cancelled) setPreview({ status: "error", url: "" });
@@ -1162,20 +1157,19 @@ function StoredFilePreview({ storagePath, fileName, alt }: { storagePath: string
 
     return () => {
       cancelled = true;
-      if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [storagePath]);
+  }, [isPdf, retryKey, storagePath]);
 
-  if (preview.status === "image") {
-    return <Image className="file-preview" src={preview.url} alt={alt} width={900} height={600} unoptimized />;
-  }
-
-  if (preview.status === "pdf") {
+  if (isPdf) {
     return <div className="file-preview pdf"><FileImage size={24} /><span>ไฟล์ PDF ที่บันทึกไว้</span></div>;
   }
 
+  if (preview.status === "image") {
+    return <Image className="file-preview" src={preview.url} alt={alt} width={900} height={600} onError={() => setPreview({ status: "error", url: "" })} unoptimized />;
+  }
+
   if (preview.status === "error") {
-    return <div className="file-preview pdf error"><FileImage size={24} /><span>ไม่สามารถแสดงตัวอย่างได้</span><small>{fileName || "กรุณาดาวน์โหลดไฟล์เดิม"}</small></div>;
+    return <div className="file-preview pdf error"><FileImage size={24} /><span>โหลดรูปไม่สำเร็จ</span><small>{fileName || "กรุณาดาวน์โหลดไฟล์เดิม"}</small><button className="file-preview-retry" type="button" onClick={() => { setPreview({ status: "loading", url: "" }); setRetryKey((value) => value + 1); }}>ลองโหลดอีกครั้ง</button></div>;
   }
 
   return <div className="file-preview pdf loading" aria-live="polite"><span>กำลังโหลดรูปเอกสาร...</span></div>;
@@ -1387,7 +1381,7 @@ function ProofScreen({
         <div>
           <span className="label">POD / รูปหน้างาน</span>
           <h2>แนบไฟล์หลักฐานส่งของ</h2>
-          <p>รองรับรูปภาพและ PDF สำหรับใบงานที่เลือกอยู่</p>
+          <p>รูปต้นฉบับจะถูกบีบอัดเหลือไม่เกิน 1 MB · PDF ไม่เกิน 10 MB</p>
         </div>
         <label className="upload-button">
           <FileImage size={17} />
@@ -1881,6 +1875,7 @@ function JobDetail({
         <article>
           <span className="label">POD</span>
           <strong>แนบหลักฐานส่งของ</strong>
+          <p>รูปจะถูกบีบอัดเหลือไม่เกิน 1 MB</p>
           <label className="upload-button">
             <FileImage size={17} />
             เลือกไฟล์

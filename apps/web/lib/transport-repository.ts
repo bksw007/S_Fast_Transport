@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
+import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
 import { statusLabels, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
 
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
@@ -450,9 +451,15 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
 }
 
 export async function uploadProof(job: TransportJob, file: File, actor: UserProfile) {
-  const objectPath = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${file.name}`;
+  const isPdf = file.type === "application/pdf";
+  if (!isPdf && !isImageFile(file)) throw new Error("หลักฐานรองรับเฉพาะรูปภาพหรือ PDF");
+  const sourceLimit = isPdf ? 10 * 1024 * 1024 : MAX_SOURCE_IMAGE_BYTES;
+  if (file.size <= 0 || file.size > sourceLimit) throw new Error(`ไฟล์ต้นฉบับต้องมีขนาดไม่เกิน ${sourceLimit / 1024 / 1024} MB`);
+  const uploadFile = isPdf ? file : await compressImageForUpload(file);
+  if (!isPdf && uploadFile.size > MAX_STORED_IMAGE_BYTES) throw new Error("รูปที่บีบอัดแล้วต้องมีขนาดไม่เกิน 1 MB");
+  const objectPath = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${uploadFile.name}`;
   const storageRef = ref(storage, objectPath);
-  const result = await uploadBytes(storageRef, file, { contentType: file.type });
+  const result = await uploadBytes(storageRef, uploadFile, { contentType: uploadFile.type });
   const downloadUrl = await getDownloadURL(result.ref);
 
   await addDoc(collection(db, "proof_of_delivery"), {
@@ -460,11 +467,11 @@ export async function uploadProof(job: TransportJob, file: File, actor: UserProf
     uploadedByUid: actor.uid,
     uploadedByName: actor.displayName,
     organizationId: actor.organizationId ?? "main",
-    fileName: file.name,
+    fileName: uploadFile.name,
     storagePath: objectPath,
     downloadUrl,
-    contentType: file.type,
-    size: file.size,
+    contentType: uploadFile.type,
+    size: uploadFile.size,
     createdAt: serverTimestamp()
   });
 

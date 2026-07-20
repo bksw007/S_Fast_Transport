@@ -1,6 +1,7 @@
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { getBlob, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
+import { compressImageForUpload, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
 
 export const nameTitles = ["นาย", "นาง", "นางสาว"] as const;
 export const driverLicenseTypes = ["บ.1", "บ.2", "ท.1", "ท.2", "ท.3", "ท.4"] as const;
@@ -51,22 +52,31 @@ function validateFile(file: File, allowedTypes: Set<string>, maxBytes: number, l
 }
 
 export async function uploadProfilePhoto(uid: string, file: File) {
-  validateFile(file, imageTypes, 5 * 1024 * 1024, "รูปโปรไฟล์");
-  const storagePath = `user_profiles/${uid}/profile/${safeObjectName(file)}`;
-  const result = await uploadBytes(ref(storage, storagePath), file, { contentType: file.type });
+  validateFile(file, imageTypes, MAX_SOURCE_IMAGE_BYTES, "รูปโปรไฟล์");
+  const uploadFile = await compressImageForUpload(file);
+  validateFile(uploadFile, imageTypes, MAX_STORED_IMAGE_BYTES, "รูปโปรไฟล์");
+  const storagePath = `user_profiles/${uid}/profile/${safeObjectName(uploadFile)}`;
+  const result = await uploadBytes(ref(storage, storagePath), uploadFile, { contentType: uploadFile.type });
   return { storagePath, photoURL: await getDownloadURL(result.ref) };
 }
 
 export async function uploadPersonalDocument(uid: string, kind: PersonalDocumentKind, file: File) {
-  validateFile(file, documentTypes, 5 * 1024 * 1024, "เอกสาร");
-  const storagePath = `user_documents/${uid}/${kind}/${safeObjectName(file)}`;
-  await uploadBytes(ref(storage, storagePath), file, { contentType: file.type });
-  return { storagePath, fileName: cleanText(file.name).slice(0, 120) };
+  validateFile(file, documentTypes, file.type === "application/pdf" ? 5 * 1024 * 1024 : MAX_SOURCE_IMAGE_BYTES, "เอกสาร");
+  const uploadFile = file.type === "application/pdf" ? file : await compressImageForUpload(file);
+  validateFile(uploadFile, documentTypes, uploadFile.type === "application/pdf" ? 5 * 1024 * 1024 : MAX_STORED_IMAGE_BYTES, "เอกสาร");
+  const storagePath = `user_documents/${uid}/${kind}/${safeObjectName(uploadFile)}`;
+  await uploadBytes(ref(storage, storagePath), uploadFile, { contentType: uploadFile.type });
+  return { storagePath, fileName: cleanText(uploadFile.name).slice(0, 120) };
 }
 
 export async function loadPrivateDocument(storagePath: string) {
   if (!storagePath.startsWith("user_documents/")) throw new Error("ตำแหน่งเอกสารไม่ถูกต้อง");
   return getBlob(ref(storage, storagePath), 5 * 1024 * 1024);
+}
+
+export async function getPrivateDocumentPreviewURL(storagePath: string) {
+  if (!storagePath.startsWith("user_documents/")) throw new Error("ตำแหน่งเอกสารไม่ถูกต้อง");
+  return getDownloadURL(ref(storage, storagePath));
 }
 
 export async function downloadPrivateDocument(storagePath: string, fileName: string) {

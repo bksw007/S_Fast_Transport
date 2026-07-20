@@ -62,8 +62,17 @@ service firebase.storage {
         && uid == request.auth.uid
         && (isMainAdmin() || isSubcontractAdmin() || isAssignedDriver(jobId))
         && (isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId))
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches("image/.*|application/pdf");
+        && request.resource.size > 0
+        && (
+          (
+            request.resource.size <= 1 * 1024 * 1024
+            && request.resource.contentType.matches("image/.*")
+          )
+          || (
+            request.resource.size <= 10 * 1024 * 1024
+            && request.resource.contentType == "application/pdf"
+          )
+        );
     }
 
 
@@ -72,7 +81,7 @@ service firebase.storage {
       allow create, update: if signedIn()
         && request.auth.uid == uid
         && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.size <= 1 * 1024 * 1024
         && request.resource.contentType.matches("image/jpeg|image/png|image/webp");
       allow delete: if activeUser() && request.auth.uid == uid;
     }
@@ -83,8 +92,16 @@ service firebase.storage {
         && request.auth.uid == uid
         && documentKind in ["id-card-front", "driver-license-front"]
         && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType.matches("image/jpeg|image/png|image/webp|application/pdf");
+        && (
+          (
+            request.resource.size <= 1 * 1024 * 1024
+            && request.resource.contentType.matches("image/jpeg|image/png|image/webp")
+          )
+          || (
+            request.resource.size <= 5 * 1024 * 1024
+            && request.resource.contentType == "application/pdf"
+          )
+        );
       allow delete: if activeUser() && request.auth.uid == uid;
     }
   }
