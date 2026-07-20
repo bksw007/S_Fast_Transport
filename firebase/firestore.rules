@@ -31,12 +31,25 @@ service cloud.firestore {
       return role() in ["owner", "admin", "dispatcher"];
     }
 
+    function isMainCompanyAdmin() {
+      return isMainAdmin() && organizationId() == "main";
+    }
+
     function isSubcontractAdmin() {
       return role() == "subcontract_admin";
     }
 
     function isDriver() {
       return role() == "driver";
+    }
+
+    function canManageListOption(orgId, data) {
+      return isMainCompanyAdmin()
+        || (
+          isSubcontractAdmin()
+          && organizationId() == orgId
+          && data.organizationId == orgId
+        );
     }
 
     function sameOrganization(data) {
@@ -86,6 +99,18 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if isMainAdmin() || (activeUser() && orgId == organizationId());
       allow write: if isMainAdmin();
+    }
+
+    match /organizations/{orgId}/list_options/{itemId} {
+      allow read: if activeUser() && (isMainAdmin() || orgId == organizationId());
+      allow create: if request.resource.data.organizationId == orgId
+        && canManageListOption(orgId, request.resource.data);
+      allow update: if resource.data.organizationId == orgId
+        && request.resource.data.organizationId == orgId
+        && request.resource.data.field == resource.data.field
+        && canManageListOption(orgId, resource.data);
+      allow delete: if resource.data.organizationId == orgId
+        && canManageListOption(orgId, resource.data);
     }
 
     match /today_jobs/{jobId} {
@@ -174,14 +199,30 @@ service cloud.firestore {
 
     match /vehicles/{docId} {
       allow read: if isMainAdmin() || sameOrganization(resource.data);
-      allow write: if isMainAdmin()
+      allow create: if isMainCompanyAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+      allow update: if isMainCompanyAdmin()
+        || (
+          isSubcontractAdmin()
+          && sameOrganization(resource.data)
+          && request.resource.data.organizationId == resource.data.organizationId
+        );
+      allow delete: if isMainCompanyAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
     }
 
     match /drivers/{docId} {
       allow read: if isMainAdmin() || sameOrganization(resource.data);
-      allow write: if isMainAdmin()
+      allow create: if isMainCompanyAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+      allow update: if isMainCompanyAdmin()
+        || (
+          isSubcontractAdmin()
+          && sameOrganization(resource.data)
+          && request.resource.data.organizationId == resource.data.organizationId
+        );
+      allow delete: if isMainCompanyAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
     }
 
     match /customers/{docId} {

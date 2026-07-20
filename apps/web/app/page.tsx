@@ -54,6 +54,7 @@ import {
   type TransportJob
 } from "@s-fast-transport/shared";
 import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
+import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
 import {
   createJob,
   createTrackingShareLink,
@@ -326,6 +327,7 @@ export default function Home() {
         <aside className="desktop-panel">
           {adminScreen === "Jobs / ใบงาน" ? <>
             <AdminView
+              profile={profile}
               activeJobs={activeJobs}
               selectedJobId={selectedJob.id}
               onSelectJob={setSelectedJobId}
@@ -544,6 +546,7 @@ function AdminMobileScreen({
   if (screen === "Jobs / ใบงาน") {
     return (
       <AdminView
+        profile={profile}
         activeJobs={activeJobs}
         selectedJobId={selectedJobId}
         onSelectJob={onSelectJob}
@@ -1295,6 +1298,7 @@ function FallbackMap({
 }
 
 function AdminView({
+  profile,
   activeJobs,
   selectedJobId,
   onSelectJob,
@@ -1302,6 +1306,7 @@ function AdminView({
   canWrite,
   compact = true
 }: {
+  profile: UserProfile;
   activeJobs: TransportJob[];
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
@@ -1313,6 +1318,7 @@ function AdminView({
   const [showForm, setShowForm] = useState(false);
   const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
   const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
+  const organizationId = profile.organizationId ?? "main";
 
   function updateDraft(field: keyof JobDraft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -1357,10 +1363,10 @@ function AdminView({
           <div className="dispatch-form-body">
             <div className="dispatch-general-grid">
               <DispatchField label="เลขที่ใบส่งงาน"><input value={draft.workOrder} onChange={(event) => updateDraft("workOrder", event.target.value)} required /></DispatchField>
-              <DispatchField label="บริษัทผู้ว่าจ้าง" add><input value={draft.customer} onChange={(event) => updateDraft("customer", event.target.value)} placeholder="เลือกบริษัทผู้ว่าจ้าง" required /></DispatchField>
+              <DispatchField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={(value) => updateDraft("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={profile} required /></DispatchField>
               <DispatchField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" value={draft.jobDate} onChange={(event) => updateDraft("jobDate", event.target.value)} /></DispatchField>
-              <DispatchField label="ประเภทสินค้า" add><input value={draft.cargoType} onChange={(event) => updateDraft("cargoType", event.target.value)} placeholder="เลือกประเภทสินค้า" /></DispatchField>
-              <DispatchField label="ประเภทรถ" add><input value={draft.vehicleType} onChange={(event) => updateDraft("vehicleType", event.target.value)} placeholder="เลือกประเภทรถ" /></DispatchField>
+              <DispatchField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={(value) => updateDraft("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={profile} /></DispatchField>
+              <DispatchField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={(value) => updateDraft("vehicleType", value)} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="จำนวนรอบ"><input type="number" min="1" value={draft.tripCount} onChange={(event) => updateDraft("tripCount", event.target.value)} /></DispatchField>
             </div>
 
@@ -1373,6 +1379,8 @@ function AdminView({
                 contact={draft.pickupContact}
                 onChange={updateDraft}
                 fields={{ location: "pickupLocation", date: "pickupDate", time: "pickupTime", contact: "pickupContact" }}
+                organizationId={organizationId}
+                actor={profile}
               />
               <DispatchStop
                 title="ส่งงาน"
@@ -1382,14 +1390,16 @@ function AdminView({
                 contact={draft.deliveryContact}
                 onChange={updateDraft}
                 fields={{ location: "deliveryLocation", date: "deliveryDate", time: "deliveryTime", contact: "deliveryContact" }}
+                organizationId={organizationId}
+                actor={profile}
               />
             </div>
 
             <div className="dispatch-general-grid assignment-grid">
-              <DispatchField label="มอบหมายพนักงาน (แอพ)"><input value={draft.assignedEmployee} onChange={(event) => updateDraft("assignedEmployee", event.target.value)} placeholder="เลือกผู้รับงาน" /></DispatchField>
-              <DispatchField label="พนักงานขับรถ" add><input value={draft.driverName} onChange={(event) => updateDraft("driverName", event.target.value)} placeholder="เลือกพนักงานขับรถ" /></DispatchField>
+              <DispatchField label="มอบหมายพนักงาน (แอพ)"><ListManagerComboBox field="employee" value={draft.assignedEmployee} onChange={(value) => updateDraft("assignedEmployee", value)} placeholder="ค้นหาหรือเพิ่มผู้รับงาน" organizationId={organizationId} actor={profile} /></DispatchField>
+              <DispatchField label="พนักงานขับรถ"><ListManagerComboBox field="driver" value={draft.driverName} onChange={(value) => updateDraft("driverName", value)} placeholder="ค้นหาหรือเพิ่มพนักงานขับรถ" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="เบอร์ติดต่อ"><input type="tel" value={draft.driverPhone} onChange={(event) => updateDraft("driverPhone", event.target.value)} placeholder="080-123-4567" /></DispatchField>
-              <DispatchField label="ทะเบียนรถ" add><input value={draft.vehiclePlate} onChange={(event) => updateDraft("vehiclePlate", event.target.value)} placeholder="เลือกทะเบียนรถ" /></DispatchField>
+              <DispatchField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={(value) => updateDraft("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="หมายเหตุ" wide><textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติมสำหรับงานนี้" /></DispatchField>
             </div>
 
@@ -1421,12 +1431,12 @@ function AdminView({
   );
 }
 
-function DispatchField({ label, add = false, wide = false, children }: { label: string; add?: boolean; wide?: boolean; children: React.ReactNode }) {
+function DispatchField({ label, wide = false, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
-    <label className={`dispatch-field ${wide ? "wide" : ""}`}>
+    <div className={`dispatch-field ${wide ? "wide" : ""}`}>
       <span>{label}</span>
-      <div>{children}{add && <b aria-hidden="true">+</b>}</div>
-    </label>
+      <div>{children}</div>
+    </div>
   );
 }
 
@@ -1437,7 +1447,9 @@ function DispatchStop({
   time,
   contact,
   onChange,
-  fields
+  fields,
+  organizationId,
+  actor
 }: {
   title: string;
   location: string;
@@ -1446,14 +1458,16 @@ function DispatchStop({
   contact: string;
   onChange: (field: keyof JobDraft, value: string) => void;
   fields: { location: keyof JobDraft; date: keyof JobDraft; time: keyof JobDraft; contact: keyof JobDraft };
+  organizationId: string;
+  actor: UserProfile;
 }) {
   return (
     <fieldset className="dispatch-stop">
       <legend>{title}</legend>
-      <DispatchField label="สถานที่" add><input value={location} onChange={(event) => onChange(fields.location, event.target.value)} placeholder={`พิมพ์ค้นหาสถานที่${title === "รับงาน" ? "รับ" : "ส่ง"}`} /></DispatchField>
+      <DispatchField label="สถานที่"><ListManagerComboBox field="location" value={location} onChange={(value) => onChange(fields.location, value)} placeholder={`ค้นหาหรือเพิ่มสถานที่${title === "รับงาน" ? "รับ" : "ส่ง"}`} organizationId={organizationId} actor={actor} /></DispatchField>
       <DispatchField label="วันที่"><input type="date" value={date} onChange={(event) => onChange(fields.date, event.target.value)} /></DispatchField>
       <DispatchField label="เวลา"><input type="time" value={time} onChange={(event) => onChange(fields.time, event.target.value)} /></DispatchField>
-      <DispatchField label="ติดต่อ" add><input value={contact} onChange={(event) => onChange(fields.contact, event.target.value)} placeholder="เลือกผู้ติดต่อ" /></DispatchField>
+      <DispatchField label="ติดต่อ"><ListManagerComboBox field="contact" value={contact} onChange={(value) => onChange(fields.contact, value)} placeholder="ค้นหาหรือเพิ่มผู้ติดต่อ" organizationId={organizationId} actor={actor} /></DispatchField>
     </fieldset>
   );
 }

@@ -34,6 +34,16 @@ New users may create only their own pending/inactive Google profile. Main admins
 - `createdAt`
 - `updatedAt`
 
+### organizations/{organizationId}/list_options/{field--normalizedValue}
+
+รายการกลางสำหรับคอมโบบ็อกซ์ในฟอร์มใบงาน แยกตามบริษัท แอดมินบริษัทหลัก (`owner | admin | dispatcher`, `organizationId: main`) จัดการได้ทุกหมวดและทุกบริษัท ส่วนแอดมินบริษัทรองจัดการข้อมูลปฏิบัติงานได้ทุกหมวด แต่เฉพาะ `organizationId` ตัวเองเท่านั้น
+
+- `organizationId`
+- `field`: `customer | cargo_type | vehicle_type | location | contact | employee | driver | vehicle_plate`
+- `value`, `normalizedValue`
+- `createdByUid`, `updatedByUid`
+- `createdAt`, `updatedAt`
+
 ### today_jobs/{jobId}
 
 Hot collection for the active dashboard.

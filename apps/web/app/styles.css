@@ -1020,6 +1020,240 @@ h2 {
   font-size: 1.05rem;
 }
 
+.list-manager-combobox {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.list-manager-combobox > input {
+  padding-right: 38px;
+}
+
+.list-manager-combobox > input[aria-expanded="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+
+.list-manager-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  padding: 0;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  transform: translateY(-50%);
+}
+
+.list-manager-combobox:focus-within .list-manager-toggle {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.list-manager-dropdown {
+  --lm-surface: #ffffff;
+  --lm-surface-2: #f6faf9;
+  --lm-text: #132027;
+  --lm-muted: #667883;
+  --lm-border: #dce7e4;
+  --lm-accent: #0f8f8c;
+  --lm-danger: #d94c45;
+  position: fixed;
+  z-index: 10000;
+  max-height: min(320px, calc(100vh - 24px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--lm-text);
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: 11px;
+  box-shadow: 0 22px 58px rgba(11, 35, 45, .24);
+  animation: list-manager-enter 130ms ease-out;
+}
+
+.list-manager-dropdown.dark {
+  --lm-surface: #111d28;
+  --lm-surface-2: #172532;
+  --lm-text: #edf7f5;
+  --lm-muted: #9db0ba;
+  --lm-border: #273947;
+  --lm-accent: #37c4bd;
+  --lm-danger: #ff8179;
+  box-shadow: 0 22px 58px rgba(0, 0, 0, .5);
+}
+
+@keyframes list-manager-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.list-manager-heading {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  color: var(--lm-muted);
+  background: color-mix(in srgb, var(--lm-surface) 94%, transparent);
+  border-bottom: 1px solid var(--lm-border);
+  font-size: .68rem;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+}
+
+.list-manager-heading small {
+  font-size: .64rem;
+  font-weight: 700;
+}
+
+.list-manager-message,
+.list-manager-error {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px;
+  color: var(--lm-muted);
+  font-size: .76rem;
+  text-align: center;
+}
+
+.list-manager-error {
+  min-height: auto;
+  justify-content: flex-start;
+  color: var(--lm-danger);
+  background: color-mix(in srgb, var(--lm-danger) 8%, var(--lm-surface));
+  border-top: 1px solid color-mix(in srgb, var(--lm-danger) 20%, var(--lm-border));
+}
+
+.list-manager-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 11px;
+  border-bottom: 1px solid color-mix(in srgb, var(--lm-border) 65%, transparent);
+}
+
+.list-manager-row:hover,
+.list-manager-row.active,
+.list-manager-row.editing {
+  background: var(--lm-surface-2);
+}
+
+.list-manager-value {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  overflow: hidden;
+  color: var(--lm-text);
+  background: transparent;
+  font-size: .81rem;
+  font-weight: 750;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-manager-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.list-manager-row:hover .list-manager-actions,
+.list-manager-row:focus-within .list-manager-actions {
+  opacity: 1;
+}
+
+.list-manager-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  flex: 0 0 30px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--lm-muted);
+  background: transparent;
+}
+
+.list-manager-icon:hover {
+  border-color: var(--lm-border);
+  background: var(--lm-surface);
+}
+
+.list-manager-icon.edit:hover,
+.list-manager-icon.save { color: var(--lm-accent); }
+.list-manager-icon.delete:hover { color: var(--lm-danger); }
+
+.list-manager-edit-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 9px;
+  color: var(--lm-text);
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-accent);
+  border-radius: 7px;
+  font: inherit;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--lm-accent) 14%, transparent);
+}
+
+.list-manager-add {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  color: var(--lm-accent);
+  background: color-mix(in srgb, var(--lm-surface) 94%, transparent);
+  border-top: 1px solid var(--lm-border);
+  font-size: .78rem;
+  font-weight: 850;
+  text-align: left;
+  backdrop-filter: blur(12px);
+}
+
+.list-manager-add:hover {
+  background: color-mix(in srgb, var(--lm-accent) 9%, var(--lm-surface));
+}
+
+.list-manager-add span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin {
+  animation: list-manager-spin 750ms linear infinite;
+}
+
+@keyframes list-manager-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (hover: none) {
+  .list-manager-actions { opacity: 1; }
+}
+
 .dispatch-stop {
   min-width: 0;
   display: grid;

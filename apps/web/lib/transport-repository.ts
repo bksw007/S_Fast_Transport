@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -63,6 +64,22 @@ export type JobDraft = {
   deliveryContact: string;
   eta: string;
   notes: string;
+};
+
+export type ListOptionField =
+  | "customer"
+  | "cargo_type"
+  | "vehicle_type"
+  | "location"
+  | "contact"
+  | "employee"
+  | "driver"
+  | "vehicle_plate";
+
+export type ListOption = {
+  id: string;
+  field: ListOptionField;
+  value: string;
 };
 
 const defaultLocation = {
@@ -163,6 +180,135 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
+}
+
+function listOptionsCollection(organizationId: string) {
+  return collection(db, "organizations", organizationId, "list_options");
+}
+
+function normalizeListOption(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("th-TH");
+}
+
+function listOptionId(field: ListOptionField, value: string) {
+  return `${field}--${encodeURIComponent(normalizeListOption(value))}`;
+}
+
+export function canManageOrganizationLists(
+  actor: UserProfile,
+  organizationId: string
+) {
+  const isMainCompanyAdmin = isMainAdmin(actor)
+    && actor.organizationType === "main"
+    && actor.organizationId === "main";
+  const managesOwnTransportResources = actor.role === "subcontract_admin"
+    && actor.organizationType === "subcontract"
+    && actor.organizationId === organizationId;
+  return isMainCompanyAdmin || managesOwnTransportResources;
+}
+
+function assertCanManageListOption(actor: UserProfile, organizationId: string) {
+  if (!canManageOrganizationLists(actor, organizationId)) {
+    throw new Error("คุณไม่มีสิทธิ์จัดการรายการหมวดนี้หรือข้อมูลของบริษัทอื่น");
+  }
+}
+
+export function subscribeListOptions(
+  organizationId: string,
+  field: ListOptionField,
+  onItems: (items: ListOption[]) => void,
+  onError: (message: string) => void
+): Unsubscribe {
+  const optionsQuery = query(listOptionsCollection(organizationId), where("field", "==", field));
+
+  return onSnapshot(
+    optionsQuery,
+    (snapshot) => {
+      const items = snapshot.docs
+        .map((itemDoc) => ({
+          id: itemDoc.id,
+          field,
+          value: String(itemDoc.data().value ?? "")
+        }))
+        .filter((item) => item.value)
+        .sort((a, b) => a.value.localeCompare(b.value, "th"));
+      onItems(items);
+    },
+    (error) => onError(error.message)
+  );
+}
+
+export async function createListOption(
+  organizationId: string,
+  field: ListOptionField,
+  value: string,
+  actor: UserProfile
+) {
+  assertCanManageListOption(actor, organizationId);
+  const cleanValue = value.trim().replace(/\s+/g, " ");
+  if (!cleanValue) throw new Error("กรุณากรอกรายการ");
+  if (cleanValue.length > 160) throw new Error("รายการต้องไม่เกิน 160 ตัวอักษร");
+
+  const optionRef = doc(listOptionsCollection(organizationId), listOptionId(field, cleanValue));
+  if ((await getDoc(optionRef)).exists()) throw new Error("มีรายการนี้อยู่แล้ว");
+
+  await setDoc(optionRef, {
+    organizationId,
+    field,
+    value: cleanValue,
+    normalizedValue: normalizeListOption(cleanValue),
+    createdByUid: actor.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function updateListOption(
+  organizationId: string,
+  item: ListOption,
+  value: string,
+  actor: UserProfile
+) {
+  assertCanManageListOption(actor, organizationId);
+  const cleanValue = value.trim().replace(/\s+/g, " ");
+  if (!cleanValue) throw new Error("กรุณากรอกรายการ");
+  if (cleanValue.length > 160) throw new Error("รายการต้องไม่เกิน 160 ตัวอักษร");
+
+  const currentRef = doc(listOptionsCollection(organizationId), item.id);
+  const nextRef = doc(listOptionsCollection(organizationId), listOptionId(item.field, cleanValue));
+
+  if (currentRef.path === nextRef.path) {
+    await updateDoc(currentRef, {
+      value: cleanValue,
+      normalizedValue: normalizeListOption(cleanValue),
+      updatedByUid: actor.uid,
+      updatedAt: serverTimestamp()
+    });
+    return;
+  }
+
+  if ((await getDoc(nextRef)).exists()) throw new Error("มีรายการนี้อยู่แล้ว");
+  const batch = writeBatch(db);
+  batch.set(nextRef, {
+    organizationId,
+    field: item.field,
+    value: cleanValue,
+    normalizedValue: normalizeListOption(cleanValue),
+    createdByUid: actor.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  batch.delete(currentRef);
+  await batch.commit();
+}
+
+export async function deleteListOption(
+  organizationId: string,
+  item: ListOption,
+  actor: UserProfile
+) {
+  assertCanManageListOption(actor, organizationId);
+  await deleteDoc(doc(listOptionsCollection(organizationId), item.id));
 }
 
 export async function updateJobStatus(job: TransportJob, status: JobStatus, actor: UserProfile) {
