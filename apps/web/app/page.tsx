@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   Bell,
   Building2,
   CheckCircle2,
+  ChevronDown,
   CircleDot,
   Clock3,
   FileImage,
@@ -29,6 +31,7 @@ import {
   Sun,
   TextCursorInput,
   Truck,
+  UserRound,
   UserRoundCog,
   Users,
   X
@@ -933,21 +936,12 @@ function TodayJobs({
 
       <div className="job-list">
         {jobs.map((job) => (
-          <button
+          <JobSummaryCard
             key={job.id}
-            className={`job-row ${job.id === selectedJobId ? "selected-job" : ""}`}
-            onClick={() => onSelectJob(job.id)}
-          >
-            <div className="job-row-main">
-              <strong>{job.workOrder}</strong>
-              <span>{job.customer}</span>
-              <small>{job.pickupLocation} → {job.deliveryLocation}</small>
-            </div>
-            <div className="job-row-side">
-              <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
-              <b>ETA {job.eta}</b>
-            </div>
-          </button>
+            job={job}
+            selected={job.id === selectedJobId}
+            onSelect={onSelectJob}
+          />
         ))}
       </div>
     </section>
@@ -1079,24 +1073,95 @@ function AdminDashboard({
 
       <div className="job-list">
         {activeJobs.map((job) => (
-          <button
+          <JobSummaryCard
             key={job.id}
-            className={`job-row ${job.id === selectedJobId ? "selected-job" : ""}`}
-            onClick={() => onSelectJob(job.id)}
-          >
-            <div className="job-row-main">
-              <strong>{job.workOrder}</strong>
-              <span>{job.driverName} · {job.vehiclePlate}</span>
-              <small>{job.customer}</small>
-            </div>
-            <div className="job-row-side">
-              <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
-              <b>{job.lastUpdatedMinutes} นาที</b>
-            </div>
-          </button>
+            job={job}
+            selected={job.id === selectedJobId}
+            onSelect={onSelectJob}
+          />
         ))}
       </div>
     </section>
+  );
+}
+
+function formatDriverPhone(phone: string) {
+  let digits = phone.replace(/\D/g, "");
+
+  if (digits.length === 11 && digits.startsWith("66")) {
+    digits = `0${digits.slice(2)}`;
+  }
+
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  return phone.trim() || "ไม่ระบุเบอร์โทร";
+}
+
+function JobSummaryCard({
+  job,
+  selected,
+  onSelect
+}: {
+  job: TransportJob;
+  selected: boolean;
+  onSelect: (jobId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const phone = formatDriverPhone(job.driverPhone);
+  const phoneDigits = job.driverPhone.replace(/\D/g, "");
+
+  function toggleDetails() {
+    onSelect(job.id);
+    setExpanded((current) => !current);
+  }
+
+  return (
+    <article className={`job-summary-card ${selected ? "selected-job" : ""}`}>
+      <header className="job-summary-head">
+        <div className="job-route-title">
+          <MapPin size={18} />
+          <h2>
+            <span>{job.pickupLocation}</span>
+            <ArrowRight size={17} aria-hidden="true" />
+            <span>{job.deliveryLocation}</span>
+          </h2>
+        </div>
+        <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
+      </header>
+
+      <p className="job-reference">Jobs / ใบงาน <strong>{job.workOrder}</strong></p>
+
+      <div className="job-summary-meta">
+        <div className="job-driver">
+          <UserRound size={18} />
+          <span><small>คนขับ</small><strong>{job.driverName || "ยังไม่ระบุคนขับ"}</strong></span>
+        </div>
+        {phoneDigits ? (
+          <a className="job-phone" href={`tel:${phoneDigits}`} aria-label={`โทรหาคนขับ ${phone}`}>
+            <Phone size={17} /> {phone}
+          </a>
+        ) : (
+          <span className="job-phone"><Phone size={17} /> {phone}</span>
+        )}
+        <span className="vehicle-plate"><Truck size={17} /> {job.vehiclePlate || "ไม่ระบุทะเบียน"}</span>
+      </div>
+
+      {expanded && (
+        <div className="job-summary-details">
+          <div><small>ลูกค้า</small><strong>{job.customer}</strong></div>
+          <div><small>ETA</small><strong>{job.eta}</strong></div>
+          <div><small>อัปเดตล่าสุด</small><strong>{job.lastUpdatedMinutes} นาทีที่แล้ว</strong></div>
+          <div><small>การแจ้งเตือน</small><strong>{job.alerts.length ? `${job.alerts.length} รายการ` : "ไม่มี"}</strong></div>
+        </div>
+      )}
+
+      <button className="job-detail-button" type="button" aria-expanded={expanded} onClick={toggleDetails}>
+        {expanded ? "ซ่อนรายละเอียด" : "รายละเอียดเพิ่มเติม"}
+        <ChevronDown size={17} aria-hidden="true" />
+      </button>
+    </article>
   );
 }
 
@@ -1342,21 +1407,12 @@ function AdminView({
 
       <div className="job-list">
         {activeJobs.map((job) => (
-          <button
+          <JobSummaryCard
             key={job.id}
-            className={`job-row ${job.id === selectedJobId ? "selected-job" : ""}`}
-            onClick={() => onSelectJob(job.id)}
-          >
-            <div className="job-row-main">
-              <strong>{job.workOrder}</strong>
-              <span>{job.driverName} · {job.vehiclePlate}</span>
-              <small>{job.pickupLocation} → {job.deliveryLocation}</small>
-            </div>
-            <div className="job-row-side">
-              <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
-              <b>ETA {job.eta}</b>
-            </div>
-          </button>
+            job={job}
+            selected={job.id === selectedJobId}
+            onSelect={onSelectJob}
+          />
         ))}
       </div>
     </section>

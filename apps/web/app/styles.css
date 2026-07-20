@@ -385,8 +385,6 @@ a {
 
 .brand span,
 .section-title p,
-.job-row span,
-.job-row small,
 .detail-head p,
 .detail-grid p,
 .timeline p,
@@ -783,7 +781,7 @@ h2 {
 .privacy-card,
 .map-card,
 .stat-strip,
-.job-row,
+.job-summary-card,
 .detail-grid article {
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -1292,32 +1290,170 @@ h2 {
   gap: 10px;
 }
 
-.job-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  width: 100%;
+.job-summary-card {
+  padding: 14px;
   color: inherit;
-  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.job-row.selected-job {
+.job-summary-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.job-summary-card.selected-job {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.job-row-main {
+.job-summary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-route-title {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.job-route-title > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.job-route-title h2 {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: .98rem;
+  line-height: 1.35;
+}
+
+.job-route-title h2 > svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.job-reference {
+  margin: 7px 0 12px 26px;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.job-reference strong {
+  color: var(--text);
+}
+
+.job-summary-meta {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.35fr) minmax(132px, .8fr) minmax(118px, .7fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.job-driver,
+.job-phone,
+.vehicle-plate {
+  min-width: 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.job-driver > svg,
+.job-phone > svg,
+.vehicle-plate > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.job-driver > span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.job-driver small {
+  color: var(--muted);
+  font-size: .62rem;
+}
+
+.job-driver strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vehicle-plate {
+  justify-content: center;
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.job-summary-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.job-summary-details > div {
+  min-width: 0;
   display: grid;
   gap: 3px;
 }
 
-.job-row-side {
-  display: grid;
-  justify-items: end;
-  align-content: center;
-  gap: 6px;
-  min-width: 120px;
+.job-summary-details small {
+  color: var(--muted);
+  font-size: .64rem;
+}
+
+.job-summary-details strong {
+  overflow: hidden;
+  font-size: .74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-detail-button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+.job-detail-button svg {
+  transition: transform 160ms ease;
+}
+
+.job-detail-button[aria-expanded="true"] svg {
+  transform: rotate(180deg);
 }
 
 .status.danger {
@@ -1541,6 +1677,24 @@ h2 {
   .dispatch-form-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .job-summary-head {
+    display: grid;
+  }
+
+  .job-summary-head .status {
+    width: fit-content;
+    margin-left: 26px;
+  }
+
+  .job-summary-meta,
+  .job-summary-details {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicle-plate {
+    justify-content: flex-start;
   }
 }
 
