@@ -1128,10 +1128,12 @@ function JobSummaryCard({
             <span>{job.deliveryLocation}</span>
           </h2>
         </div>
-        <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
       </header>
 
-      <p className="job-reference">Jobs / ใบงาน <strong>{job.workOrder}</strong></p>
+      <div className="job-summary-subhead">
+        <p className="job-reference">Jobs / ใบงาน <strong>{job.workOrder}</strong></p>
+        <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
+      </div>
 
       <div className="job-summary-meta">
         <div className="job-driver">

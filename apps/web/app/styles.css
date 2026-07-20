@@ -1309,8 +1309,6 @@ h2 {
 .job-summary-head {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .job-route-title {
@@ -1341,10 +1339,24 @@ h2 {
   color: var(--muted);
 }
 
+.job-summary-subhead {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 12px 26px;
+}
+
 .job-reference {
-  margin: 7px 0 12px 26px;
+  min-width: 0;
+  margin: 0;
   color: var(--muted);
   font-size: .72rem;
+}
+
+.job-summary-subhead .status {
+  flex: 0 0 auto;
 }
 
 .job-reference strong {
@@ -1677,15 +1689,6 @@ h2 {
   .dispatch-form-actions {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .job-summary-head {
-    display: grid;
-  }
-
-  .job-summary-head .status {
-    width: fit-content;
-    margin-left: 26px;
   }
 
   .job-summary-meta,
