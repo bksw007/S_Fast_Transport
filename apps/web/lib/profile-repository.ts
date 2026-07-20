@@ -64,9 +64,13 @@ export async function uploadPersonalDocument(uid: string, kind: PersonalDocument
   return { storagePath, fileName: cleanText(file.name).slice(0, 120) };
 }
 
-export async function downloadPrivateDocument(storagePath: string, fileName: string) {
+export async function loadPrivateDocument(storagePath: string) {
   if (!storagePath.startsWith("user_documents/")) throw new Error("ตำแหน่งเอกสารไม่ถูกต้อง");
-  const blob = await getBlob(ref(storage, storagePath), 5 * 1024 * 1024);
+  return getBlob(ref(storage, storagePath), 5 * 1024 * 1024);
+}
+
+export async function downloadPrivateDocument(storagePath: string, fileName: string) {
+  const blob = await loadPrivateDocument(storagePath);
   const objectURL = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectURL;

@@ -64,6 +64,7 @@ import {
   downloadPrivateDocument,
   driverLicenseTypes,
   formatPhoneNumber,
+  loadPrivateDocument,
   nameTitles,
   updateOwnProfile,
   uploadPersonalDocument,
@@ -1115,8 +1116,8 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
             <label><span>ใบขับขี่หมดอายุ</span><input type="date" value={draft.licenseExpiry} onChange={(event) => setDraft({ ...draft, licenseExpiry: event.target.value })} /></label>
           </div>
           <div className="personal-document-grid">
-            <DocumentUpload label="บัตรประชาชน (ด้านหน้า)" currentName={profile.idCardFrontFileName} selectedFile={idCardFile} onChange={setIdCardFile} onDownload={profile.idCardFrontPath ? () => downloadDocument(profile.idCardFrontPath, profile.idCardFrontFileName) : undefined} />
-            <DocumentUpload label="ใบขับขี่ (ด้านหน้า)" currentName={profile.driverLicenseFrontFileName} selectedFile={licenseFile} onChange={setLicenseFile} onDownload={profile.driverLicenseFrontPath ? () => downloadDocument(profile.driverLicenseFrontPath, profile.driverLicenseFrontFileName) : undefined} />
+            <DocumentUpload label="บัตรประชาชน (ด้านหน้า)" currentName={profile.idCardFrontFileName} currentPath={profile.idCardFrontPath} selectedFile={idCardFile} onChange={setIdCardFile} onDownload={profile.idCardFrontPath ? () => downloadDocument(profile.idCardFrontPath, profile.idCardFrontFileName) : undefined} />
+            <DocumentUpload label="ใบขับขี่ (ด้านหน้า)" currentName={profile.driverLicenseFrontFileName} currentPath={profile.driverLicenseFrontPath} selectedFile={licenseFile} onChange={setLicenseFile} onDownload={profile.driverLicenseFrontPath ? () => downloadDocument(profile.driverLicenseFrontPath, profile.driverLicenseFrontFileName) : undefined} />
           </div>
         </section>
 
@@ -1126,15 +1127,58 @@ function ProfileScreen({ profile, onProfileUpdated }: { profile: UserProfile; on
   );
 }
 
-function DocumentUpload({ label, currentName, selectedFile, onChange, onDownload }: { label: string; currentName: string; selectedFile: File | null; onChange: (file: File | null) => void; onDownload?: () => void }) {
+function DocumentUpload({ label, currentName, currentPath, selectedFile, onChange, onDownload }: { label: string; currentName: string; currentPath: string; selectedFile: File | null; onChange: (file: File | null) => void; onDownload?: () => void }) {
   return (
     <article className="document-upload-card">
       <div><FileImage size={20} /><span><strong>{label}</strong><small>{selectedFile?.name || currentName || "ยังไม่ได้แนบเอกสาร"}</small></span></div>
       {selectedFile && <FilePreview key={`${selectedFile.name}-${selectedFile.lastModified}`} file={selectedFile} alt={`ตัวอย่าง${label}`} />}
+      {!selectedFile && currentPath && <StoredFilePreview storagePath={currentPath} fileName={currentName} alt={`ตัวอย่าง${label}`} />}
       <label><Upload size={15} /> {currentName ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => onChange(event.target.files?.[0] ?? null)} /></label>
       {onDownload && <button type="button" onClick={onDownload}><Download size={15} /> ดาวน์โหลดไฟล์เดิม</button>}
     </article>
   );
+}
+
+function StoredFilePreview({ storagePath, fileName, alt }: { storagePath: string; fileName: string; alt: string }) {
+  const [preview, setPreview] = useState<{ status: "loading" | "image" | "pdf" | "error"; url: string }>({ status: "loading", url: "" });
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectURL = "";
+
+    loadPrivateDocument(storagePath)
+      .then((blob) => {
+        if (cancelled) return;
+        if (blob.type.startsWith("image/")) {
+          objectURL = URL.createObjectURL(blob);
+          setPreview({ status: "image", url: objectURL });
+          return;
+        }
+        setPreview({ status: "pdf", url: "" });
+      })
+      .catch(() => {
+        if (!cancelled) setPreview({ status: "error", url: "" });
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectURL) URL.revokeObjectURL(objectURL);
+    };
+  }, [storagePath]);
+
+  if (preview.status === "image") {
+    return <Image className="file-preview" src={preview.url} alt={alt} width={900} height={600} unoptimized />;
+  }
+
+  if (preview.status === "pdf") {
+    return <div className="file-preview pdf"><FileImage size={24} /><span>ไฟล์ PDF ที่บันทึกไว้</span></div>;
+  }
+
+  if (preview.status === "error") {
+    return <div className="file-preview pdf error"><FileImage size={24} /><span>ไม่สามารถแสดงตัวอย่างได้</span><small>{fileName || "กรุณาดาวน์โหลดไฟล์เดิม"}</small></div>;
+  }
+
+  return <div className="file-preview pdf loading" aria-live="polite"><span>กำลังโหลดรูปเอกสาร...</span></div>;
 }
 
 function FilePreview({ file, alt, compact = false }: { file: File; alt: string; compact?: boolean }) {

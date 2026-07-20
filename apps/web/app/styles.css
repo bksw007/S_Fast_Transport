@@ -1915,6 +1915,24 @@ h2 {
   font-size: .72rem;
 }
 
+.file-preview.pdf.loading {
+  min-height: 120px;
+  background: linear-gradient(100deg, var(--surface-soft) 20%, var(--surface) 40%, var(--surface-soft) 60%);
+  background-size: 200% 100%;
+  animation: document-preview-loading 1.4s ease-in-out infinite;
+}
+
+.file-preview.pdf.error small {
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes document-preview-loading {
+  to { background-position-x: -200%; }
+}
+
 .profile-save-bar {
   position: sticky;
   bottom: 8px;
