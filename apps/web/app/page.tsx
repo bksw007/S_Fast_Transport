@@ -21,7 +21,6 @@ import {
   Menu,
   Moon,
   Phone,
-  Plus,
   QrCode,
   RotateCcw,
   Save,
@@ -1315,7 +1314,6 @@ function AdminView({
   compact?: boolean;
 }) {
   const [draft, setDraft] = useState<JobDraft>(createEmptyJobDraft);
-  const [showForm, setShowForm] = useState(false);
   const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
   const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
   const organizationId = profile.organizationId ?? "main";
@@ -1337,7 +1335,6 @@ function AdminView({
     };
     onCreateJob(nextDraft);
     setDraft(createEmptyJobDraft());
-    setShowForm(false);
   }
 
   return (
@@ -1347,14 +1344,9 @@ function AdminView({
           <h1>Jobs / ใบงาน</h1>
           <p>สร้าง มอบหมาย และติดตามใบงานขนส่ง</p>
         </div>
-        <button className={`icon-text ${showForm ? "active" : ""}`} onClick={() => setShowForm((current) => !current)} disabled={!canWrite}>
-          <Plus size={17} />
-          Jobs
-        </button>
       </div>
 
-      {showForm && (
-        <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); submitJob(); }}>
+      <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); submitJob(); }}>
           <header className="dispatch-form-hero">
             <div><span>DISPATCH CENTER</span><h2>ฟอร์มแจ้งงาน</h2><p>สร้างใบแจ้งงานและบันทึกเข้าระบบ</p></div>
             <FilePenLine size={24} />
@@ -1408,8 +1400,7 @@ function AdminView({
               <button type="button" onClick={() => setDraft(createEmptyJobDraft())}><RotateCcw size={17} /> ล้างข้อมูล</button>
             </div>
           </div>
-        </form>
-      )}
+      </form>
 
       <div className="stat-strip">
         <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.length}`} />
