@@ -30,6 +30,8 @@ New users may create only their own pending/inactive Google profile. Main admins
 - `taxId`
 - `contactName`
 - `phone`
+- `email`
+- `logoUrl`
 - `active`
 - `createdAt`
 - `updatedAt`
@@ -64,6 +66,22 @@ Hot collection for the active dashboard.
 - `trackingEndedAt`
 - `currentLocation.{lat,lng,speed,heading,accuracy,updatedAt}`
 - `trackingStatus`
+
+### vehicles/{organizationId--normalizedPlate}
+
+- `organizationId`, `plate`, `plateNormalized`
+- `vehicleType`, `brand`, `model`, `capacityKg`
+- `registrationExpiry`, `insuranceExpiry`, `gpsDeviceId`
+- `status`: `available | assigned | maintenance | inactive`
+- `createdByUid`, `updatedByUid`, `createdAt`, `updatedAt`
+
+### drivers/{organizationId--normalizedLicenseNumber}
+
+- `organizationId`, `name`, `phone`, `email`
+- `licenseNumber`, `licenseType`, `licenseExpiry`
+- `assignedVehicleId`
+- `status`: `available | assigned | leave | inactive`
+- `createdByUid`, `updatedByUid`, `createdAt`, `updatedAt`
 
 ### job_locations/{jobId}/points/{pointId}
 

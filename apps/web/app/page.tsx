@@ -54,6 +54,7 @@ import {
 } from "@s-fast-transport/shared";
 import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
+import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
 import {
   createJob,
   createTrackingShareLink,
@@ -346,6 +347,10 @@ export default function Home() {
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
             <AdminDashboard activeJobs={jobs} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
+          ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (
+            <SubcontractCompaniesScreen actor={profile} />
+          ) : adminScreen === "รถและคนขับ" ? (
+            <FleetAndDriversScreen actor={profile} />
           ) : adminScreen === "User Management" ? (
             <AccessManagementScreen actor={profile} />
           ) : (
@@ -559,6 +564,14 @@ function AdminMobileScreen({
     return activeJobs.length > 0
       ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
       : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />;
+  }
+
+  if (screen === "บริษัทขนส่ง" && isMainAdmin(profile)) {
+    return <SubcontractCompaniesScreen actor={profile} />;
+  }
+
+  if (screen === "รถและคนขับ") {
+    return <FleetAndDriversScreen actor={profile} />;
   }
 
   if (screen === "User Management" && isMainAdmin(profile)) {
