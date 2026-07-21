@@ -1643,7 +1643,7 @@ function GoogleLiveMap({
             icon: {
               path: mapsApi.maps.SymbolPath.CIRCLE,
               scale: job.id === selectedJobId ? 15 : 12,
-              fillColor: job.alerts.length ? "#e69b19" : "#0f8f8c",
+              fillColor: job.alerts.length ? "#8c615b" : "#4c5960",
               fillOpacity: 1,
               strokeColor: "#ffffff",
               strokeWeight: 3

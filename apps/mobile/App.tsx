@@ -8,24 +8,24 @@ type ThemeName = "light" | "dark";
 
 const palettes = {
   light: {
-    bg: "#b9bab7",
-    surface: "#ecece8",
-    surface2: "#dedfdb",
-    text: "#171817",
-    muted: "#666762",
-    border: "#c3c4bf",
-    accent: "#9c862d",
-    warning: "#ba8125"
+    bg: "#969a9b",
+    surface: "#eef0ef",
+    surface2: "#dadddd",
+    text: "#151718",
+    muted: "#656b6d",
+    border: "#c0c4c4",
+    accent: "#4c5960",
+    warning: "#796865"
   },
   dark: {
-    bg: "#111214",
-    surface: "#1b1c1e",
-    surface2: "#242628",
-    text: "#f2f2ed",
-    muted: "#a7a8a1",
-    border: "#36383a",
-    accent: "#d6c25b",
-    warning: "#c69234"
+    bg: "#0e1011",
+    surface: "#181b1d",
+    surface2: "#23272a",
+    text: "#f0f2f1",
+    muted: "#9ca3a5",
+    border: "#343a3d",
+    accent: "#bdc6c9",
+    warning: "#9b8580"
   }
 };
 
