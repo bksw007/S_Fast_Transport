@@ -8,24 +8,24 @@ type ThemeName = "light" | "dark";
 
 const palettes = {
   light: {
-    bg: "#eef5f3",
-    surface: "#ffffff",
-    surface2: "#f6faf9",
-    text: "#132027",
-    muted: "#667883",
-    border: "#dce7e4",
-    accent: "#0f8f8c",
-    warning: "#e69b19"
+    bg: "#b9bab7",
+    surface: "#ecece8",
+    surface2: "#dedfdb",
+    text: "#171817",
+    muted: "#666762",
+    border: "#c3c4bf",
+    accent: "#9c862d",
+    warning: "#ba8125"
   },
   dark: {
-    bg: "#08111a",
-    surface: "#111d28",
-    surface2: "#172532",
-    text: "#edf7f5",
-    muted: "#9db0ba",
-    border: "#273947",
-    accent: "#37c4bd",
-    warning: "#e69b19"
+    bg: "#111214",
+    surface: "#1b1c1e",
+    surface2: "#242628",
+    text: "#f2f2ed",
+    muted: "#a7a8a1",
+    border: "#36383a",
+    accent: "#d6c25b",
+    warning: "#c69234"
   }
 };
 
@@ -163,7 +163,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     },
     container: {
       padding: 18,
-      gap: 14
+      gap: 16
     },
     header: {
       flexDirection: "row",
@@ -173,7 +173,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     brandMark: {
       width: 44,
       height: 44,
-      borderRadius: 8,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border
@@ -184,12 +184,13 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     brandName: {
       color: colors.text,
       fontWeight: "900",
-      fontSize: 17 * fontScale
+      fontSize: 17 * fontScale,
+      letterSpacing: 0.3
     },
     iconButton: {
       width: 42,
       height: 42,
-      borderRadius: 8,
+      borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.surface,
@@ -204,7 +205,8 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     title: {
       color: colors.text,
       fontWeight: "900",
-      fontSize: 27 * fontScale
+      fontSize: 29 * fontScale,
+      letterSpacing: -0.5
     },
     muted: {
       color: colors.muted,
@@ -216,16 +218,23 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       backgroundColor: `${colors.accent}22`,
       paddingHorizontal: 12,
       paddingVertical: 7,
-      borderRadius: 999,
+      borderRadius: 6,
       fontWeight: "900",
-      overflow: "hidden"
+      overflow: "hidden",
+      letterSpacing: 1.1,
+      textTransform: "uppercase"
     },
     card: {
       overflow: "hidden",
-      borderRadius: 8,
+      borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border
+      borderColor: colors.border,
+      shadowColor: "#000000",
+      shadowOffset: { width: 0, height: 14 },
+      shadowOpacity: themeShadowOpacity(colors.bg),
+      shadowRadius: 28,
+      elevation: 7
     },
     jobCardHeader: {
       minHeight: 76,
@@ -237,7 +246,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     jobCardIcon: {
       width: 38,
       height: 38,
-      borderRadius: 9,
+      borderRadius: 11,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: `${colors.accent}18`
@@ -258,7 +267,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       backgroundColor: `${colors.accent}18`,
       paddingHorizontal: 8,
       paddingVertical: 5,
-      borderRadius: 999,
+      borderRadius: 6,
       fontWeight: "900",
       fontSize: 11 * fontScale
     },
@@ -296,7 +305,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       flex: 1,
       minHeight: 62,
       padding: 10,
-      borderRadius: 8,
+      borderRadius: 10,
       backgroundColor: colors.surface2,
       borderWidth: 1,
       borderColor: colors.border
@@ -315,7 +324,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     actionButton: {
       width: "48%",
       minHeight: 58,
-      borderRadius: 8,
+      borderRadius: 12,
       padding: 11,
       flexDirection: "row",
       alignItems: "center",
@@ -326,7 +335,12 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
     },
     actionActive: {
       backgroundColor: colors.accent,
-      borderColor: colors.accent
+      borderColor: colors.accent,
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.22,
+      shadowRadius: 14,
+      elevation: 4
     },
     actionText: {
       color: colors.text,
@@ -341,7 +355,7 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       flexDirection: "row",
       gap: 12,
       padding: 14,
-      borderRadius: 8,
+      borderRadius: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border
@@ -350,4 +364,8 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       flex: 1
     }
   });
+}
+
+function themeShadowOpacity(background: string) {
+  return background === palettes.dark.bg ? 0.34 : 0.16;
 }
