@@ -11,6 +11,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   CircleDot,
   Clock3,
   FileImage,
@@ -1237,12 +1238,15 @@ function DriverView({
         <span className="live-dot">{job.trackingEnabled ? "Live" : "Standby"}</span>
       </div>
 
-      <article className="job-card primary">
-        <div className="job-card-head">
-          <div>
-            <span className="label">ลูกค้า</span>
-            <h2>{job.customer}</h2>
-          </div>
+      <CompactJobCard
+        className="primary"
+        eyebrow={`ใบงาน ${job.workOrder}`}
+        title={job.customer}
+        subtitle={`${job.pickupLocation} → ${job.deliveryLocation}`}
+        status={statusLabels[job.status]}
+      >
+        <div className="job-card-head job-card-actions-head">
+          <span className="label">รายละเอียดเส้นทางและการติดต่อ</span>
           <a className="round-link" aria-label="โทรหาผู้เกี่ยวข้อง" href={`tel:${job.driverPhone}`}>
             <Phone size={18} />
           </a>
@@ -1256,7 +1260,7 @@ function DriverView({
           <Metric icon={<Gauge size={18} />} label="Speed" value={`${job.currentLocation.speed} กม./ชม.`} />
           <Metric icon={<MapPin size={18} />} label="สถานะ" value={statusLabels[job.status]} />
         </div>
-      </article>
+      </CompactJobCard>
 
       <div className="progress-card">
         {statusOrder.slice(0, 10).map((status, index) => (
@@ -1340,19 +1344,17 @@ function MapScreen({
 
       <GoogleLiveMap jobs={jobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
 
-      <article className="job-card">
-        <div className="job-card-head">
-          <div>
-            <span className="label">ตำแหน่งล่าสุด</span>
-            <h2>{selectedJob.driverName}</h2>
-          </div>
-          <strong>{selectedJob.currentLocation.speed} กม./ชม.</strong>
-        </div>
+      <CompactJobCard
+        eyebrow={`ตำแหน่งล่าสุด · ${selectedJob.workOrder}`}
+        title={selectedJob.driverName}
+        subtitle={selectedJob.vehiclePlate}
+        status={`${selectedJob.currentLocation.speed} กม./ชม.`}
+      >
         <div className="route-block">
           <RoutePoint title="รับสินค้า" value={selectedJob.pickupLocation} />
           <RoutePoint title="ส่งสินค้า" value={selectedJob.deliveryLocation} />
         </div>
-      </article>
+      </CompactJobCard>
     </section>
   );
 }
@@ -1376,30 +1378,34 @@ function ProofScreen({
         <span className="status">{statusLabels[job.status]}</span>
       </div>
 
-      <article className="job-card proof-card">
-        <FileImage size={28} />
-        <div>
-          <span className="label">POD / รูปหน้างาน</span>
-          <h2>แนบไฟล์หลักฐานส่งของ</h2>
+      <CompactJobCard
+        className="proof-card"
+        eyebrow={`POD / รูปหน้างาน · ${job.workOrder}`}
+        title="แนบไฟล์หลักฐานส่งของ"
+        subtitle={job.customer}
+        status={statusLabels[job.status]}
+        icon={<FileImage size={22} />}
+      >
+        <div className="proof-card-content">
           <p>รูปต้นฉบับจะถูกบีบอัดเหลือไม่เกิน 1 MB · PDF ไม่เกิน 10 MB</p>
+          <label className="upload-button">
+            <FileImage size={17} />
+            เลือกไฟล์
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              disabled={!canWrite}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  onUpload(file);
+                  event.currentTarget.value = "";
+                }
+              }}
+            />
+          </label>
         </div>
-        <label className="upload-button">
-          <FileImage size={17} />
-          เลือกไฟล์
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            disabled={!canWrite}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) {
-                onUpload(file);
-                event.currentTarget.value = "";
-              }
-            }}
-          />
-        </label>
-      </article>
+      </CompactJobCard>
 
       <article className="privacy-card">
         <CheckCircle2 size={20} />
@@ -1468,6 +1474,49 @@ function formatDriverPhone(phone: string) {
   return phone.trim() || "ไม่ระบุเบอร์โทร";
 }
 
+function CompactJobCard({
+  eyebrow,
+  title,
+  subtitle,
+  status,
+  icon,
+  className = "",
+  children
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  icon?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <article className={`job-card compact-job-card ${className} ${expanded ? "expanded" : ""}`.trim()}>
+      <button
+        className="compact-job-toggle"
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span className="compact-job-icon" aria-hidden="true">{icon ?? <Truck size={20} />}</span>
+        <span className="compact-job-copy">
+          <small>{eyebrow}</small>
+          <strong>{title}</strong>
+          <span>{subtitle}</span>
+        </span>
+        <span className="compact-job-status">{status}</span>
+        <span className="compact-job-chevron" aria-hidden="true">
+          {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        </span>
+      </button>
+      {expanded && <div className="compact-job-details">{children}</div>}
+    </article>
+  );
+}
+
 function JobSummaryCard({
   job,
   selected,
@@ -1487,51 +1536,47 @@ function JobSummaryCard({
   }
 
   return (
-    <article className={`job-summary-card ${selected ? "selected-job" : ""}`}>
-      <header className="job-summary-head">
-        <div className="job-route-title">
-          <MapPin size={18} />
-          <h2>
+    <article className={`job-summary-card ${selected ? "selected-job" : ""} ${expanded ? "expanded" : ""}`}>
+      <button className="job-summary-toggle" type="button" aria-expanded={expanded} onClick={toggleDetails}>
+        <span className="job-summary-toggle-icon"><MapPin size={19} /></span>
+        <span className="job-summary-toggle-copy">
+          <small>ใบงาน {job.workOrder}</small>
+          <strong>
             <span>{job.pickupLocation}</span>
-            <ArrowRight size={17} aria-hidden="true" />
+            <ArrowRight size={16} aria-hidden="true" />
             <span>{job.deliveryLocation}</span>
-          </h2>
-        </div>
-      </header>
-
-      <div className="job-summary-subhead">
-        <p className="job-reference">Jobs / ใบงาน <strong>{job.workOrder}</strong></p>
+          </strong>
+        </span>
         <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
-      </div>
-
-      <div className="job-summary-meta">
-        <div className="job-driver">
-          <UserRound size={18} />
-          <span><small>คนขับ</small><strong>{job.driverName || "ยังไม่ระบุคนขับ"}</strong></span>
-        </div>
-        {phoneDigits ? (
-          <a className="job-phone" href={`tel:${phoneDigits}`} aria-label={`โทรหาคนขับ ${phone}`}>
-            <Phone size={17} /> {phone}
-          </a>
-        ) : (
-          <span className="job-phone"><Phone size={17} /> {phone}</span>
-        )}
-        <span className="vehicle-plate"><Truck size={17} /> {job.vehiclePlate || "ไม่ระบุทะเบียน"}</span>
-      </div>
+        <span className="job-summary-toggle-chevron" aria-hidden="true">
+          {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        </span>
+      </button>
 
       {expanded && (
-        <div className="job-summary-details">
-          <div><small>ลูกค้า</small><strong>{job.customer}</strong></div>
-          <div><small>ETA</small><strong>{job.eta}</strong></div>
-          <div><small>อัปเดตล่าสุด</small><strong>{job.lastUpdatedMinutes} นาทีที่แล้ว</strong></div>
-          <div><small>การแจ้งเตือน</small><strong>{job.alerts.length ? `${job.alerts.length} รายการ` : "ไม่มี"}</strong></div>
+        <div className="job-summary-expanded">
+          <div className="job-summary-meta">
+            <div className="job-driver">
+              <UserRound size={18} />
+              <span><small>คนขับ</small><strong>{job.driverName || "ยังไม่ระบุคนขับ"}</strong></span>
+            </div>
+            {phoneDigits ? (
+              <a className="job-phone" href={`tel:${phoneDigits}`} aria-label={`โทรหาคนขับ ${phone}`}>
+                <Phone size={17} /> {phone}
+              </a>
+            ) : (
+              <span className="job-phone"><Phone size={17} /> {phone}</span>
+            )}
+            <span className="vehicle-plate"><Truck size={17} /> {job.vehiclePlate || "ไม่ระบุทะเบียน"}</span>
+          </div>
+          <div className="job-summary-details">
+            <div><small>ลูกค้า</small><strong>{job.customer}</strong></div>
+            <div><small>ETA</small><strong>{job.eta}</strong></div>
+            <div><small>อัปเดตล่าสุด</small><strong>{job.lastUpdatedMinutes} นาทีที่แล้ว</strong></div>
+            <div><small>การแจ้งเตือน</small><strong>{job.alerts.length ? `${job.alerts.length} รายการ` : "ไม่มี"}</strong></div>
+          </div>
         </div>
       )}
-
-      <button className="job-detail-button" type="button" aria-expanded={expanded} onClick={toggleDetails}>
-        {expanded ? "ซ่อนรายละเอียด" : "รายละเอียดเพิ่มเติม"}
-        <ChevronDown size={17} aria-hidden="true" />
-      </button>
     </article>
   );
 }

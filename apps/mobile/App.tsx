@@ -33,6 +33,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeName>("light");
   const [fontScale, setFontScale] = useState(1);
   const [activeAction, setActiveAction] = useState("start_tracking");
+  const [jobExpanded, setJobExpanded] = useState(false);
   const colors = palettes[theme];
   const job = sampleJobs[0];
   const styles = createStyles(colors, fontScale);
@@ -64,27 +65,47 @@ export default function App() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.label}>ลูกค้า</Text>
-            <Text style={styles.cardTitle}>{job.customer}</Text>
-            <View style={styles.routeRow}>
-              <Ionicons name="navigate-circle" size={22} color={colors.accent} />
-              <View>
-                <Text style={styles.label}>จุดรับ</Text>
-                <Text style={styles.value}>{job.pickupLocation}</Text>
+            <Pressable
+              style={styles.jobCardHeader}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: jobExpanded }}
+              onPress={() => setJobExpanded((value) => !value)}
+            >
+              <View style={styles.jobCardIcon}>
+                <Ionicons name="briefcase" size={20} color={colors.accent} />
               </View>
-            </View>
-            <View style={styles.routeRow}>
-              <Ionicons name="flag" size={22} color={colors.accent} />
-              <View>
-                <Text style={styles.label}>จุดส่ง</Text>
-                <Text style={styles.value}>{job.deliveryLocation}</Text>
+              <View style={styles.jobCardSummary}>
+                <Text style={styles.jobCardEyebrow}>ใบงาน {job.workOrder}</Text>
+                <Text style={styles.cardTitle} numberOfLines={1}>{job.customer}</Text>
+                <Text style={styles.muted} numberOfLines={1}>{job.pickupLocation} → {job.deliveryLocation}</Text>
               </View>
-            </View>
-            <View style={styles.metrics}>
-              <Metric label="ETA" value={job.eta} styles={styles} />
-              <Metric label="Speed" value={`${job.currentLocation.speed} กม./ชม.`} styles={styles} />
-              <Metric label="สถานะ" value={statusLabels[job.status]} styles={styles} />
-            </View>
+              <Text style={styles.jobStatus}>{statusLabels[job.status]}</Text>
+              <Ionicons name={jobExpanded ? "chevron-up" : "chevron-down"} size={21} color={colors.accent} />
+            </Pressable>
+
+            {jobExpanded && (
+              <View style={styles.jobCardDetails}>
+                <View style={styles.routeRow}>
+                  <Ionicons name="navigate-circle" size={22} color={colors.accent} />
+                  <View>
+                    <Text style={styles.label}>จุดรับ</Text>
+                    <Text style={styles.value}>{job.pickupLocation}</Text>
+                  </View>
+                </View>
+                <View style={styles.routeRow}>
+                  <Ionicons name="flag" size={22} color={colors.accent} />
+                  <View>
+                    <Text style={styles.label}>จุดส่ง</Text>
+                    <Text style={styles.value}>{job.deliveryLocation}</Text>
+                  </View>
+                </View>
+                <View style={styles.metrics}>
+                  <Metric label="ETA" value={job.eta} styles={styles} />
+                  <Metric label="Speed" value={`${job.currentLocation.speed} กม./ชม.`} styles={styles} />
+                  <Metric label="สถานะ" value={statusLabels[job.status]} styles={styles} />
+                </View>
+              </View>
+            )}
           </View>
 
           <View style={styles.actionGrid}>
@@ -200,12 +221,52 @@ function createStyles(colors: typeof palettes.light, fontScale: number) {
       overflow: "hidden"
     },
     card: {
-      padding: 16,
+      overflow: "hidden",
       borderRadius: 8,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
-      gap: 12
+      borderColor: colors.border
+    },
+    jobCardHeader: {
+      minHeight: 76,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10
+    },
+    jobCardIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: `${colors.accent}18`
+    },
+    jobCardSummary: {
+      flex: 1,
+      minWidth: 0
+    },
+    jobCardEyebrow: {
+      color: colors.accent,
+      fontWeight: "900",
+      fontSize: 11 * fontScale
+    },
+    jobStatus: {
+      maxWidth: 96,
+      overflow: "hidden",
+      color: colors.accent,
+      backgroundColor: `${colors.accent}18`,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 999,
+      fontWeight: "900",
+      fontSize: 11 * fontScale
+    },
+    jobCardDetails: {
+      gap: 12,
+      padding: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.border
     },
     label: {
       color: colors.muted,

@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
+  ChevronDown,
+  ChevronUp,
   Download,
   Edit3,
   Eye,
@@ -254,6 +256,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("กำลังโหลดข้อมูลรถและคนขับ...");
+  const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null);
   const [documentLoading, setDocumentLoading] = useState("");
   const [documentPreview, setDocumentPreview] = useState<{ label: string; fileName: string; path: string; url: string } | null>(null);
 
@@ -297,6 +300,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
 
   function changeOrganization(nextId: string) {
     setOrganizationId(nextId);
+    setExpandedDriverId(null);
     resetResourceForm();
     setMessage(`กำลังโหลดข้อมูลของ ${nextId === "main" ? "S Fast Transport" : nextId}...`);
   }
@@ -472,7 +476,39 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
       {tab === "vehicles" ? (
         <div className="fleet-card-grid">{!vehicles.length && <div className="resource-empty"><Truck size={25} /><strong>ยังไม่มีรถในบริษัทนี้</strong><span>กด “เพิ่มรถ” เพื่อสร้างรายการแรก</span></div>}{vehicles.map((item) => <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className="fleet-icon"><Truck size={21} /></span><div><small>{item.vehicleType || "ไม่ระบุประเภท"}</small><h2>{item.plate}</h2></div><span className={`resource-status ${item.status}`}>{vehicleStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt>ยี่ห้อ / รุ่น</dt><dd>{[item.brand, item.model].filter(Boolean).join(" ") || "—"}</dd></div><div><dt>บรรทุก</dt><dd>{item.capacityKg ? `${item.capacityKg.toLocaleString()} กก.` : "—"}</dd></div><div><dt>GPS</dt><dd>{item.gpsDeviceId || "ยังไม่ผูก"}</dd></div><div className={expiryClass(item.registrationExpiry)}><dt>ทะเบียนหมดอายุ</dt><dd>{item.registrationExpiry || "—"}</dd></div><div className={expiryClass(item.insuranceExpiry)}><dt>ประกันหมดอายุ</dt><dd>{item.insuranceExpiry || "—"}</dd></div></dl><footer><button onClick={() => editVehicle(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleVehicle(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>)}</div>
       ) : (
-        <div className="fleet-card-grid">{!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}{drivers.map((item) => { const vehicle = vehicles.find((entry) => entry.id === item.assignedVehicleId); const linked = userProfiles.find((entry) => entry.uid === item.userUid); const name = linked?.fullName || item.name; const phone = linked?.phone || item.phone; const email = linked?.email || item.email; const licenseNumber = linked?.licenseNumber || item.licenseNumber; const licenseExpiry = linked?.licenseExpiry || item.licenseExpiry; return <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className={`fleet-icon driver ${linked?.photoURL ? "has-photo" : ""}`} style={linked?.photoURL ? { backgroundImage: `url(${linked.photoURL})` } : undefined}>{!linked?.photoURL && <UserRound size={21} />}</span><div><small>{linked ? "เชื่อมกับบัญชีผู้ใช้" : item.licenseType || "พนักงานขับรถ"}</small><h2>{name}</h2></div><span className={`resource-status ${item.status}`}>{driverStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>{linked && <LinkedDriverDocuments profile={linked} loadingPath={documentLoading} onView={viewDriverDocument} onDownload={downloadDriverDocument} />}<footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>; })}</div>
+        <div className="fleet-card-grid">
+          {!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}
+          {drivers.map((item) => {
+            const vehicle = vehicles.find((entry) => entry.id === item.assignedVehicleId);
+            const linked = userProfiles.find((entry) => entry.uid === item.userUid);
+            const name = linked?.fullName || item.name;
+            const phone = linked?.phone || item.phone;
+            const email = linked?.email || item.email;
+            const licenseNumber = linked?.licenseNumber || item.licenseNumber;
+            const licenseExpiry = linked?.licenseExpiry || item.licenseExpiry;
+            const expanded = expandedDriverId === item.id;
+
+            return (
+              <article key={item.id} className={`fleet-card driver-card ${expanded ? "expanded" : "collapsed"} ${item.status === "inactive" ? "inactive" : ""}`}>
+                <header className="driver-card-toggle-header" onClick={() => setExpandedDriverId(expanded ? null : item.id)}>
+                  <span className={`fleet-icon driver ${linked?.photoURL ? "has-photo" : ""}`} style={linked?.photoURL ? { backgroundImage: `url(${linked.photoURL})` } : undefined}>{!linked?.photoURL && <UserRound size={21} />}</span>
+                  <div><small>{linked ? "เชื่อมกับบัญชีผู้ใช้" : item.licenseType || "พนักงานขับรถ"}</small><h2>{name}</h2></div>
+                  <span className={`resource-status ${item.status}`}>{driverStatusLabels[item.status]}</span>
+                  <button type="button" className="driver-card-toggle" aria-expanded={expanded} aria-label={expanded ? `ย่อข้อมูลของ ${name}` : `ขยายข้อมูลของ ${name}`} onClick={(event) => { event.stopPropagation(); setExpandedDriverId(expanded ? null : item.id); }}>
+                    {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </header>
+                {expanded && (
+                  <div className="driver-card-details">
+                    <dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>
+                    {linked && <LinkedDriverDocuments profile={linked} loadingPath={documentLoading} onView={viewDriverDocument} onDownload={downloadDriverDocument} />}
+                    <footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
       )}
 
       {documentPreview && (

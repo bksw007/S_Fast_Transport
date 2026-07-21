@@ -965,22 +965,114 @@ h2 {
   padding: 16px;
 }
 
+.compact-job-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.compact-job-toggle {
+  width: 100%;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.compact-job-toggle:hover,
+.compact-job-toggle:focus-visible {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.compact-job-icon,
+.compact-job-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.compact-job-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.compact-job-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.compact-job-copy small,
+.compact-job-copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-job-copy small {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.compact-job-copy strong {
+  overflow: hidden;
+  font-size: .92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-job-status {
+  max-width: 150px;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  font-size: .68rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-job-details {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+  animation: compact-card-open 160ms ease-out;
+}
+
+.compact-job-details .route-block:last-child {
+  margin-bottom: 0;
+}
+
+.job-card-actions-head {
+  margin-top: 12px;
+}
+
+@keyframes compact-card-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .job-card.primary {
   background: linear-gradient(145deg, rgba(15, 143, 140, 0.12), rgba(24, 90, 219, 0.08)), var(--surface);
 }
 
-.proof-card {
+.proof-card-content {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+  padding-top: 12px;
 }
 
-.proof-card > svg {
-  color: var(--accent);
-}
-
-.proof-card p {
+.proof-card-content p {
   color: var(--muted);
-  margin-top: 4px;
 }
 
 .job-card-head {
@@ -2557,6 +2649,42 @@ h2 {
   background: var(--surface-2);
 }
 
+.driver-card.collapsed > header { border-bottom-color: transparent; }
+
+.driver-card-toggle-header {
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.driver-card-toggle-header:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+}
+
+.driver-card-toggle {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 9px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  cursor: pointer;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.driver-card-toggle:hover { transform: translateY(-1px); }
+
+.driver-card-details {
+  animation: driver-card-reveal 180ms ease-out;
+}
+
+@keyframes driver-card-reveal {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .organization-mark,
 .fleet-icon {
   width: 44px;
@@ -2663,14 +2791,16 @@ h2 {
 .resource-details .expiring dd { color: var(--warning); }
 
 .organization-card > footer,
-.fleet-card > footer {
+.fleet-card > footer,
+.driver-card-details > footer {
   display: flex;
   gap: 7px;
   padding: 10px 12px 12px;
 }
 
 .organization-card > footer button,
-.fleet-card > footer button {
+.fleet-card > footer button,
+.driver-card-details > footer button {
   min-height: 34px;
   display: inline-flex;
   align-items: center;
@@ -2686,14 +2816,16 @@ h2 {
 }
 
 .organization-card > footer .resource-danger-action,
-.fleet-card > footer .resource-danger-action {
+.fleet-card > footer .resource-danger-action,
+.driver-card-details > footer .resource-danger-action {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 23%, var(--border));
   background: color-mix(in srgb, var(--danger) 7%, var(--surface));
 }
 
 .organization-card > footer .resource-restore-action,
-.fleet-card > footer .resource-restore-action {
+.fleet-card > footer .resource-restore-action,
+.driver-card-details > footer .resource-restore-action {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 23%, var(--border));
   background: color-mix(in srgb, var(--accent) 7%, var(--surface));
@@ -2755,6 +2887,8 @@ h2 {
   .access-message {
     padding: 4px 6px;
   }
+
+  .driver-card-toggle-header { padding: 10px; }
 }
 
 @media (max-width: 420px) {
@@ -2870,7 +3004,8 @@ h2 {
 }
 
 .job-summary-card {
-  padding: 14px;
+  overflow: hidden;
+  padding: 0;
   color: inherit;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
@@ -2885,61 +3020,79 @@ h2 {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.job-summary-head {
-  display: flex;
-  align-items: flex-start;
+.job-summary-toggle {
+  width: 100%;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
 }
 
-.job-route-title {
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+.job-summary-toggle:hover,
+.job-summary-toggle:focus-visible {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
-.job-route-title > svg {
-  flex: 0 0 auto;
-  margin-top: 2px;
+.job-summary-toggle-icon,
+.job-summary-toggle-chevron {
+  display: grid;
+  place-items: center;
   color: var(--accent);
 }
 
-.job-route-title h2 {
+.job-summary-toggle-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.job-summary-toggle-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.job-summary-toggle-copy > small {
+  color: var(--accent);
+  font-size: .66rem;
+  font-weight: 850;
+}
+
+.job-summary-toggle-copy > strong {
   min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 5px;
-  font-size: .98rem;
+  overflow: hidden;
+  font-size: .9rem;
   line-height: 1.35;
 }
 
-.job-route-title h2 > svg {
+.job-summary-toggle-copy > strong span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-summary-toggle-copy > strong svg {
   flex: 0 0 auto;
   color: var(--muted);
 }
 
-.job-summary-subhead {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 8px 0 12px 26px;
-}
-
-.job-reference {
-  min-width: 0;
-  margin: 0;
-  color: var(--muted);
-  font-size: .72rem;
-}
-
-.job-summary-subhead .status {
+.job-summary-toggle .status {
   flex: 0 0 auto;
 }
 
-.job-reference strong {
-  color: var(--text);
+.job-summary-expanded {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+  animation: compact-card-open 160ms ease-out;
 }
 
 .job-summary-meta {
@@ -2947,6 +3100,7 @@ h2 {
   grid-template-columns: minmax(150px, 1.35fr) minmax(132px, .8fr) minmax(118px, .7fr);
   align-items: center;
   gap: 8px;
+  padding-top: 12px;
 }
 
 .job-driver,
@@ -3021,30 +3175,6 @@ h2 {
   font-size: .74rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.job-detail-button {
-  width: 100%;
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
-  border-radius: 8px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  font-size: .72rem;
-  font-weight: 900;
-}
-
-.job-detail-button svg {
-  transition: transform 160ms ease;
-}
-
-.job-detail-button[aria-expanded="true"] svg {
-  transform: rotate(180deg);
 }
 
 .status.danger {
