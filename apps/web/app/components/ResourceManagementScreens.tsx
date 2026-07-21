@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
+  Download,
   Edit3,
+  Eye,
   Mail,
   Phone,
   Plus,
@@ -37,7 +40,7 @@ import {
   type VehicleDraft
 } from "@/lib/resource-repository";
 import { subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
-import { downloadPrivateDocument, driverLicenseTypes, formatPhoneNumber } from "@/lib/profile-repository";
+import { downloadPrivateDocument, driverLicenseTypes, formatPhoneNumber, getPrivateDocumentPreviewURL } from "@/lib/profile-repository";
 
 const emptyOrganizationDraft: OrganizationDraft = {
   code: "",
@@ -251,6 +254,8 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("กำลังโหลดข้อมูลรถและคนขับ...");
+  const [documentLoading, setDocumentLoading] = useState("");
+  const [documentPreview, setDocumentPreview] = useState<{ label: string; fileName: string; path: string; url: string } | null>(null);
 
   useEffect(() => {
     if (!mainAdmin) return;
@@ -368,6 +373,21 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
     }
   }
 
+  async function viewDriverDocument(path: string, fileName: string, label: string) {
+    if (documentLoading) return;
+    setDocumentLoading(path);
+    setMessage(`กำลังโหลด${label}...`);
+    try {
+      const url = await getPrivateDocumentPreviewURL(path);
+      setDocumentPreview({ label, fileName, path, url });
+      setMessage(`เปิด${label}แล้ว`);
+    } catch (error) {
+      setMessage(toMessage(error));
+    } finally {
+      setDocumentLoading("");
+    }
+  }
+
   async function toggleVehicle(item: TransportVehicle) {
     setBusy(item.id);
     try {
@@ -452,8 +472,42 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
       {tab === "vehicles" ? (
         <div className="fleet-card-grid">{!vehicles.length && <div className="resource-empty"><Truck size={25} /><strong>ยังไม่มีรถในบริษัทนี้</strong><span>กด “เพิ่มรถ” เพื่อสร้างรายการแรก</span></div>}{vehicles.map((item) => <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className="fleet-icon"><Truck size={21} /></span><div><small>{item.vehicleType || "ไม่ระบุประเภท"}</small><h2>{item.plate}</h2></div><span className={`resource-status ${item.status}`}>{vehicleStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt>ยี่ห้อ / รุ่น</dt><dd>{[item.brand, item.model].filter(Boolean).join(" ") || "—"}</dd></div><div><dt>บรรทุก</dt><dd>{item.capacityKg ? `${item.capacityKg.toLocaleString()} กก.` : "—"}</dd></div><div><dt>GPS</dt><dd>{item.gpsDeviceId || "ยังไม่ผูก"}</dd></div><div className={expiryClass(item.registrationExpiry)}><dt>ทะเบียนหมดอายุ</dt><dd>{item.registrationExpiry || "—"}</dd></div><div className={expiryClass(item.insuranceExpiry)}><dt>ประกันหมดอายุ</dt><dd>{item.insuranceExpiry || "—"}</dd></div></dl><footer><button onClick={() => editVehicle(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleVehicle(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>)}</div>
       ) : (
-        <div className="fleet-card-grid">{!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}{drivers.map((item) => { const vehicle = vehicles.find((entry) => entry.id === item.assignedVehicleId); const linked = userProfiles.find((entry) => entry.uid === item.userUid); const name = linked?.fullName || item.name; const phone = linked?.phone || item.phone; const email = linked?.email || item.email; const licenseNumber = linked?.licenseNumber || item.licenseNumber; const licenseExpiry = linked?.licenseExpiry || item.licenseExpiry; return <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className={`fleet-icon driver ${linked?.photoURL ? "has-photo" : ""}`} style={linked?.photoURL ? { backgroundImage: `url(${linked.photoURL})` } : undefined}>{!linked?.photoURL && <UserRound size={21} />}</span><div><small>{linked ? "เชื่อมกับบัญชีผู้ใช้" : item.licenseType || "พนักงานขับรถ"}</small><h2>{name}</h2></div><span className={`resource-status ${item.status}`}>{driverStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>{linked && <div className="linked-driver-documents"><span>เอกสารจากโปรไฟล์</span>{linked.idCardFrontPath ? <button onClick={() => void downloadDriverDocument(linked.idCardFrontPath, linked.idCardFrontFileName)}>บัตรประชาชน</button> : <small>ยังไม่มีบัตรประชาชน</small>}{linked.driverLicenseFrontPath ? <button onClick={() => void downloadDriverDocument(linked.driverLicenseFrontPath, linked.driverLicenseFrontFileName)}>ใบขับขี่</button> : <small>ยังไม่มีรูปใบขับขี่</small>}</div>}<footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>; })}</div>
+        <div className="fleet-card-grid">{!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}{drivers.map((item) => { const vehicle = vehicles.find((entry) => entry.id === item.assignedVehicleId); const linked = userProfiles.find((entry) => entry.uid === item.userUid); const name = linked?.fullName || item.name; const phone = linked?.phone || item.phone; const email = linked?.email || item.email; const licenseNumber = linked?.licenseNumber || item.licenseNumber; const licenseExpiry = linked?.licenseExpiry || item.licenseExpiry; return <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className={`fleet-icon driver ${linked?.photoURL ? "has-photo" : ""}`} style={linked?.photoURL ? { backgroundImage: `url(${linked.photoURL})` } : undefined}>{!linked?.photoURL && <UserRound size={21} />}</span><div><small>{linked ? "เชื่อมกับบัญชีผู้ใช้" : item.licenseType || "พนักงานขับรถ"}</small><h2>{name}</h2></div><span className={`resource-status ${item.status}`}>{driverStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>{linked && <LinkedDriverDocuments profile={linked} loadingPath={documentLoading} onView={viewDriverDocument} onDownload={downloadDriverDocument} />}<footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>; })}</div>
+      )}
+
+      {documentPreview && (
+        <div className="driver-document-overlay" role="presentation" onClick={() => setDocumentPreview(null)}>
+          <section className="driver-document-viewer" role="dialog" aria-modal="true" aria-label={documentPreview.label} onClick={(event) => event.stopPropagation()}>
+            <header><div><small>DRIVER DOCUMENT</small><h2>{documentPreview.label}</h2><span>{documentPreview.fileName}</span></div><button type="button" aria-label="ปิดหน้าต่างเอกสาร" onClick={() => setDocumentPreview(null)}><X size={20} /></button></header>
+            <div className="driver-document-canvas">
+              {/\.pdf$/i.test(documentPreview.fileName)
+                ? <iframe src={documentPreview.url} title={documentPreview.label} />
+                : <Image src={documentPreview.url} alt={documentPreview.label} width={1400} height={1000} unoptimized />}
+            </div>
+            <footer><span>เอกสารส่วนตัว กรุณาเปิดเผยเท่าที่จำเป็น</span><button type="button" onClick={() => void downloadDriverDocument(documentPreview.path, documentPreview.fileName)}><Download size={16} /> ดาวน์โหลดไฟล์</button></footer>
+          </section>
+        </div>
       )}
     </section>
+  );
+}
+
+function LinkedDriverDocuments({ profile, loadingPath, onView, onDownload }: { profile: UserProfile; loadingPath: string; onView: (path: string, fileName: string, label: string) => Promise<void>; onDownload: (path: string, fileName: string) => Promise<void> }) {
+  const documents = [
+    { label: "บัตรประชาชน", path: profile.idCardFrontPath, fileName: profile.idCardFrontFileName },
+    { label: "ใบขับขี่", path: profile.driverLicenseFrontPath, fileName: profile.driverLicenseFrontFileName }
+  ];
+
+  return (
+    <div className="linked-driver-documents">
+      <span>เอกสารจากโปรไฟล์</span>
+      {documents.map((document) => document.path ? (
+        <div className="linked-driver-document" key={document.label}>
+          <strong>{document.label}</strong>
+          <button type="button" disabled={loadingPath === document.path} onClick={() => void onView(document.path, document.fileName, document.label)}><Eye size={14} /> {loadingPath === document.path ? "กำลังโหลด" : "ดู"}</button>
+          <button type="button" onClick={() => void onDownload(document.path, document.fileName)}><Download size={14} /> ดาวน์โหลด</button>
+        </div>
+      ) : <small key={document.label}>ยังไม่มี{document.label}</small>)}
+    </div>
   );
 }
