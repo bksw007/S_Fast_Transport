@@ -664,11 +664,21 @@ function AdminMobileScreen({
 
 type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId">;
 
+const accessRoleLabels: Record<UserProfile["role"], string> = {
+  owner: "เจ้าของระบบ",
+  admin: "แอดมินบริษัทหลัก",
+  dispatcher: "เจ้าหน้าที่จัดงาน",
+  subcontract_admin: "แอดมินบริษัทรอง",
+  driver: "คนขับ"
+};
+
 function AccessManagementScreen({ actor }: { actor: UserProfile }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [organizations, setOrganizations] = useState<SubcontractOrganization[]>([]);
   const [drafts, setDrafts] = useState<Record<string, AccessDraft>>({});
   const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [expandedUserId, setExpandedUserId] = useState("");
+  const [editingUserId, setEditingUserId] = useState("");
   const [busyUid, setBusyUid] = useState("");
   const [message, setMessage] = useState("กำลังโหลดรายชื่อผู้ใช้...");
 
@@ -718,7 +728,13 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
         active: !suspended,
         approvalStatus: suspended ? "suspended" : "approved"
       }, actor);
-      setMessage(suspended ? "ระงับบัญชีแล้ว" : "อนุมัติสิทธิ์แล้ว");
+      setMessage(suspended ? "ระงับบัญชีแล้ว" : user.approvalStatus === "pending" ? "อนุมัติสิทธิ์แล้ว" : "บันทึกการเปลี่ยนแปลงแล้ว");
+      setEditingUserId("");
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[user.uid];
+        return next;
+      });
     } catch (error) {
       setMessage(toMessage(error));
     } finally {
@@ -733,6 +749,36 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
       ? current.role === "subcontract_admin" ? "dispatcher" : current.role
       : mainRoles.includes(current.role) ? "subcontract_admin" : current.role;
     updateDraft(user, { organizationId, role });
+  }
+
+  function changeFilter(nextFilter: "pending" | "all") {
+    setFilter(nextFilter);
+    setExpandedUserId("");
+    setEditingUserId("");
+    setDrafts({});
+  }
+
+  function startEditing(user: UserProfile) {
+    setDrafts((current) => ({
+      ...current,
+      [user.uid]: {
+        role: user.role,
+        organizationId: user.organizationId ?? "main"
+      }
+    }));
+    setExpandedUserId(user.uid);
+    setEditingUserId(user.uid);
+    setMessage(`กำลังแก้ไขสิทธิ์ของ ${user.fullName || user.displayName || user.email}`);
+  }
+
+  function cancelEditing(user: UserProfile) {
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[user.uid];
+      return next;
+    });
+    setEditingUserId("");
+    setMessage("ยกเลิกการแก้ไขแล้ว ไม่มีข้อมูลถูกเปลี่ยนแปลง");
   }
 
   const pendingCount = users.filter((user) => user.approvalStatus === "pending" && user.accessRequestSubmittedAt).length;
@@ -751,7 +797,7 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
         <span className="access-pending-count"><Bell size={16} /> {pendingCount} รออนุมัติ</span>
       </div>
       <div className="access-toolbar">
-        <div className="access-filter"><button className={filter === "pending" ? "selected" : ""} onClick={() => setFilter("pending")}>คำขอใหม่ <span>{pendingCount}</span></button><button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>ผู้ใช้ทั้งหมด <span>{users.length}</span></button></div>
+        <div className="access-filter"><button className={filter === "pending" ? "selected" : ""} onClick={() => changeFilter("pending")}>คำขอใหม่ <span>{pendingCount}</span></button><button className={filter === "all" ? "selected" : ""} onClick={() => changeFilter("all")}>ผู้ใช้ทั้งหมด <span>{users.length}</span></button></div>
         <div className="access-message" role="status"><UserRoundCog size={15} /><span>{message}</span></div>
       </div>
       <div className="access-card-list">
@@ -769,32 +815,74 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
                 { value: "driver", label: "คนขับบริษัทรอง" },
                 { value: "subcontract_admin", label: "แอดมินบริษัทรอง" }
               ];
+          const compact = filter === "all";
+          const expanded = !compact || expandedUserId === user.uid;
+          const editing = !compact || editingUserId === user.uid;
+          const displayName = user.fullName || user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ";
+          const organizationName = user.organizationId === "main" || !user.organizationId
+            ? "S Fast Transport · บริษัทหลัก"
+            : user.organizationName || organizations.find((item) => item.id === user.organizationId)?.name || "ไม่พบบริษัทต้นสังกัด";
+          const approvalLabel = user.approvalStatus === "pending" ? "รออนุมัติ" : user.approvalStatus === "approved" ? "ใช้งานอยู่" : "ระงับ";
+          const identity = (
+            <>
+              <ProfileAvatar profile={user} className="access-avatar" />
+              <span className="access-identity-copy">
+                <small>{isPending ? "ผู้ขอใช้งาน" : "ผู้ใช้งาน"}</small>
+                <strong>{displayName}</strong>
+                <span>{user.email}</span>
+              </span>
+              <span className={`approval ${user.approvalStatus}`}>{approvalLabel}</span>
+            </>
+          );
           return (
-            <article key={user.uid} className={`access-card ${isPending ? "pending" : ""}`}>
-              <header className="access-card-identity">
-                <ProfileAvatar profile={user} className="access-avatar" />
-                <div>
-                  <small>{isPending ? "ผู้ขอใช้งาน" : "ผู้ใช้งาน"}</small>
-                  <h2>{user.fullName || user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ"}</h2>
-                  <span>{user.email}</span>
+            <article key={user.uid} className={`access-card ${isPending ? "pending" : ""} ${compact ? "compact" : ""} ${expanded ? "expanded" : ""} ${editing ? "editing" : ""}`}>
+              {compact ? (
+                <button
+                  className="access-card-toggle"
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setExpandedUserId((current) => current === user.uid ? "" : user.uid)}
+                >
+                  {identity}
+                  <span className="access-card-chevron" aria-hidden="true">{expanded ? <ChevronUp size={19} /> : <ChevronDown size={19} />}</span>
+                </button>
+              ) : (
+                <header className="access-card-identity">{identity}</header>
+              )}
+
+              {expanded && (
+                <div className="access-card-details">
+                  <div className={`access-request-copy ${user.accessRequestMessage ? "has-message" : ""}`}>
+                    <span>{user.accessRequestSubmittedAt ? "ข้อความจากผู้ขอใช้งาน" : "ยังไม่ได้ส่งข้อมูลแนะนำตัว"}</span>
+                    <p>{user.accessRequestMessage || (user.accessRequestName ? `แจ้งชื่อว่า ${user.accessRequestName}` : "ระบบจะแจ้งเตือนอีกครั้งเมื่อผู้ใช้กรอกชื่อ–สกุลและส่งคำขอ")}</p>
+                    {user.accessRequestSubmittedAt && <small>ส่งเมื่อ {new Date(user.accessRequestSubmittedAt).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}</small>}
+                  </div>
+
+                  {editing ? (
+                    <div className="access-decision-grid">
+                      <label><span>บริษัท</span><select value={draft.organizationId ?? "main"} onChange={(event) => changeOrganization(user, event.target.value)}><option value="main">S Fast Transport · บริษัทหลัก</option>{organizations.map((item) => <option key={item.id} value={item.id} disabled={!item.active}>{item.name}{item.active ? "" : " · ระงับ"}</option>)}</select></label>
+                      <label><span>บทบาท</span><select value={draft.role} onChange={(event) => updateDraft(user, { role: event.target.value as UserProfile["role"] })}>{roleOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                    </div>
+                  ) : (
+                    <div className="access-readonly-grid" aria-label="ข้อมูลสิทธิ์ปัจจุบัน">
+                      <div><span>บริษัท</span><strong>{organizationName}</strong></div>
+                      <div><span>บทบาท</span><strong>{accessRoleLabels[user.role]}</strong></div>
+                    </div>
+                  )}
+
+                  <div className="access-card-actions">
+                    {editing ? (
+                      <>
+                        <button disabled={busyUid === user.uid} onClick={() => void saveAccess(user)}><Save size={15} /> {isPending ? "อนุมัติสิทธิ์" : "บันทึกการเปลี่ยนแปลง"}</button>
+                        {compact && <button className="secondary-button" disabled={busyUid === user.uid} onClick={() => cancelEditing(user)}><X size={15} /> ยกเลิก</button>}
+                        <button className="danger-button" disabled={busyUid === user.uid || actor.uid === user.uid} onClick={() => void saveAccess(user, true)}><Power size={15} /> ระงับบัญชี</button>
+                      </>
+                    ) : (
+                      <button onClick={() => startEditing(user)}><FilePenLine size={15} /> แก้ไขสิทธิ์ผู้ใช้</button>
+                    )}
+                  </div>
                 </div>
-                <span className={`approval ${user.approvalStatus}`}>{user.approvalStatus === "pending" ? "รออนุมัติ" : user.approvalStatus === "approved" ? "ใช้งานอยู่" : "ระงับ"}</span>
-              </header>
-
-              <div className={`access-request-copy ${user.accessRequestMessage ? "has-message" : ""}`}>
-                <span>{user.accessRequestSubmittedAt ? "ข้อความจากผู้ขอใช้งาน" : "ยังไม่ได้ส่งข้อมูลแนะนำตัว"}</span>
-                <p>{user.accessRequestMessage || (user.accessRequestName ? `แจ้งชื่อว่า ${user.accessRequestName}` : "ระบบจะแจ้งเตือนอีกครั้งเมื่อผู้ใช้กรอกชื่อ–สกุลและส่งคำขอ")}</p>
-                {user.accessRequestSubmittedAt && <small>ส่งเมื่อ {new Date(user.accessRequestSubmittedAt).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}</small>}
-              </div>
-
-              <div className="access-decision-grid">
-                <label><span>บริษัท</span><select value={draft.organizationId ?? "main"} onChange={(event) => changeOrganization(user, event.target.value)}><option value="main">S Fast Transport · บริษัทหลัก</option>{organizations.map((item) => <option key={item.id} value={item.id} disabled={!item.active}>{item.name}{item.active ? "" : " · ระงับ"}</option>)}</select></label>
-                <label><span>บทบาท</span><select value={draft.role} onChange={(event) => updateDraft(user, { role: event.target.value as UserProfile["role"] })}>{roleOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-              </div>
-              <div className="access-card-actions">
-                <button disabled={busyUid === user.uid} onClick={() => void saveAccess(user)}><Save size={15} /> {isPending ? "อนุมัติสิทธิ์" : "บันทึกการเปลี่ยนแปลง"}</button>
-                <button className="danger-button" disabled={busyUid === user.uid || actor.uid === user.uid} onClick={() => void saveAccess(user, true)}><Power size={15} /> ระงับบัญชี</button>
-              </div>
+              )}
             </article>
           );
         })}
