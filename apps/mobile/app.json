@@ -17,7 +17,10 @@
       "bundleIdentifier": "com.sfasttransport.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "ใช้ตำแหน่งเฉพาะระหว่างงานขนส่งเพื่อให้ Admin และลูกค้าติดตามสถานะใบงานได้",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "ใช้ตำแหน่งเบื้องหลังเฉพาะระหว่างงานที่คนขับเริ่มแชร์ตำแหน่ง"
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ใช้ตำแหน่งเบื้องหลังเฉพาะระหว่างงานที่คนขับเริ่มแชร์ตำแหน่ง",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -30,12 +33,28 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
-      "expo-location",
-      "expo-notifications"
-    ]
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "ใช้ตำแหน่งเบื้องหลังเฉพาะระหว่างงานขนส่งที่คนขับกดเริ่มแชร์ตำแหน่ง"
+        }
+      ],
+      "expo-notifications",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a284def4-3d4d-4b8b-9b28-d05467471f27"
+      }
+    },
+    "owner": "bksw007"
   }
 }

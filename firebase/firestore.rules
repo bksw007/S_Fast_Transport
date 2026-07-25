@@ -63,6 +63,50 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/today_jobs/$(jobId)).data.assignedDriverUid == request.auth.uid;
     }
 
+    function activeTrackedJob(jobId) {
+      let job = get(/databases/$(database)/documents/today_jobs/$(jobId)).data;
+      return job.trackingEnabled == true
+        && !(job.status in ["completed", "cancelled"]);
+    }
+
+    function validCoordinates(data) {
+      return data.lat is number
+        && data.lng is number
+        && data.lat >= -90
+        && data.lat <= 90
+        && data.lng >= -180
+        && data.lng <= 180;
+    }
+
+    function validCurrentLocation(data) {
+      return validCoordinates(data)
+        && data.speed is number
+        && data.speed >= 0
+        && data.speed <= 250
+        && data.heading is number
+        && data.heading >= 0
+        && data.heading <= 360
+        && data.accuracy is number
+        && data.accuracy >= 0
+        && data.accuracy <= 5000
+        && data.updatedAt is string;
+    }
+
+    function validLocationPoint(data) {
+      return validCoordinates(data)
+        && data.speed is number
+        && data.speed >= 0
+        && data.speed <= 250
+        && data.heading is number
+        && data.heading >= 0
+        && data.heading <= 360
+        && data.accuracy is number
+        && data.accuracy >= 0
+        && data.accuracy <= 5000
+        && data.timestamp is timestamp
+        && data.source in ["gps", "background", "offline_sync"];
+    }
+
     function canReadJob(data) {
       return isMainAdmin() || sameOrganization(data) || data.assignedDriverUid == request.auth.uid;
     }
@@ -196,6 +240,10 @@ service cloud.firestore {
             "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
             "currentLocation", "trackingStatus", "updatedAt"
           ])
+          && (
+            !request.resource.data.diff(resource.data).changedKeys().hasAny(["currentLocation"])
+            || validCurrentLocation(request.resource.data.currentLocation)
+          )
         );
     }
 
@@ -210,11 +258,13 @@ service cloud.firestore {
         || isAssignedDriver(jobId)
         || sameOrganization(get(/databases/$(database)/documents/today_jobs/$(jobId)).data);
       allow create: if isAssignedDriver(jobId)
+        && activeTrackedJob(jobId)
         && request.resource.data.driverUid == request.auth.uid
         && request.resource.data.keys().hasOnly([
           "driverUid", "lat", "lng", "speed", "heading", "accuracy",
           "batteryLevel", "timestamp", "source"
-        ]);
+        ])
+        && validLocationPoint(request.resource.data);
       allow update, delete: if false;
     }
 

@@ -273,12 +273,32 @@ export async function submitAccessRequest(
 export async function createJob(draft: JobDraft, actor: UserProfile) {
   const now = new Date().toISOString();
   const workOrder = draft.workOrder.trim() || `WO-${Date.now().toString().slice(-5)}`;
+  const organizationId = actor.organizationId ?? "main";
+  const assigneeName = (draft.assignedEmployee || draft.driverName).trim();
+  if (!assigneeName) {
+    throw new Error("กรุณาระบุพนักงานขับรถที่มีบัญชีแอป");
+  }
+
+  const visibleUsers = actor.role === "subcontract_admin"
+    ? await getDocs(query(collection(db, "users"), where("organizationId", "==", organizationId)))
+    : await getDocs(collection(db, "users"));
+  const normalizedAssignee = normalizePersonName(assigneeName);
+  const assignedDriver = visibleUsers.docs.find((userDoc) => {
+    const data = userDoc.data();
+    if (data.role !== "driver" || data.active !== true || data.approvalStatus !== "approved") return false;
+    return [data.displayName, data.fullName, data.accessRequestName]
+      .filter(Boolean)
+      .some((name) => normalizePersonName(String(name)) === normalizedAssignee);
+  });
+  if (!assignedDriver) {
+    throw new Error("ไม่พบบัญชีคนขับที่อนุมัติแล้ว กรุณาใส่ชื่อในช่อง “มอบหมายพนักงาน (แอพ)” ให้ตรงกับชื่อบัญชี");
+  }
 
   await addDoc(collection(db, "today_jobs"), {
     ...draft,
     workOrder,
-    assignedDriverUid: actor.uid,
-    organizationId: actor.organizationId ?? "main",
+    assignedDriverUid: assignedDriver.id,
+    organizationId,
     carrierName: actor.organizationName || "S Fast Transport",
     status: "assigned",
     trackingStatus: "not_started",
@@ -289,6 +309,10 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
+}
+
+function normalizePersonName(value: string) {
+  return value.trim().replace(/\s+/g, "").toLocaleLowerCase("th-TH");
 }
 
 function listOptionsCollection(organizationId: string) {

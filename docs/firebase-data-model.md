@@ -146,5 +146,8 @@ Do not include driver personal phone numbers, internal notes, costs, or unrelate
 - Track only for accepted, active jobs.
 - Stop immediately when completed or cancelled.
 - A driver always sees whether tracking is active.
+- Starting a job requests foreground and background location permission explicitly.
+- Route points are append-only and include the GPS accuracy and original device timestamp.
+- If the network is unavailable, the mobile app queues up to 500 points locally and uploads them with `source: offline_sync`.
 - Tenant admins see only their organization.
 - Public links expose only one job projection and expire automatically.

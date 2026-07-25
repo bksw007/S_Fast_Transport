@@ -1888,7 +1888,7 @@ function AdminView({
             </div>
 
             <div className="dispatch-general-grid assignment-grid">
-              <DispatchField label="มอบหมายพนักงาน (แอพ)"><ListManagerComboBox field="employee" value={draft.assignedEmployee} onChange={(value) => updateDraft("assignedEmployee", value)} placeholder="ค้นหาหรือเพิ่มผู้รับงาน" organizationId={organizationId} actor={profile} /></DispatchField>
+              <DispatchField label="มอบหมายพนักงาน (แอพ)"><ListManagerComboBox field="employee" value={draft.assignedEmployee} onChange={(value) => updateDraft("assignedEmployee", value)} placeholder="ใส่ชื่อให้ตรงกับบัญชีคนขับที่อนุมัติแล้ว" organizationId={organizationId} actor={profile} required /></DispatchField>
               <DispatchField label="พนักงานขับรถ"><ListManagerComboBox field="driver" value={draft.driverName} onChange={(value) => updateDraft("driverName", value)} placeholder="ค้นหาหรือเพิ่มพนักงานขับรถ" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="เบอร์ติดต่อ"><input type="tel" value={draft.driverPhone} onChange={(event) => updateDraft("driverPhone", event.target.value)} placeholder="080-123-4567" /></DispatchField>
               <DispatchField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={(value) => updateDraft("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={profile} /></DispatchField>
