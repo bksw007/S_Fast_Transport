@@ -6,6 +6,7 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   type DocumentData,
@@ -49,6 +50,55 @@ export async function getMobileProfile(uid: string): Promise<MobileProfile | nul
     approvalStatus: data.approvalStatus ?? "pending",
     organizationId: data.organizationId ?? null
   };
+}
+
+export async function ensureMobileProfile(
+  uid: string,
+  email: string,
+  displayName: string,
+  photoURL: string
+) {
+  const profileRef = doc(db, "users", uid);
+  const existing = await getDoc(profileRef);
+  if (existing.exists()) return;
+
+  const safePhotoURL = /^https:\/\/(lh3\.googleusercontent\.com|firebasestorage\.googleapis\.com)\//.test(photoURL)
+    ? photoURL
+    : "";
+  const requestName = displayName || email || "พนักงานขับรถ";
+
+  await setDoc(profileRef, {
+    email,
+    displayName: requestName,
+    photoURL: safePhotoURL,
+    googlePhotoURL: safePhotoURL,
+    profilePhotoPath: "",
+    title: "",
+    firstName: "",
+    lastName: "",
+    fullName: "",
+    phone: "",
+    licenseNumber: "",
+    licenseType: "",
+    licenseExpiry: "",
+    idCardFrontPath: "",
+    idCardFrontFileName: "",
+    driverLicenseFrontPath: "",
+    driverLicenseFrontFileName: "",
+    role: "driver",
+    active: false,
+    approvalStatus: "pending",
+    organizationId: null,
+    organizationType: null,
+    organizationName: "",
+    organizationLogoUrl: "",
+    accessRequestName: requestName,
+    accessRequestMessage: "ขอใช้งานผ่านแอปคนขับ",
+    accessRequestSubmittedAt: serverTimestamp(),
+    authProvider: "google.com",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
 }
 
 export function subscribeDriverJobs(

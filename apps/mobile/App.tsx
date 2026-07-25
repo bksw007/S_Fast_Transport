@@ -26,6 +26,7 @@ import {
   type TrackingSession
 } from "./src/location-tracking";
 import {
+  ensureMobileProfile,
   getMobileProfile,
   rollbackTrackingStart,
   subscribeDriverJobs,
@@ -81,6 +82,12 @@ export default function App() {
     }
 
     try {
+      await ensureMobileProfile(
+        nextUser.uid,
+        nextUser.email ?? "",
+        nextUser.displayName ?? "",
+        nextUser.photoURL ?? ""
+      );
       const nextProfile = await getMobileProfile(nextUser.uid);
       setProfile(nextProfile);
       setMessage(nextProfile?.active && nextProfile.approvalStatus === "approved"
@@ -96,7 +103,18 @@ export default function App() {
   }), []);
 
   useEffect(() => {
-    if (response?.type !== "success") return;
+    if (!response) return;
+    if (response.type === "cancel" || response.type === "dismiss") {
+      setMessage("ยกเลิกการเข้าสู่ระบบแล้ว กรุณากดเข้าสู่ระบบอีกครั้ง");
+      setBusy(false);
+      return;
+    }
+    if (response.type === "error") {
+      setMessage(response.params.error_description || response.error?.message || "Google ไม่อนุญาตให้เข้าสู่ระบบ");
+      setBusy(false);
+      return;
+    }
+    if (response.type !== "success") return;
     const idToken = response.authentication?.idToken ?? response.params.id_token;
     const accessToken = response.authentication?.accessToken ?? response.params.access_token;
     if (!idToken && !accessToken) {
@@ -193,7 +211,14 @@ export default function App() {
         detail={missingClientId ? "ยังไม่ได้ตั้งค่า Google OAuth Client ID สำหรับแอปคนขับ" : message}
         actionLabel="เข้าสู่ระบบด้วย Google"
         actionDisabled={!request || busy || missingClientId}
-        onAction={() => void promptAsync()}
+        onAction={() => {
+          setBusy(true);
+          setMessage("กำลังเปิดหน้าลงชื่อเข้าใช้ Google...");
+          void promptAsync().catch((error) => {
+            setMessage(toMessage(error));
+            setBusy(false);
+          });
+        }}
       />
     );
   }
