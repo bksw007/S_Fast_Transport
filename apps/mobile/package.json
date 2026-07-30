@@ -16,6 +16,7 @@
     "@s-fast-transport/shared": "0.1.0",
     "expo": "^52.0.23",
     "expo-auth-session": "~6.0.3",
+    "expo-crypto": "~14.0.2",
     "expo-font": "~13.0.4",
     "expo-location": "~18.0.10",
     "expo-notifications": "^0.29.13",
