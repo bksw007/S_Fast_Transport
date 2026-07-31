@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Google from "expo-auth-session/providers/google";
+import * as Location from "expo-location";
 import * as WebBrowser from "expo-web-browser";
 import {
   GoogleAuthProvider,
@@ -37,16 +38,20 @@ import {
 WebBrowser.maybeCompleteAuthSession();
 
 const colors = {
-  bg: "#969a9b",
-  surface: "#eef0ef",
-  surface2: "#dadddd",
-  text: "#151718",
-  muted: "#656b6d",
-  border: "#c0c4c4",
-  accent: "#4c5960",
-  danger: "#8c615b",
-  success: "#477064"
+  bg: "#f3f5f7",
+  surface: "#ffffff",
+  surface2: "#e9eef2",
+  text: "#102235",
+  muted: "#657486",
+  border: "#d8e0e7",
+  accent: "#0d2b45",
+  orange: "#f59e0b",
+  orangeSoft: "#fff3d6",
+  danger: "#b5473f",
+  success: "#17745b"
 };
+
+type AppTab = "home" | "jobs" | "account";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -58,6 +63,12 @@ export default function App() {
   const [message, setMessage] = useState("กำลังเชื่อมต่อระบบ...");
   const [busy, setBusy] = useState(false);
   const [jobExpanded, setJobExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<AppTab>("home");
+  const [locationPermission, setLocationPermission] = useState({
+    servicesEnabled: false,
+    foreground: "undetermined",
+    background: "undetermined"
+  });
   const googleClientId = Platform.select({
     android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -139,10 +150,37 @@ export default function App() {
     );
   }, [profile]);
 
+  useEffect(() => {
+    if (!user) return;
+    void refreshLocationPermission();
+  }, [user, activeSession]);
+
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
     [jobs, selectedJobId]
   );
+
+  const activeJobs = useMemo(
+    () => jobs.filter((job) => !["completed", "cancelled"].includes(job.status)),
+    [jobs]
+  );
+  const completedJobs = useMemo(
+    () => jobs.filter((job) => job.status === "completed"),
+    [jobs]
+  );
+
+  async function refreshLocationPermission() {
+    const [servicesEnabled, foreground, background] = await Promise.all([
+      Location.hasServicesEnabledAsync(),
+      Location.getForegroundPermissionsAsync(),
+      Location.getBackgroundPermissionsAsync()
+    ]);
+    setLocationPermission({
+      servicesEnabled,
+      foreground: foreground.status,
+      background: background.status
+    });
+  }
 
   async function handleDriverAction(status: JobStatus) {
     if (!selectedJob || !profile) return;
@@ -232,101 +270,300 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.header}>
-            <Image source={require("./assets/truck-logo.png")} style={styles.brandMark} resizeMode="contain" />
-            <View style={styles.grow}>
-              <Text style={styles.brandName}>S Fast Transport</Text>
-              <Text style={styles.muted}>{profile.displayName}</Text>
-            </View>
-            <Pressable accessibilityLabel="ออกจากระบบ" style={styles.iconButton} onPress={() => void logout()}>
-              <Ionicons name="log-out-outline" size={21} color={colors.text} />
-            </Pressable>
-          </View>
+        <View style={styles.appShell}>
+          <AppHeader
+            name={profile.displayName}
+            live={Boolean(activeSession)}
+            onAccount={() => setActiveTab("account")}
+          />
 
-          <View style={styles.titleRow}>
-            <View>
-              <Text style={styles.title}>งานของฉัน</Text>
-              <Text style={styles.muted}>{jobs.length} ใบงานที่ได้รับมอบหมาย</Text>
-            </View>
-            <View style={[styles.livePill, activeSession ? styles.liveActive : styles.standby]}>
-              <View style={[styles.liveDot, activeSession ? styles.liveDotActive : null]} />
-              <Text style={[styles.liveText, activeSession ? styles.liveTextActive : null]}>{activeSession ? "LIVE" : "STANDBY"}</Text>
-            </View>
-          </View>
+          <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+            {activeTab === "home" && (
+              <>
+                <View>
+                  <Text style={styles.kicker}>ศูนย์งานคนขับ</Text>
+                  <Text style={styles.title}>สวัสดี, {firstName(profile.displayName)}</Text>
+                  <Text style={styles.muted}>ตรวจงานและสถานะการแชร์ตำแหน่งได้จากหน้านี้</Text>
+                </View>
 
-          {jobs.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.jobChips}>
-              {jobs.map((job) => (
-                <Pressable key={job.id} style={[styles.jobChip, selectedJobId === job.id && styles.jobChipSelected]} onPress={() => setSelectedJobId(job.id)}>
-                  <Text style={[styles.jobChipText, selectedJobId === job.id && styles.jobChipTextSelected]}>{job.workOrder}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
+                <View style={styles.summaryRow}>
+                  <SummaryCard icon="briefcase-outline" label="งานที่ต้องทำ" value={String(activeJobs.length)} tone="navy" />
+                  <SummaryCard icon="checkmark-done-outline" label="เสร็จแล้ว" value={String(completedJobs.length)} tone="orange" />
+                </View>
 
-          {selectedJob ? (
-            <>
-              <View style={styles.card}>
-                <Pressable style={styles.jobCardHeader} onPress={() => setJobExpanded((value) => !value)}>
-                  <View style={styles.jobCardIcon}><Ionicons name="briefcase" size={20} color={colors.accent} /></View>
-                  <View style={styles.grow}>
-                    <Text style={styles.eyebrow}>ใบงาน {selectedJob.workOrder}</Text>
-                    <Text style={styles.cardTitle} numberOfLines={1}>{selectedJob.customer}</Text>
-                    <Text style={styles.muted} numberOfLines={1}>{selectedJob.vehiclePlate}</Text>
-                  </View>
-                  <Text style={styles.jobStatus}>{statusLabels[selectedJob.status]}</Text>
-                  <Ionicons name={jobExpanded ? "chevron-up" : "chevron-down"} size={21} color={colors.accent} />
-                </Pressable>
-
-                {jobExpanded && (
-                  <View style={styles.jobDetails}>
-                    <Route icon="navigate-circle" label="จุดรับ" value={selectedJob.pickupLocation} />
-                    <Route icon="flag" label="จุดส่ง" value={selectedJob.deliveryLocation} />
-                    <View style={styles.metrics}>
-                      <Metric label="ETA" value={selectedJob.eta} />
-                      <Metric label="ความเร็ว" value={`${selectedJob.currentLocation.speed} กม./ชม.`} />
-                      <Metric label="GPS" value={selectedJob.currentLocation.accuracy ? `±${Math.round(selectedJob.currentLocation.accuracy)} ม.` : "รอข้อมูล"} />
-                    </View>
-                  </View>
+                {selectedJob ? (
+                  <JobPanel
+                    job={selectedJob}
+                    expanded={jobExpanded}
+                    busy={busy}
+                    activeSession={activeSession}
+                    onToggle={() => setJobExpanded((value) => !value)}
+                    onAction={(status) => void handleDriverAction(status)}
+                  />
+                ) : (
+                  <EmptyJobs onOpenJobs={() => setActiveTab("jobs")} />
                 )}
-              </View>
 
-              <View style={styles.actionGrid}>
-                {driverActions.map((action) => {
-                  const disabled = busy || (action.id === "start_tracking" && Boolean(activeSession));
-                  return (
-                    <Pressable
-                      key={action.id}
-                      disabled={disabled}
-                      style={[styles.actionButton, disabled && styles.disabled, action.id === "completed" && styles.completeButton]}
-                      onPress={() => void handleDriverAction(action.nextStatus)}
-                    >
-                      <Ionicons name={action.id === "completed" ? "checkmark-circle" : "radio-button-on"} size={20} color={action.id === "completed" ? "#ffffff" : colors.accent} />
-                      <Text style={[styles.actionText, action.id === "completed" && styles.completeText]}>{action.label}</Text>
+                <Pressable style={styles.statusCard} onPress={() => setActiveTab("account")}>
+                  <View style={[styles.statusIcon, activeSession && styles.statusIconLive]}>
+                    <Ionicons name={activeSession ? "navigate" : "shield-checkmark-outline"} size={24} color={activeSession ? "#ffffff" : colors.accent} />
+                  </View>
+                  <View style={styles.grow}>
+                    <Text style={styles.noticeTitle}>{activeSession ? `กำลังแชร์ตำแหน่ง ${activeSession.workOrder}` : "ระบบติดตามยังไม่ทำงาน"}</Text>
+                    <Text style={styles.muted}>{message}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+                </Pressable>
+              </>
+            )}
+
+            {activeTab === "jobs" && (
+              <>
+                <View style={styles.sectionHeading}>
+                  <View>
+                    <Text style={styles.kicker}>รายการขนส่ง</Text>
+                    <Text style={styles.title}>ใบงานของฉัน</Text>
+                    <Text style={styles.muted}>{jobs.length} ใบงานที่บัญชีนี้ได้รับมอบหมาย</Text>
+                  </View>
+                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{jobs.length}</Text></View>
+                </View>
+
+                {jobs.length ? jobs.map((job) => (
+                  <Pressable
+                    key={job.id}
+                    style={[styles.jobListCard, selectedJobId === job.id && styles.jobListCardSelected]}
+                    onPress={() => {
+                      setSelectedJobId(job.id);
+                      setJobExpanded(true);
+                      setActiveTab("home");
+                    }}
+                  >
+                    <View style={styles.jobListTop}>
+                      <Text style={styles.workOrder}>{job.workOrder}</Text>
+                      <Text style={[styles.jobStatus, job.status === "completed" && styles.jobStatusComplete]}>{statusLabels[job.status]}</Text>
+                    </View>
+                    <Text style={styles.cardTitle}>{job.customer}</Text>
+                    <View style={styles.routeCompact}>
+                      <Ionicons name="radio-button-on" size={15} color={colors.orange} />
+                      <Text style={styles.routeCompactText} numberOfLines={1}>{job.pickupLocation}</Text>
+                    </View>
+                    <View style={styles.routeCompact}>
+                      <Ionicons name="location" size={15} color={colors.accent} />
+                      <Text style={styles.routeCompactText} numberOfLines={1}>{job.deliveryLocation}</Text>
+                    </View>
+                    <View style={styles.jobListFooter}>
+                      <Text style={styles.vehicleText}>{job.vehiclePlate}</Text>
+                      <Text style={styles.openJobText}>เปิดใบงาน <Ionicons name="arrow-forward" size={13} /></Text>
+                    </View>
+                  </Pressable>
+                )) : (
+                  <EmptyJobs onOpenJobs={() => setActiveTab("account")} accountMode />
+                )}
+              </>
+            )}
+
+            {activeTab === "account" && (
+              <>
+                <View>
+                  <Text style={styles.kicker}>บัญชีและอุปกรณ์</Text>
+                  <Text style={styles.title}>ตั้งค่าคนขับ</Text>
+                  <Text style={styles.muted}>ตรวจสิทธิ์ GPS และข้อมูลบัญชีที่กำลังใช้งาน</Text>
+                </View>
+
+                <View style={styles.profileCard}>
+                  <View style={styles.avatar}><Text style={styles.avatarText}>{initials(profile.displayName)}</Text></View>
+                  <View style={styles.grow}>
+                    <Text style={styles.cardTitle}>{profile.displayName}</Text>
+                    <Text style={styles.muted}>{user.email}</Text>
+                    <View style={styles.approvedBadge}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={styles.approvedText}>อนุมัติแล้ว · คนขับ</Text></View>
+                  </View>
+                </View>
+
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsTitle}>ตำแหน่งและ GPS</Text>
+                  <PermissionRow label="บริการ GPS" ok={locationPermission.servicesEnabled} detail={locationPermission.servicesEnabled ? "เปิดใช้งาน" : "ปิดอยู่"} />
+                  <PermissionRow label="ตำแหน่งขณะใช้งาน" ok={locationPermission.foreground === "granted"} detail={permissionLabel(locationPermission.foreground)} />
+                  <PermissionRow label="ตำแหน่งเบื้องหลัง" ok={locationPermission.background === "granted"} detail={permissionLabel(locationPermission.background)} />
+                  <View style={styles.settingsActions}>
+                    <Pressable style={styles.secondaryButton} onPress={() => void refreshLocationPermission()}>
+                      <Ionicons name="refresh" size={18} color={colors.accent} />
+                      <Text style={styles.secondaryButtonText}>ตรวจอีกครั้ง</Text>
                     </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="file-tray-outline" size={34} color={colors.accent} />
-              <Text style={styles.cardTitle}>ยังไม่มีใบงาน</Text>
-              <Text style={styles.muted}>ใบงานจะปรากฏเมื่อแอดมินมอบหมายบัญชีนี้เป็นคนขับ</Text>
-            </View>
-          )}
+                    <Pressable style={styles.primaryButton} onPress={() => void Linking.openSettings()}>
+                      <Ionicons name="settings-outline" size={18} color="#ffffff" />
+                      <Text style={styles.primaryButtonText}>เปิดการตั้งค่า</Text>
+                    </Pressable>
+                  </View>
+                </View>
 
-          <View style={styles.notice}>
-            <Ionicons name={activeSession ? "navigate" : "shield-checkmark"} size={23} color={activeSession ? colors.success : colors.accent} />
-            <View style={styles.grow}>
-              <Text style={styles.noticeTitle}>{activeSession ? "กำลังติดตามเฉพาะงานนี้" : "ยังไม่ได้เก็บตำแหน่ง"}</Text>
-              <Text style={styles.muted}>{message}</Text>
-            </View>
-          </View>
-        </ScrollView>
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsTitle}>ข้อมูลการทำงาน</Text>
+                  <InfoRow label="องค์กร" value={profile.organizationId ?? "บัญชีหลัก"} />
+                  <InfoRow label="สถานะบัญชี" value="พร้อมรับงาน" />
+                  <InfoRow label="งานที่กำลังติดตาม" value={activeSession?.workOrder ?? "ไม่มี"} />
+                </View>
+
+                <Pressable style={styles.logoutButton} onPress={() => void logout()}>
+                  <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+                  <Text style={styles.logoutText}>ออกจากระบบ</Text>
+                </Pressable>
+              </>
+            )}
+          </ScrollView>
+
+          <BottomNavigation active={activeTab} onChange={setActiveTab} jobCount={activeJobs.length} />
+        </View>
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+
+function AppHeader({ name, live, onAccount }: { name: string; live: boolean; onAccount: () => void }) {
+  return (
+    <View style={styles.header}>
+      <Image source={require("./assets/truck-logo.png")} style={styles.brandMark} resizeMode="contain" />
+      <View style={styles.grow}>
+        <Text style={styles.brandName}>S FAST TRANSPORT</Text>
+        <Text style={styles.headerSub} numberOfLines={1}>{name}</Text>
+      </View>
+      <View style={[styles.headerLive, live && styles.headerLiveActive]}>
+        <View style={[styles.headerLiveDot, live && styles.headerLiveDotActive]} />
+        <Text style={[styles.headerLiveText, live && styles.headerLiveTextActive]}>{live ? "LIVE" : "พร้อมรับงาน"}</Text>
+      </View>
+      <Pressable accessibilityLabel="เปิดบัญชี" style={styles.headerAccount} onPress={onAccount}>
+        <Ionicons name="person-outline" size={20} color="#ffffff" />
+      </Pressable>
+    </View>
+  );
+}
+
+function SummaryCard({ icon, label, value, tone }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; tone: "navy" | "orange" }) {
+  return (
+    <View style={[styles.summaryCard, tone === "orange" && styles.summaryOrange]}>
+      <View>
+        <Text style={[styles.summaryValue, tone === "orange" && styles.summaryValueOrange]}>{value}</Text>
+        <Text style={[styles.summaryLabel, tone === "orange" && styles.summaryLabelOrange]}>{label}</Text>
+      </View>
+      <Ionicons name={icon} size={27} color={tone === "orange" ? colors.orange : "#ffffff"} />
+    </View>
+  );
+}
+
+function JobPanel({
+  job,
+  expanded,
+  busy,
+  activeSession,
+  onToggle,
+  onAction
+}: {
+  job: TransportJob;
+  expanded: boolean;
+  busy: boolean;
+  activeSession: TrackingSession | null;
+  onToggle: () => void;
+  onAction: (status: JobStatus) => void;
+}) {
+  return (
+    <>
+      <View style={styles.card}>
+        <Pressable style={styles.jobCardHeader} onPress={onToggle}>
+          <View style={styles.jobCardIcon}><Ionicons name="cube-outline" size={22} color={colors.orange} /></View>
+          <View style={styles.grow}>
+            <Text style={styles.eyebrow}>ใบงาน {job.workOrder}</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>{job.customer}</Text>
+            <Text style={styles.muted} numberOfLines={1}>{job.vehiclePlate}</Text>
+          </View>
+          <Text style={styles.jobStatus}>{statusLabels[job.status]}</Text>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={20} color={colors.muted} />
+        </Pressable>
+
+        {expanded && (
+          <View style={styles.jobDetails}>
+            <Route icon="radio-button-on" label="จุดรับ" value={job.pickupLocation} />
+            <View style={styles.routeLine} />
+            <Route icon="location" label="จุดส่ง" value={job.deliveryLocation} />
+            <View style={styles.metrics}>
+              <Metric label="ETA" value={job.eta} />
+              <Metric label="ความเร็ว" value={`${job.currentLocation.speed} กม./ชม.`} />
+              <Metric label="GPS" value={job.currentLocation.accuracy ? `±${Math.round(job.currentLocation.accuracy)} ม.` : "รอข้อมูล"} />
+            </View>
+          </View>
+        )}
+      </View>
+      <View style={styles.actionGrid}>
+        {driverActions.map((action) => {
+          const disabled = busy || (action.id === "start_tracking" && Boolean(activeSession));
+          return (
+            <Pressable
+              key={action.id}
+              disabled={disabled}
+              style={[styles.actionButton, disabled && styles.disabled, action.id === "start_tracking" && styles.startButton, action.id === "completed" && styles.completeButton]}
+              onPress={() => onAction(action.nextStatus)}
+            >
+              <Ionicons
+                name={action.id === "start_tracking" ? "navigate" : action.id === "completed" ? "checkmark-circle" : "radio-button-on"}
+                size={19}
+                color={["start_tracking", "completed"].includes(action.id) ? "#ffffff" : colors.accent}
+              />
+              <Text style={[styles.actionText, ["start_tracking", "completed"].includes(action.id) && styles.completeText]}>{action.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
+function EmptyJobs({ onOpenJobs, accountMode = false }: { onOpenJobs: () => void; accountMode?: boolean }) {
+  return (
+    <View style={styles.emptyCard}>
+      <View style={styles.emptyIllustration}>
+        <Ionicons name="file-tray-outline" size={40} color={colors.accent} />
+        <View style={styles.emptyBadge}><Text style={styles.emptyBadgeText}>0</Text></View>
+      </View>
+      <Text style={styles.emptyTitle}>วันนี้ยังไม่มีใบงาน</Text>
+      <Text style={styles.emptyDetail}>เมื่อแอดมินมอบหมายงานให้บัญชีนี้ รายละเอียดจุดรับ–ส่งและปุ่มเริ่มแชร์ตำแหน่งจะแสดงที่นี่ทันที</Text>
+      <Pressable style={styles.emptyAction} onPress={onOpenJobs}>
+        <Text style={styles.emptyActionText}>{accountMode ? "ตรวจบัญชีและ GPS" : "เปิดรายการใบงาน"}</Text>
+        <Ionicons name="arrow-forward" size={17} color={colors.accent} />
+      </Pressable>
+    </View>
+  );
+}
+
+function PermissionRow({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+  return (
+    <View style={styles.permissionRow}>
+      <View style={[styles.permissionDot, ok && styles.permissionDotOk]}><Ionicons name={ok ? "checkmark" : "alert"} size={13} color="#ffffff" /></View>
+      <Text style={styles.permissionLabel}>{label}</Text>
+      <Text style={[styles.permissionValue, ok && styles.permissionValueOk]}>{detail}</Text>
+    </View>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return <View style={styles.infoRow}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>;
+}
+
+function BottomNavigation({ active, onChange, jobCount }: { active: AppTab; onChange: (tab: AppTab) => void; jobCount: number }) {
+  const items: Array<{ id: AppTab; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+    { id: "home", label: "หน้าแรก", icon: "home-outline" },
+    { id: "jobs", label: "ใบงาน", icon: "briefcase-outline" },
+    { id: "account", label: "บัญชี", icon: "person-outline" }
+  ];
+  return (
+    <View style={styles.bottomNav}>
+      {items.map((item) => (
+        <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: active === item.id }} style={styles.navItem} onPress={() => onChange(item.id)}>
+          <View style={[styles.navIcon, active === item.id && styles.navIconActive]}>
+            <Ionicons name={item.icon} size={21} color={active === item.id ? "#ffffff" : colors.muted} />
+            {item.id === "jobs" && jobCount > 0 && <View style={styles.navBadge}><Text style={styles.navBadgeText}>{jobCount}</Text></View>}
+          </View>
+          <Text style={[styles.navLabel, active === item.id && styles.navLabelActive]}>{item.label}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
@@ -368,59 +605,131 @@ function CenteredState({
   );
 }
 
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || "คนขับ";
+}
+
+function initials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "DR";
+}
+
+function permissionLabel(status: string) {
+  if (status === "granted") return "อนุญาตแล้ว";
+  if (status === "denied") return "ยังไม่อนุญาต";
+  return "ยังไม่ได้ตั้งค่า";
+}
+
 function toMessage(error: unknown) {
   return error instanceof Error ? error.message : "เกิดข้อผิดพลาด กรุณาลองใหม่";
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  container: { padding: 18, gap: 16 },
-  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  appShell: { flex: 1 },
+  container: { padding: 18, paddingBottom: 28, gap: 18 },
+  header: { minHeight: 76, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.accent, borderBottomWidth: 3, borderBottomColor: colors.orange },
   grow: { flex: 1, minWidth: 0 },
-  brandMark: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  brandName: { color: colors.text, fontWeight: "900", fontSize: 17, letterSpacing: 0.3 },
+  brandMark: { width: 43, height: 43, borderRadius: 12, backgroundColor: "#ffffff" },
+  brandName: { color: "#ffffff", fontWeight: "800", fontSize: 15, letterSpacing: 0.7 },
+  headerSub: { color: "#b9c8d5", fontSize: 12, marginTop: 2 },
+  headerLive: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20, backgroundColor: "#183b58" },
+  headerLiveActive: { backgroundColor: colors.success },
+  headerLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#8093a4" },
+  headerLiveDotActive: { backgroundColor: "#ffffff" },
+  headerLiveText: { color: "#c8d2dc", fontWeight: "700", fontSize: 10 },
+  headerLiveTextActive: { color: "#ffffff" },
+  headerAccount: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#31516b" },
+  kicker: { color: colors.orange, fontSize: 11, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 3 },
   muted: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  iconButton: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { color: colors.text, fontWeight: "900", fontSize: 29, letterSpacing: -0.5 },
-  livePill: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 7 },
-  liveActive: { backgroundColor: colors.success },
-  standby: { backgroundColor: colors.surface2 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.muted },
-  liveDotActive: { backgroundColor: "#ffffff" },
-  liveText: { color: colors.muted, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
-  liveTextActive: { color: "#ffffff" },
-  jobChips: { gap: 8 },
-  jobChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 9, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  jobChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  jobChipText: { color: colors.text, fontWeight: "800" },
-  jobChipTextSelected: { color: "#ffffff" },
-  card: { overflow: "hidden", borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, elevation: 7 },
-  jobCardHeader: { minHeight: 82, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
-  jobCardIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "#dfe3e3" },
-  eyebrow: { color: colors.accent, fontWeight: "900", fontSize: 11 },
-  cardTitle: { color: colors.text, fontWeight: "900", fontSize: 18 },
-  jobStatus: { maxWidth: 92, color: colors.accent, backgroundColor: "#dfe3e3", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, fontWeight: "900", fontSize: 11, overflow: "hidden" },
-  jobDetails: { gap: 12, padding: 14, borderTopWidth: 1, borderTopColor: colors.border },
+  title: { color: colors.text, fontWeight: "800", fontSize: 27, letterSpacing: -0.4 },
+  sectionHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  countBadge: { minWidth: 42, height: 42, borderRadius: 14, backgroundColor: colors.orangeSoft, alignItems: "center", justifyContent: "center" },
+  countBadgeText: { color: "#9a5d00", fontSize: 18, fontWeight: "800" },
+  summaryRow: { flexDirection: "row", gap: 11 },
+  summaryCard: { flex: 1, minHeight: 104, borderRadius: 18, padding: 15, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", backgroundColor: colors.accent, elevation: 2 },
+  summaryOrange: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  summaryValue: { color: "#ffffff", fontWeight: "800", fontSize: 31, lineHeight: 34 },
+  summaryValueOrange: { color: colors.text },
+  summaryLabel: { color: "#b9c8d5", fontSize: 12, fontWeight: "600", marginTop: 5 },
+  summaryLabelOrange: { color: colors.muted },
+  card: { overflow: "hidden", borderRadius: 19, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, elevation: 3 },
+  jobCardHeader: { minHeight: 92, padding: 14, flexDirection: "row", alignItems: "center", gap: 10 },
+  jobCardIcon: { width: 43, height: 43, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.orangeSoft },
+  eyebrow: { color: colors.orange, fontWeight: "800", fontSize: 11, marginBottom: 2 },
+  cardTitle: { color: colors.text, fontWeight: "700", fontSize: 17 },
+  jobStatus: { maxWidth: 92, color: colors.accent, backgroundColor: colors.surface2, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 7, fontWeight: "700", fontSize: 10, overflow: "hidden" },
+  jobStatusComplete: { color: colors.success, backgroundColor: "#e3f3ee" },
+  jobDetails: { gap: 10, padding: 15, borderTopWidth: 1, borderTopColor: colors.border },
   routeRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  label: { color: colors.muted, fontWeight: "800", fontSize: 12 },
-  value: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  routeLine: { width: 2, height: 13, marginLeft: 10, marginVertical: -5, backgroundColor: colors.border },
+  label: { color: colors.muted, fontWeight: "600", fontSize: 11 },
+  value: { color: colors.text, fontWeight: "600", fontSize: 14, lineHeight: 19 },
   metrics: { flexDirection: "row", gap: 8 },
-  metric: { flex: 1, minHeight: 62, padding: 9, borderRadius: 10, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
-  metricValue: { color: colors.text, fontWeight: "900", marginTop: 3, fontSize: 12 },
-  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  actionButton: { width: "48%", minHeight: 58, borderRadius: 12, padding: 11, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  metric: { flex: 1, minHeight: 62, padding: 9, borderRadius: 11, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border },
+  metricValue: { color: colors.text, fontWeight: "700", marginTop: 3, fontSize: 12 },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 },
+  actionButton: { width: "48.5%", minHeight: 56, borderRadius: 14, padding: 11, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  startButton: { backgroundColor: colors.orange, borderColor: colors.orange },
   completeButton: { backgroundColor: colors.success, borderColor: colors.success },
-  actionText: { color: colors.text, flex: 1, fontWeight: "900", fontSize: 14 },
+  actionText: { color: colors.text, flex: 1, fontWeight: "700", fontSize: 13 },
   completeText: { color: "#ffffff" },
   disabled: { opacity: 0.45 },
-  notice: { flexDirection: "row", gap: 12, padding: 14, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  noticeTitle: { color: colors.text, fontWeight: "900", fontSize: 15 },
-  emptyCard: { alignItems: "center", gap: 9, padding: 30, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  statusCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  statusIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },
+  statusIconLive: { backgroundColor: colors.success },
+  noticeTitle: { color: colors.text, fontWeight: "700", fontSize: 14 },
+  emptyCard: { alignItems: "center", gap: 10, padding: 24, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  emptyIllustration: { width: 78, height: 70, borderRadius: 22, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  emptyBadge: { position: "absolute", right: -5, top: -5, width: 27, height: 27, borderRadius: 14, backgroundColor: colors.orange, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: colors.surface },
+  emptyBadgeText: { color: "#ffffff", fontWeight: "800", fontSize: 11 },
+  emptyTitle: { color: colors.text, fontSize: 19, fontWeight: "800" },
+  emptyDetail: { maxWidth: 330, color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: "center" },
+  emptyAction: { marginTop: 5, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.orangeSoft },
+  emptyActionText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  jobListCard: { gap: 8, padding: 15, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  jobListCardSelected: { borderColor: colors.orange, borderWidth: 2 },
+  jobListTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  workOrder: { color: colors.orange, fontSize: 12, fontWeight: "800", letterSpacing: 0.4 },
+  routeCompact: { flexDirection: "row", alignItems: "center", gap: 7 },
+  routeCompactText: { flex: 1, color: colors.muted, fontSize: 12 },
+  jobListFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 9, marginTop: 3, borderTopWidth: 1, borderTopColor: colors.border },
+  vehicleText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  openJobText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
+  profileCard: { flexDirection: "row", alignItems: "center", gap: 13, padding: 16, borderRadius: 19, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  avatar: { width: 56, height: 56, borderRadius: 18, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  avatarText: { color: "#ffffff", fontSize: 19, fontWeight: "800" },
+  approvedBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8, backgroundColor: "#e3f3ee" },
+  approvedText: { color: colors.success, fontSize: 10, fontWeight: "700" },
+  settingsCard: { padding: 16, gap: 13, borderRadius: 19, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  settingsTitle: { color: colors.text, fontSize: 16, fontWeight: "800", paddingBottom: 2 },
+  permissionRow: { minHeight: 35, flexDirection: "row", alignItems: "center", gap: 9 },
+  permissionDot: { width: 21, height: 21, borderRadius: 7, backgroundColor: colors.danger, alignItems: "center", justifyContent: "center" },
+  permissionDotOk: { backgroundColor: colors.success },
+  permissionLabel: { flex: 1, color: colors.text, fontSize: 13, fontWeight: "600" },
+  permissionValue: { color: colors.danger, fontSize: 12, fontWeight: "700" },
+  permissionValueOk: { color: colors.success },
+  settingsActions: { flexDirection: "row", gap: 9, paddingTop: 3 },
+  secondaryButton: { flex: 1, minHeight: 45, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.surface2 },
+  secondaryButtonText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
+  primaryButton: { flex: 1, minHeight: 45, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.accent },
+  primaryButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", minHeight: 30 },
+  infoLabel: { color: colors.muted, fontSize: 13 },
+  infoValue: { maxWidth: "58%", color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "right" },
+  logoutButton: { minHeight: 51, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 15, borderWidth: 1, borderColor: "#edcbc8", backgroundColor: "#fff7f6" },
+  logoutText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
+  bottomNav: { minHeight: 70, paddingHorizontal: 22, paddingTop: 8, paddingBottom: 7, flexDirection: "row", justifyContent: "space-around", backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, elevation: 14 },
+  navItem: { width: 76, alignItems: "center", gap: 3 },
+  navIcon: { width: 38, height: 31, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  navIconActive: { backgroundColor: colors.accent },
+  navLabel: { color: colors.muted, fontSize: 10, fontWeight: "600" },
+  navLabelActive: { color: colors.accent, fontWeight: "800" },
+  navBadge: { position: "absolute", right: -7, top: -5, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: colors.orange, borderWidth: 2, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  navBadgeText: { color: "#ffffff", fontSize: 8, fontWeight: "800" },
   centered: { flex: 1, padding: 28, alignItems: "center", justifyContent: "center", gap: 12 },
   loginLogo: { width: 88, height: 88, borderRadius: 20, backgroundColor: colors.surface },
-  loginTitle: { color: colors.text, fontSize: 26, fontWeight: "900", textAlign: "center" },
+  loginTitle: { color: colors.text, fontSize: 26, fontWeight: "800", textAlign: "center" },
   loginDetail: { maxWidth: 340, color: colors.text, fontSize: 14, lineHeight: 21, textAlign: "center" },
-  loginButton: { minWidth: 230, marginTop: 8, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.accent },
-  loginButtonText: { color: "#ffffff", fontWeight: "900", textAlign: "center" }
+  loginButton: { minWidth: 230, marginTop: 8, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.accent },
+  loginButtonText: { color: "#ffffff", fontWeight: "800", textAlign: "center" }
 });
