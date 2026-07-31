@@ -273,6 +273,7 @@ export default function App() {
         <View style={styles.appShell}>
           <AppHeader
             name={profile.displayName}
+            photoURL={safeGooglePhotoUrl(user.photoURL)}
             live={Boolean(activeSession)}
             onAccount={() => setActiveTab("account")}
           />
@@ -371,7 +372,7 @@ export default function App() {
                 </View>
 
                 <View style={styles.profileCard}>
-                  <View style={styles.avatar}><Text style={styles.avatarText}>{initials(profile.displayName)}</Text></View>
+                  <ProfileAvatar name={profile.displayName} photoURL={safeGooglePhotoUrl(user.photoURL)} size="large" />
                   <View style={styles.grow}>
                     <Text style={styles.cardTitle}>{profile.displayName}</Text>
                     <Text style={styles.muted}>{user.email}</Text>
@@ -418,7 +419,7 @@ export default function App() {
   );
 }
 
-function AppHeader({ name, live, onAccount }: { name: string; live: boolean; onAccount: () => void }) {
+function AppHeader({ name, photoURL, live, onAccount }: { name: string; photoURL: string; live: boolean; onAccount: () => void }) {
   return (
     <View style={styles.header}>
       <Image source={require("./assets/truck-logo.png")} style={styles.brandMark} resizeMode="contain" />
@@ -431,8 +432,23 @@ function AppHeader({ name, live, onAccount }: { name: string; live: boolean; onA
         <Text style={[styles.headerLiveText, live && styles.headerLiveTextActive]}>{live ? "LIVE" : "พร้อมรับงาน"}</Text>
       </View>
       <Pressable accessibilityLabel="เปิดบัญชี" style={styles.headerAccount} onPress={onAccount}>
-        <Ionicons name="person-outline" size={20} color="#ffffff" />
+        <ProfileAvatar name={name} photoURL={photoURL} size="small" />
       </Pressable>
+    </View>
+  );
+}
+
+function ProfileAvatar({ name, photoURL, size }: { name: string; photoURL: string; size: "small" | "large" }) {
+  const large = size === "large";
+  const avatarStyle = large ? styles.avatarLarge : styles.avatarSmall;
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [photoURL]);
+  if (photoURL && !failed) {
+    return <Image accessibilityLabel={`รูปโปรไฟล์ของ ${name}`} source={{ uri: photoURL }} style={avatarStyle} resizeMode="cover" onError={() => setFailed(true)} />;
+  }
+  return (
+    <View style={[avatarStyle, styles.avatarFallback]}>
+      <Text style={large ? styles.avatarTextLarge : styles.avatarTextSmall}>{initials(name)}</Text>
     </View>
   );
 }
@@ -609,6 +625,11 @@ function firstName(name: string) {
   return name.trim().split(/\s+/)[0] || "คนขับ";
 }
 
+function safeGooglePhotoUrl(photoURL: string | null) {
+  if (!photoURL) return "";
+  return /^https:\/\/lh3\.googleusercontent\.com\//.test(photoURL) ? photoURL : "";
+}
+
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "DR";
 }
@@ -638,7 +659,12 @@ const styles = StyleSheet.create({
   headerLiveDotActive: { backgroundColor: "#ffffff" },
   headerLiveText: { color: "#c8d2dc", fontWeight: "700", fontSize: 10 },
   headerLiveTextActive: { color: "#ffffff" },
-  headerAccount: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#31516b" },
+  headerAccount: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#49677f", overflow: "hidden" },
+  avatarSmall: { width: 36, height: 36, borderRadius: 12 },
+  avatarLarge: { width: 58, height: 58, borderRadius: 19 },
+  avatarFallback: { backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  avatarTextSmall: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  avatarTextLarge: { color: "#ffffff", fontSize: 19, fontWeight: "800" },
   kicker: { color: colors.orange, fontSize: 11, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 3 },
   muted: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   title: { color: colors.text, fontWeight: "800", fontSize: 27, letterSpacing: -0.4 },
@@ -696,8 +722,6 @@ const styles = StyleSheet.create({
   vehicleText: { color: colors.text, fontSize: 12, fontWeight: "600" },
   openJobText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   profileCard: { flexDirection: "row", alignItems: "center", gap: 13, padding: 16, borderRadius: 19, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  avatar: { width: 56, height: 56, borderRadius: 18, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "#ffffff", fontSize: 19, fontWeight: "800" },
   approvedBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8, backgroundColor: "#e3f3ee" },
   approvedText: { color: colors.success, fontSize: 10, fontWeight: "700" },
   settingsCard: { padding: 16, gap: 13, borderRadius: 19, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
