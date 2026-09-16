@@ -19,7 +19,8 @@ export function subscribePublicTracking(
   onData: (tracking: PublicTrackingJob | null) => void,
   onError: (message: string) => void
 ): Unsubscribe {
-  return onSnapshot(
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+  const unsubscribe = onSnapshot(
     doc(db, "tracking_share_links", token),
     (snapshot) => {
       if (!snapshot.exists()) {
@@ -28,10 +29,20 @@ export function subscribePublicTracking(
       }
 
       const data = snapshot.data();
+      if (expiryTimer) clearTimeout(expiryTimer);
+      const expiresAt = data.expiresAt?.toMillis?.() ?? 0;
+      const checkExpiry = () => {
+        const remaining = expiresAt - Date.now();
+        if (!data.enabled || remaining <= 0) { onData(null); return; }
+        expiryTimer = setTimeout(checkExpiry, Math.min(remaining, 2147483647));
+      };
+      if (!data.enabled || expiresAt <= Date.now()) { onData(null); return; }
       onData(toPublicTrackingJob(data));
+      checkExpiry();
     },
-    (error) => onError(error.message)
+    (error) => { onData(null); onError(error.message); }
   );
+  return () => { unsubscribe(); if (expiryTimer) clearTimeout(expiryTimer); };
 }
 
 function toPublicTrackingJob(data: DocumentData): PublicTrackingJob {

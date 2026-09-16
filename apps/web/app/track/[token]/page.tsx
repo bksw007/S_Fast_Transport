@@ -19,6 +19,7 @@ export default function PublicTrackingPage() {
     return subscribePublicTracking(
       params.token,
       (nextTracking) => {
+        setError("");
         setTracking(nextTracking);
         setLoading(false);
       },

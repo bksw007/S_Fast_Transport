@@ -5,6 +5,11 @@ export const metadata: Metadata = {
   title: "S Fast Transport",
   description: "Real-time transport tracking and proof of delivery platform",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "S Fast"
+  },
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

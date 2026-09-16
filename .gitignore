@@ -10,3 +10,5 @@ firestore-debug.log
 *.tsbuildinfo
 .playwright-cli
 output
+.vercel
+functions/lib/

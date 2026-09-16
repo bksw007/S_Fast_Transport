@@ -30,6 +30,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY=
 ```
 
 Enable these Google Maps APIs for the key:
@@ -38,7 +39,37 @@ Enable these Google Maps APIs for the key:
 - Geocoding API, if pickup/delivery address lookup is added later
 - Directions API, if route lines/ETA from Google are added later
 
-Driver mobile env in `apps/mobile/.env`:
+The Expo mobile project is currently parked. Its source remains in `apps/mobile`,
+but new driver features are implemented in the PWA under `apps/web`.
+
+## PWA location and stale-location alerts
+
+When a driver presses **เริ่มแชร์ตำแหน่ง**, the PWA requests notification and
+foreground location permission, records the first position, then keeps a
+five-minute foreground heartbeat. If the browser freezes the PWA while Google
+Maps is open, the server-side scheduler detects that no position has arrived for
+20 minutes and sends a Web Push notification asking the driver to reopen the app.
+
+iPhone drivers must add the site to the Home Screen before Web Push is available.
+GPS resumes when the driver opens the PWA; a PWA cannot read the position being
+used internally by Google Maps.
+
+Generate one VAPID key pair and use the same public key in the web app and Cloud
+Functions:
+
+```bash
+npx web-push generate-vapid-keys
+firebase functions:secrets:set WEB_PUSH_VAPID_PUBLIC_KEY
+firebase functions:secrets:set WEB_PUSH_VAPID_PRIVATE_KEY
+firebase deploy --only functions:monitorStaleDriverLocations,firestore:rules
+```
+
+Set `NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY` in `apps/web/.env.local` and the web
+hosting environment. Deploying scheduled Cloud Functions requires a Firebase
+project on the Blaze plan. The function runs every five minutes and repeats a
+stale-location alert at most once per hour until the GPS recovers.
+
+Driver mobile env in `apps/mobile/.env` (parked):
 
 ```bash
 EXPO_PUBLIC_FIREBASE_API_KEY=

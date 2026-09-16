@@ -80,6 +80,7 @@ Hot collection for the active dashboard.
 - `trackingEndedAt`
 - `currentLocation.{lat,lng,speed,heading,accuracy,updatedAt}`
 - `trackingStatus`
+- `locationAlert.{active,staleSince,lastNotifiedAt,recoveredAt}`: สถานะเตือนเมื่อ GPS ขาดเกิน 20 นาที
 
 ### vehicles/{organizationId--normalizedPlate}
 
@@ -106,6 +107,15 @@ Append-only route history. Assigned drivers may create points and cannot edit th
 - `batteryLevel`
 - `timestamp`
 - `source`: `gps | manual | background | offline_sync`
+
+### push_subscriptions/{uid}/devices/{deviceId}
+
+Web Push subscription แยกตามอุปกรณ์ของคนขับ เจ้าของบัญชีเขียนได้เฉพาะอุปกรณ์
+ของตนเอง และ Cloud Function ใช้ Admin SDK อ่านเพื่อส่งแจ้งเตือน
+
+- `recipientUid`, `organizationId`
+- `endpoint`, `expirationTime`, `keys.{p256dh,auth}`
+- `userAgent`, `standalone`, `updatedAt`
 
 ### job_events/{eventId}
 

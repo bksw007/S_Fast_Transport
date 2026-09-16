@@ -1,8 +1,12 @@
 {
   "name": "S Fast Transport",
   "short_name": "S Fast",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "description": "รับงานขนส่ง อัปเดตสถานะ และแชร์ตำแหน่งกับศูนย์ควบคุม",
+  "categories": ["business", "navigation", "productivity"],
   "background_color": "#f7faf9",
   "theme_color": "#0f8f8c",
   "icons": [
@@ -10,13 +14,13 @@
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

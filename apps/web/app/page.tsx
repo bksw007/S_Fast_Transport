@@ -59,6 +59,7 @@ import {
 } from "@s-fast-transport/shared";
 import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
+import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
 import { subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
 import {
@@ -91,6 +92,14 @@ import {
   type UserAccessUpdate,
   type UserProfile
 } from "@/lib/transport-repository";
+import {
+  getStoredTrackingJobId,
+  requestTrackingPosition,
+  resumePwaJobTrackingIfAllowed,
+  startPwaJobTracking,
+  stopPwaJobTracking
+} from "@/lib/pwa-location";
+import { registerPwaServiceWorker, subscribeToTrackingAlerts } from "@/lib/pwa-push";
 
 const statusOrder: JobStatus[] = [
   "assigned",
@@ -144,13 +153,21 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [jobs, setJobs] = useState<TransportJob[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState("");
+  const [selectedJobId, setSelectedJobId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("job") ?? "";
+  });
   const [firebaseMessage, setFirebaseMessage] = useState("กำลังโหลดข้อมูลจาก Firestore...");
   const [busyMessage, setBusyMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[0]);
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
   const [pendingAccessCount, setPendingAccessCount] = useState(0);
+  const [trackingMessage, setTrackingMessage] = useState("พร้อมขอตำแหน่งเมื่อกดเริ่มแชร์");
+
+  useEffect(() => {
+    void registerPwaServiceWorker().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -229,6 +246,16 @@ export default function Home() {
     );
   }, [profile]);
 
+  useEffect(() => {
+    if (!profile || profile.role !== "driver" || jobs.length === 0) return;
+    const storedJobId = getStoredTrackingJobId();
+    const storedJob = jobs.find((job) => job.id === storedJobId);
+    if (!storedJob) return;
+    void resumePwaJobTrackingIfAllowed(storedJob, profile).then((resumed) => {
+      if (resumed) setTrackingMessage("กำลังแชร์ตำแหน่ง · จะอัปเดตทันทีเมื่อกลับมาเปิดแอป");
+    });
+  }, [jobs, profile]);
+
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? sampleJobs[0],
     [jobs, selectedJobId]
@@ -248,6 +275,39 @@ export default function Home() {
       setFirebaseMessage("บันทึกสำเร็จ");
     } catch (error) {
       setFirebaseMessage(toMessage(error));
+    } finally {
+      setBusyMessage("");
+    }
+  }
+
+  async function handleDriverAction(status: JobStatus) {
+    if (!profile) return;
+    setBusyMessage(status === "accepted" ? "กำลังขอสิทธิ์และเริ่ม GPS..." : "กำลังบันทึก...");
+    try {
+      if (status === "accepted") {
+        let pushMessage = "";
+        try {
+          const push = await subscribeToTrackingAlerts(profile.uid, profile.organizationId);
+          pushMessage = push.message;
+        } catch {
+          pushMessage = "เปิดแจ้งเตือนไม่สำเร็จ แต่ยังแชร์ตำแหน่งขณะเปิดแอปได้";
+        }
+        const initialPosition = await requestTrackingPosition();
+        await updateJobStatus(selectedJob, status, profile);
+        await startPwaJobTracking(selectedJob, profile, initialPosition);
+        setTrackingMessage(`กำลังแชร์ตำแหน่ง · ${pushMessage}`);
+        setFirebaseMessage("เริ่มแชร์ตำแหน่งสำหรับใบงานนี้แล้ว");
+      } else {
+        await updateJobStatus(selectedJob, status, profile);
+        if (["completed", "cancelled"].includes(status)) {
+          stopPwaJobTracking();
+          setTrackingMessage("หยุดแชร์ตำแหน่งแล้ว");
+        }
+        setFirebaseMessage("บันทึกสถานะงานสำเร็จ");
+      }
+    } catch (error) {
+      setFirebaseMessage(toMessage(error));
+      setTrackingMessage(toMessage(error));
     } finally {
       setBusyMessage("");
     }
@@ -356,13 +416,15 @@ export default function Home() {
               selectedJob={selectedJob}
               selectedJobId={selectedJob.id}
               canWrite={canWrite && jobs.length > 0}
+              trackingMessage={trackingMessage}
               onSelectJob={setSelectedJobId}
-              onAction={(status) => runAction((actor) => updateJobStatus(selectedJob, status, actor))}
+              onAction={handleDriverAction}
               onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
               onProfileUpdated={refreshCurrentProfile}
             />
           ) : (
             <AdminMobileScreen
+              allJobs={jobs}
               profile={profile}
               screen={adminScreen}
               activeJobs={activeJobs}
@@ -556,6 +618,7 @@ function DriverMobileScreen({
   selectedJob,
   selectedJobId,
   canWrite,
+  trackingMessage,
   onSelectJob,
   onAction,
   onUpload,
@@ -567,6 +630,7 @@ function DriverMobileScreen({
   selectedJob: TransportJob;
   selectedJobId: string;
   canWrite: boolean;
+  trackingMessage: string;
   onSelectJob: (jobId: string) => void;
   onAction: (status: JobStatus) => void;
   onUpload: (file: File) => void;
@@ -596,10 +660,11 @@ function DriverMobileScreen({
     return <EmptyState title="ยังไม่มีประวัติงาน" description="งานที่ปิดแล้วจะแสดงในส่วนนี้" />;
   }
 
-  return <DriverView job={selectedJob} canWrite={canWrite} onAction={onAction} />;
+  return <DriverView job={selectedJob} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} />;
 }
 
 function AdminMobileScreen({
+  allJobs,
   profile,
   screen,
   activeJobs,
@@ -610,6 +675,7 @@ function AdminMobileScreen({
   canWrite,
   onProfileUpdated
 }: {
+  allJobs: TransportJob[];
   profile: UserProfile;
   screen: AdminScreen;
   activeJobs: TransportJob[];
@@ -645,6 +711,10 @@ function AdminMobileScreen({
 
   if (screen === "บริษัทขนส่ง" && isMainAdmin(profile)) {
     return <SubcontractCompaniesScreen actor={profile} />;
+  }
+
+  if (screen === "ลูกค้า" && isMainAdmin(profile)) {
+    return <CustomerManagementScreen actor={profile} jobs={allJobs} canWrite={canWrite} />;
   }
 
   if (screen === "รถและคนขับ") {
@@ -1308,10 +1378,12 @@ function GoogleLogo() {
 function DriverView({
   job,
   canWrite,
+  trackingMessage,
   onAction
 }: {
   job: TransportJob;
   canWrite: boolean;
+  trackingMessage: string;
   onAction: (status: JobStatus) => void;
 }) {
   const currentStep = Math.max(0, statusOrder.indexOf(job.status));
@@ -1368,8 +1440,8 @@ function DriverView({
       <article className="privacy-card">
         <Bell size={20} />
         <div>
-          <strong>ติดตามเฉพาะงานนี้เท่านั้น</strong>
-          <p>ระบบหยุดแชร์ตำแหน่งอัตโนมัติเมื่อกดจบงาน</p>
+          <strong>{job.trackingEnabled ? "กำลังติดตามเฉพาะงานนี้" : "พร้อมเริ่มแชร์ตำแหน่ง"}</strong>
+          <p>{trackingMessage} · ระบบหยุดแชร์อัตโนมัติเมื่อกดจบงาน</p>
         </div>
       </article>
     </section>

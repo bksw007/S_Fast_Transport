@@ -3716,3 +3716,21 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+.customer-screen { display: grid; gap: 18px; }
+.customer-screen h1 { margin: 8px 0; }
+.customer-screen h2 { font-size: 18px; margin: 0 0 10px; overflow-wrap: anywhere; }
+.customer-tabs, .customer-toolbar, .customer-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.customer-tabs button, .customer-screen button { padding: 10px 14px; border: 1px solid var(--line, #ddd); border-radius: 12px; background: var(--surface, white); color: inherit; cursor: pointer; }
+.customer-tabs button.active, .customer-form button[type=submit] { background: #176d51; color: white; }
+.customer-screen button:disabled { opacity: .5; cursor: not-allowed; }
+.customer-screen label { display: grid; gap: 6px; min-width: 0; }
+.customer-screen input, .customer-screen select { width: 100%; min-width: 0; padding: 11px; border-radius: 10px; border: 1px solid var(--line, #ccc); background: var(--surface, white); color: inherit; font: inherit; }
+.customer-card { padding: 20px; border: 1px solid var(--line, #ddd); border-radius: 18px; display: grid; gap: 12px; }
+.customer-card p { margin: 4px 0; overflow-wrap: anywhere; }
+.customer-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.customer-form h2, .customer-form p, .customer-form .customer-actions, .customer-link-result { grid-column: 1 / -1; }
+.customer-link-result { display: grid; gap: 10px; }
+.customer-error { color: #c0392b; }
+.customer-toolbar > label { flex: 1 1 220px; }
+@media (max-width: 600px) { .customer-form { grid-template-columns: 1fr; } .customer-tabs button { flex: 1 1 45%; } }

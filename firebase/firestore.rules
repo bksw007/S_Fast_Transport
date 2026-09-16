@@ -285,6 +285,36 @@ service cloud.firestore {
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
 
+    match /push_subscriptions/{uid}/devices/{deviceId} {
+      allow read, delete: if activeUser() && uid == request.auth.uid;
+      allow create: if activeUser()
+        && uid == request.auth.uid
+        && request.resource.data.recipientUid == request.auth.uid
+        && request.resource.data.endpoint is string
+        && request.resource.data.endpoint.size() > 0
+        && request.resource.data.endpoint.size() <= 2048
+        && request.resource.data.keys is map
+        && request.resource.data.keys.p256dh is string
+        && request.resource.data.keys.auth is string
+        && request.resource.data.keys().hasOnly([
+          "recipientUid", "organizationId", "endpoint", "expirationTime",
+          "keys", "userAgent", "standalone", "updatedAt"
+        ]);
+      allow update: if activeUser()
+        && uid == request.auth.uid
+        && request.resource.data.recipientUid == request.auth.uid
+        && request.resource.data.endpoint is string
+        && request.resource.data.endpoint.size() > 0
+        && request.resource.data.endpoint.size() <= 2048
+        && request.resource.data.keys is map
+        && request.resource.data.keys.p256dh is string
+        && request.resource.data.keys.auth is string
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "recipientUid", "organizationId", "endpoint", "expirationTime",
+          "keys", "userAgent", "standalone", "updatedAt"
+        ]);
+    }
+
     match /proof_of_delivery/{podId} {
       allow read: if activeUser()
         && canReadJob(get(/databases/$(database)/documents/today_jobs/$(resource.data.jobId)).data);
@@ -296,7 +326,10 @@ service cloud.firestore {
     }
 
     match /tracking_share_links/{linkId} {
-      allow read: if resource.data.enabled == true && request.time < resource.data.expiresAt;
+      allow get: if isMainCompanyAdmin()
+        || (resource.data.enabled == true && request.time < resource.data.expiresAt);
+      allow list: if isMainCompanyAdmin()
+        || (activeUser() && (sameOrganization(resource.data) || isAssignedDriver(resource.data.jobId)));
       allow create: if isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
       allow update, delete: if isMainAdmin()
@@ -336,6 +369,10 @@ service cloud.firestore {
         );
       allow delete: if isMainCompanyAdmin()
         || (isSubcontractAdmin() && sameOrganization(resource.data));
+    }
+
+    match /customer_names/{nameId} {
+      allow read, write: if isMainCompanyAdmin();
     }
 
     match /customers/{docId} {

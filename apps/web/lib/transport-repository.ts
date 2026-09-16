@@ -511,9 +511,10 @@ export async function uploadProof(job: TransportJob, file: File, actor: UserProf
   });
 }
 
-export async function createTrackingShareLink(job: TransportJob, actor: UserProfile) {
+export async function createTrackingShareLink(job: TransportJob, actor: UserProfile, expiry = new Date(Date.now() + 7 * 86400000)) {
+  if (!Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now()) throw new Error("กรุณาเลือกวันหมดอายุในอนาคต");
   const token = crypto.randomUUID().replaceAll("-", "");
-  const expiresAt = Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+  const expiresAt = Timestamp.fromDate(expiry);
 
   await setDoc(doc(db, "tracking_share_links", token), {
     jobId: job.id,
@@ -566,6 +567,11 @@ async function syncActiveShareLinks(job: TransportJob, status: JobStatus) {
 }
 
 function toTransportJob(id: string, data: DocumentData): TransportJob {
+  const currentLocation = data.currentLocation ?? defaultLocation;
+  const locationUpdatedAt = Date.parse(String(currentLocation.updatedAt ?? ""));
+  const calculatedMinutes = Number.isFinite(locationUpdatedAt)
+    ? Math.max(0, Math.floor((Date.now() - locationUpdatedAt) / 60_000))
+    : Number(data.lastUpdatedMinutes ?? 0);
   return {
     id,
     workOrder: data.workOrder ?? id,
@@ -579,8 +585,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: Boolean(data.trackingEnabled),
     eta: data.eta ?? "-",
-    lastUpdatedMinutes: Number(data.lastUpdatedMinutes ?? 0),
-    currentLocation: data.currentLocation ?? defaultLocation,
+    lastUpdatedMinutes: calculatedMinutes,
+    currentLocation,
     alerts: Array.isArray(data.alerts) ? data.alerts : [],
     organizationId: data.organizationId ?? undefined,
     carrierName: data.carrierName ?? undefined
