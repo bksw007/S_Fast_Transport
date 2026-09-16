@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { QrCode, Settings, Share2 } from "lucide-react";
+import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { createTrackingShareLink, uploadProof, type UserProfile } from "@/lib/transport-repository";
 import { recordTime, saveJobSettings, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
@@ -15,9 +15,9 @@ function Records({ jobId, kind }: { jobId: string; kind: "proofs" | "events" | "
   const [rows, setRows] = useState<JobRecord[]>([]);
   const [state, setState] = useState("กำลังโหลด…");
   useEffect(() => subscribeJobRecords(jobId, kind, data => { setRows(data); setState(""); }, () => setState("โหลดข้อมูลไม่สำเร็จ กรุณาปิดแล้วเปิดแท็บนี้อีกครั้ง")), [jobId, kind]);
-  if (state) return <p role="status">{state}</p>;
-  if (!rows.length) return <p>ยังไม่มี{kind === "proofs" ? "หลักฐาน" : kind === "events" ? "เหตุการณ์ที่บันทึก" : "ประวัติตำแหน่ง"}สำหรับใบงานนี้</p>;
-  return <div className="job-records">
+  if (state) return <p className="job-detail-empty" role="status">{state}</p>;
+  if (!rows.length) return <p className="job-detail-empty">ยังไม่มี{kind === "proofs" ? "หลักฐาน" : kind === "events" ? "เหตุการณ์ที่บันทึก" : "ประวัติตำแหน่ง"}สำหรับใบงานนี้</p>;
+  return <div className={`job-records job-records-${kind}`}>
     {kind === "locations" && <p>ตำแหน่งที่บันทึกจริง ล่าสุดไม่เกิน 500 จุด เรียงจากใหม่ไปเก่า</p>}
     {rows.map(({ id, data }) => <article key={id}>
       <time>{dateLabel(recordTime(data))}</time>
@@ -56,7 +56,7 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
   }
   return <section className="detail-panel job-detail-functional">
     <div className="job-detail-toolbar">
-      <div className="detail-head"><div><h2>{job.workOrder}</h2><p>{job.customer}</p></div><div className="detail-actions">
+      <div className="detail-head"><div className="job-detail-identity"><span className="job-detail-emblem"><Truck size={26} /></span><div><span className="job-detail-eyebrow">ใบงานขนส่ง</span><h2>{job.workOrder}</h2><p>{job.customer}</p></div><span className={`job-detail-status ${job.status === "problem" || job.status === "cancelled" ? "is-alert" : ""}`}>{statusLabels[job.status]}</span></div><div className="detail-actions">
         <button disabled={busy || !canWrite} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
         <button disabled={busy || !canWrite} onClick={() => void share("qr")}><QrCode size={18} /> QR</button>
         <button aria-label="ตั้งค่าใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite} onClick={() => { setSettings({ driverPhone: job.driverPhone, eta: job.eta, notes: job.notes || "" }); setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>
@@ -79,7 +79,16 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
         </form> : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
       </aside>}
       <div role="tabpanel" id="job-tab-content" aria-labelledby={`job-tab-${tab}`} tabIndex={0}>
-        {tab === 0 && <dl className="job-detail-fields">{Object.entries({ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "สถานะ": statusLabels[job.status], "คนขับ": job.driverName, "เบอร์ติดต่อ": job.driverPhone, "ทะเบียนรถ": job.vehiclePlate, "จุดรับ": job.pickupLocation, "จุดส่ง": job.deliveryLocation, "วันที่รับงาน": job.jobDate, "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" "), "กำหนดถึง (ETA)": job.eta, "จำนวนรอบ": job.tripCount, "หมายเหตุ": job.notes }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || "—"}</dd></div>)}</dl>}
+        {tab === 0 && <div className="job-detail-overview">
+          <section className="job-detail-route"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong></div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong></div></div></div></section>
+          <div className="job-detail-section-grid">
+            <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงาน": job.jobDate }} />
+            <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": job.driverPhone, "ทะเบียนรถ": job.vehiclePlate, "จำนวนรอบ": job.tripCount }} />
+            <DetailGroup title="กำหนดการส่ง" icon={<Clock3 size={18} />} fields={{ "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" "), "กำหนดถึง (ETA)": job.eta }} />
+            <DetailGroup title="หมายเหตุ" icon={<PackageCheck size={18} />} fields={{ "รายละเอียดเพิ่มเติม": job.notes || "ไม่มีหมายเหตุเพิ่มเติม" }} />
+          </div>
+        </div>}
+
         {tab === 1 && <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(() => uploadProof(job, file, actor), "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} jobId={job.id} kind="proofs" /></>}
         {tab === 2 && <><p>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์ตำแหน่ง"} · ล่าสุด {dateLabel(job.currentLocation.updatedAt)}</p>{job.trackingStatus !== "not_started" && validPoint(job.currentLocation.lat, job.currentLocation.lng) ? <>{map}<a href={mapUrl(job.currentLocation.lat, job.currentLocation.lng)} target="_blank" rel="noreferrer">เปิดตำแหน่งล่าสุดใน Google Maps</a><p>ความเร็ว {job.currentLocation.speed} กม./ชม. · ความแม่นยำ {job.currentLocation.accuracy} เมตร</p></> : <p>ยังไม่มีพิกัดสำหรับงานนี้</p>}</>}
         {tab === 3 && <Records key={`${job.id}-locations`} jobId={job.id} kind="locations" />}
@@ -87,4 +96,8 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
       </div>
     </div>
   </section>;
+}
+
+function DetailGroup({ title, icon, fields }: { title: string; icon: React.ReactNode; fields: Record<string, string | number | undefined> }) {
+  return <section className="job-detail-group"><h3>{icon}{title}</h3><dl className="job-detail-fields">{Object.entries(fields).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || "—"}</dd></div>)}</dl></section>;
 }
