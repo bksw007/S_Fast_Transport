@@ -159,6 +159,7 @@ export default function Home() {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("job") ?? "";
   });
+  const [jobDetailOpen, setJobDetailOpen] = useState(false);
   const [firebaseMessage, setFirebaseMessage] = useState("กำลังโหลดข้อมูลจาก Firestore...");
   const [busyMessage, setBusyMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -435,7 +436,7 @@ export default function Home() {
               activeJobs={activeJobs}
               selectedJob={selectedJob}
               selectedJobId={selectedJob.id}
-              onSelectJob={setSelectedJobId}
+              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               canWrite={canWrite}
               onProfileUpdated={refreshCurrentProfile}
@@ -452,17 +453,12 @@ export default function Home() {
               profile={profile}
               activeJobs={activeJobs}
               selectedJobId={selectedJob.id}
-              onSelectJob={setSelectedJobId}
+              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               canWrite={canWrite}
               compact={false}
             />
-            {activeJobs.length > 0 && <JobDetail
-              job={selectedJob}
-              canWrite={canWrite}
-              onShare={shareSelectedJob}
-              onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
-            />}
+
           </> : adminScreen === "Live Tracking" ? (
             activeJobs.length > 0
               ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
@@ -485,6 +481,16 @@ export default function Home() {
             <FeatureOverview screen={adminScreen} />
           )}
         </aside>
+      )}
+      {mode === "admin" && adminScreen === "Jobs / ใบงาน" && jobDetailOpen && activeJobs.some((job) => job.id === selectedJobId) && (
+        <JobDetailModal onClose={() => setJobDetailOpen(false)}>
+          <JobDetail
+            job={selectedJob}
+            canWrite={canWrite}
+            onShare={shareSelectedJob}
+            onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+          />
+        </JobDetailModal>
       )}
     </main>
   );
@@ -2040,6 +2046,39 @@ function DispatchStop({
       <DispatchField label="เวลา"><input type="time" value={time} onChange={(event) => onChange(fields.time, event.target.value)} /></DispatchField>
       <DispatchField label="ติดต่อ"><ListManagerComboBox field="contact" value={contact} onChange={(value) => onChange(fields.contact, value)} placeholder="ค้นหาหรือเพิ่มผู้ติดต่อ" organizationId={organizationId} actor={actor} /></DispatchField>
     </fieldset>
+  );
+}
+
+function JobDetailModal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="job-detail-modal"
+      aria-labelledby="job-detail-modal-title"
+      onCancel={onClose}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="job-detail-modal-content">
+        <header className="job-detail-modal-header">
+          <h2 id="job-detail-modal-title">รายละเอียดใบงาน</h2>
+          <button type="button" autoFocus aria-label="ปิดรายละเอียดใบงาน" onClick={onClose}><X size={22} /></button>
+        </header>
+        {children}
+      </div>
+    </dialog>
   );
 }
 

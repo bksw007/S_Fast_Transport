@@ -3781,3 +3781,50 @@ textarea:focus {
   .report-tabs { margin-right: -4px; }
   .report-header { align-items: flex-start; }
 }
+
+/* The jobs workspace uses the full available width; details open above it. */
+.desktop-panel:has(> .admin-wide) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.desktop-panel > .admin-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.job-detail-modal {
+  width: min(960px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+}
+
+.job-detail-modal::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.job-detail-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.job-detail-modal-header h2 { margin: 0; font-size: 1.1rem; }
+.job-detail-modal-header button { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+.job-detail-modal .detail-panel { min-width: 0; }
+.job-detail-modal .detail-head { flex-wrap: wrap; gap: 12px; }
+.job-detail-modal .tabs { overflow-x: auto; }
+
+@media (max-width: 600px) {
+  .job-detail-modal .detail-grid { grid-template-columns: 1fr; }
+}
