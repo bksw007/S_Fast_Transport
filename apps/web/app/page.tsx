@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
+import SettingsScreen, { type AppearanceSettings } from "./components/SettingsScreen";
 import {
   AlertTriangle,
   ArrowRight,
@@ -146,9 +147,28 @@ type AdminScreen = (typeof adminMenu)[number];
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 let googleMapsLoader: Promise<void> | null = null;
 
+function readAppearance(): { theme: "light" | "dark"; fontScale: number } {
+  try {
+    if (typeof window !== "undefined") {
+      const stored = JSON.parse(localStorage.getItem("sfast-appearance") || "{}") || {};
+      return { theme: stored.theme === "dark" ? "dark" : "light", fontScale: [0.92, 1, 1.12].includes(stored.fontScale) ? stored.fontScale : 1 };
+    }
+  } catch { /* Use defaults if storage is unavailable or invalid. */ }
+  return { theme: "light", fontScale: 1 };
+}
+
 export default function Home() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [fontScale, setFontScale] = useState(1);
+  const [theme, setTheme] = useState<"light" | "dark">(() => readAppearance().theme);
+  const [fontScale, setFontScale] = useState(() => readAppearance().fontScale);
+  useEffect(() => {
+    try { localStorage.setItem("sfast-appearance", JSON.stringify({ theme, fontScale })); } catch { /* Appearance still applies for this session. */ }
+  }, [theme, fontScale]);
+  useEffect(() => {
+    const previous = document.documentElement.style.fontSize;
+    document.documentElement.style.fontSize = `${16 * fontScale}px`;
+    return () => { document.documentElement.style.fontSize = previous; };
+  }, [fontScale]);
+  const appearance = { theme, fontScale, onThemeChange: setTheme, onFontScaleChange: setFontScale };
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -361,7 +381,7 @@ export default function Home() {
                 {pendingAccessCount > 0 && <span>{pendingAccessCount > 99 ? "99+" : pendingAccessCount}</span>}
               </button>
             )}
-            <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => Math.max(0.92, value - 0.08))}>
+            <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => value > 1 ? 1 : 0.92)}>
               <TextCursorInput size={18} />
             </button>
             <button aria-label="เปลี่ยนธีม" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
@@ -414,6 +434,7 @@ export default function Home() {
             />
           ) : (
             <AdminMobileScreen
+              appearance={appearance}
               jobsState={jobsState}
               allJobs={jobs}
               profile={profile}
@@ -460,6 +481,8 @@ export default function Home() {
             <ReportsScreen jobs={jobs} dataState={jobsState} />
           ) : adminScreen === "User Management" ? (
             <AccessManagementScreen actor={profile} />
+          ) : adminScreen === "Settings" ? (
+            <SettingsScreen key={profile.organizationId} actor={profile} appearance={appearance} />
           ) : adminScreen === "โปรไฟล์" ? (
             <ProfileScreen profile={profile} onProfileUpdated={refreshCurrentProfile} />
           ) : (
@@ -628,6 +651,7 @@ function DriverMobileScreen({
 }
 
 function AdminMobileScreen({
+  appearance,
   jobsState,
   allJobs,
   profile,
@@ -640,6 +664,7 @@ function AdminMobileScreen({
   canWrite,
   onProfileUpdated
 }: {
+  appearance: AppearanceSettings;
   jobsState: "loading" | "ready" | "error";
   allJobs: TransportJob[];
   profile: UserProfile;
@@ -696,6 +721,8 @@ function AdminMobileScreen({
   if (screen === "โปรไฟล์") {
     return <ProfileScreen profile={profile} onProfileUpdated={onProfileUpdated} />;
   }
+
+  if (screen === "Settings") return <SettingsScreen key={profile.organizationId} actor={profile} appearance={appearance} />;
 
   return <FeatureOverview screen={screen} />;
 }

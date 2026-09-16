@@ -52,7 +52,7 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
       } else {
         try { await navigator.clipboard.writeText(url); } catch { throw new Error("สร้างลิงก์แล้ว กรุณาคัดลอกจากช่องลิงก์ด้านล่าง"); }
       }
-    }, kind === "qr" ? "สแกน QR เพื่อติดตามงาน · ลิงก์มีอายุ 7 วัน" : "คัดลอกลิงก์ติดตามแล้ว · ลิงก์มีอายุ 7 วัน");
+    }, kind === "qr" ? "สแกน QR เพื่อติดตามงาน · อายุลิงก์ตามการตั้งค่าบริษัท" : "คัดลอกลิงก์ติดตามแล้ว · อายุลิงก์ตามการตั้งค่าบริษัท");
   }
   return <section className="detail-panel job-detail-functional">
     <div className="job-detail-toolbar">

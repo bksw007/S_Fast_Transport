@@ -1,0 +1,33 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const compile = source => ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
+let document = {}, write;
+const firestore = { doc: (...args) => args.slice(1).join('/'), getDoc: async () => ({ data: () => document }), serverTimestamp: () => 'SERVER_TIME', setDoc: async (...args) => { write = args; }, Timestamp: { fromDate: d => d } };
+const context = { exports: {}, URL, require: name => name === 'firebase/firestore' ? firestore : { db: {} } };
+vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/settings-repository.ts', 'utf8')), context);
+const api = context.exports;
+const actor = { uid: 'admin', role: 'admin', active: true, approvalStatus: 'approved', organizationId: 'main' };
+(async () => {
+  assert.equal((await api.loadCompanySettings('main')).trackingLinkDays, 7);
+  document = { trackingLinkDays: 90 }; assert.equal((await api.loadCompanySettings('main')).trackingLinkDays, 7);
+  const draft = { ...api.defaultCompanySettings, name: ' Company ', trackingLinkDays: 14 };
+  await api.saveCompanySettings(draft, actor);
+  assert.equal(write[0], 'organizations/main'); assert.equal(write[1].name, 'Company'); assert.equal(write[2].merge, true); assert.equal(write[1].active, undefined);
+  await assert.rejects(() => api.saveCompanySettings(draft, { ...actor, role: 'subcontract_admin', organizationId: 'partner' }));
+  for (const patch of [{ trackingLinkDays: 0 }, { trackingLinkDays: 31 }, { taxId: '123' }, { email: 'bad' }, { logoUrl: 'javascript:alert(1)' }, { name: '' }]) assert.throws(() => api.validateCompanySettings({ ...draft, ...patch }));
+  const transport = { exports: {}, crypto: { randomUUID: () => 'test-token' }, require: name => {
+    if (name === 'firebase/firestore') return firestore;
+    if (name === './settings-repository') return { loadCompanySettings: async () => ({ name: 'Configured company', trackingLinkDays: 14 }) };
+    if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'Assigned' } };
+    return { db: {}, storage: {} };
+  } };
+  vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/transport-repository.ts', 'utf8')), transport);
+  const job = { id: 'job', status: 'assigned', currentLocation: { lat: 13, lng: 100, updatedAt: '' } };
+  const before = Date.now(); await transport.exports.createTrackingShareLink(job, actor);
+  assert.ok(write[1].expiresAt.getTime() >= before + 14 * 86400000);
+  assert.equal(write[1].carrierName, 'Configured company');
+  const explicit = new Date(Date.now() + 86400000); await transport.exports.createTrackingShareLink(job, actor, explicit); assert.equal(write[1].expiresAt, explicit);
+  console.log('PASS: settings defaults, validation, permissions, merge-only saving, default and explicit link expiry');
+})().catch(error => { console.error(error); process.exitCode = 1; });

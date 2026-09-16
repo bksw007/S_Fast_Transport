@@ -130,3 +130,18 @@ button, input, select, textarea { font-family: inherit; }
 .app-shell .resource-status.leave { color: var(--warning); background: var(--warning-soft); }
 .app-shell .feature-list article > span { background: var(--surface-2); color: var(--accent); }
 .app-shell .transport-dashboard { --dashboard-success: var(--success); --dashboard-warning: var(--warning); }
+.settings-screen { display: grid; align-content: start; gap: 20px; }
+.settings-screen .section-title { margin-bottom: 0; }
+.settings-screen form { display: grid; gap: 18px; }
+.settings-panel { min-width: 0; margin: 0; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.settings-panel legend, .settings-panel h2 { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 600; padding: 0 6px; margin: 0; }
+.settings-panel p, .settings-panel small, .settings-note { color: var(--muted); font-size: .8rem; line-height: 1.7; }
+.settings-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.settings-panel label { display: grid; gap: 7px; min-width: 0; font-size: .8rem; color: var(--muted); }
+.settings-panel label input, .settings-panel label select { width: 100%; }
+.settings-wide { grid-column: 1 / -1; }
+.settings-save { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 16px; border-radius: 12px; background: var(--surface-2); font-size: .8rem; }
+.settings-save > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings-save button { display: inline-flex; gap: 6px; align-items: center; padding: 10px 14px; border-radius: 9px; background: var(--surface); }
+@media(max-width:600px) { .settings-fields { grid-template-columns: 1fr; } .settings-panel { padding: 16px; } }
+.app-shell { font-size: 1rem; }

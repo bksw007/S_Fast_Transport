@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
+import { loadCompanySettings } from "./settings-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
 import { statusLabels, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
 
@@ -274,6 +275,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
   const now = new Date().toISOString();
   const workOrder = draft.workOrder.trim() || `WO-${Date.now().toString().slice(-5)}`;
   const organizationId = actor.organizationId ?? "main";
+  const companySettings = await loadCompanySettings(organizationId);
   const assigneeName = (draft.assignedEmployee || draft.driverName).trim();
   if (!assigneeName) {
     throw new Error("กรุณาระบุพนักงานขับรถที่มีบัญชีแอป");
@@ -299,7 +301,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     workOrder,
     assignedDriverUid: assignedDriver.id,
     organizationId,
-    carrierName: actor.organizationName || "S Fast Transport",
+    carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
     status: "assigned",
     trackingStatus: "not_started",
     trackingEnabled: false,
@@ -516,7 +518,9 @@ export async function uploadProof(job: TransportJob, file: File, actor: UserProf
   });
 }
 
-export async function createTrackingShareLink(job: TransportJob, actor: UserProfile, expiry = new Date(Date.now() + 7 * 86400000)) {
+export async function createTrackingShareLink(job: TransportJob, actor: UserProfile, expiry?: Date) {
+  const companySettings = await loadCompanySettings(job.organizationId ?? actor.organizationId ?? "main");
+  expiry = expiry ?? new Date(Date.now() + companySettings.trackingLinkDays * 86400000);
   if (!Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now()) throw new Error("กรุณาเลือกวันหมดอายุในอนาคต");
   const token = crypto.randomUUID().replaceAll("-", "");
   const expiresAt = Timestamp.fromDate(expiry);
@@ -532,7 +536,7 @@ export async function createTrackingShareLink(job: TransportJob, actor: UserProf
     pickupLocation: job.pickupLocation,
     deliveryLocation: job.deliveryLocation,
     vehicleLabel: job.vehiclePlate,
-    carrierName: (job.carrierName ?? actor.organizationName) || "S Fast Transport",
+    carrierName: companySettings.name || job.carrierName || actor.organizationName || "S Fast Transport",
     eta: job.eta,
     lastUpdatedAt: job.currentLocation.updatedAt,
     currentLocation: {
