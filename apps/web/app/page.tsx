@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import JobDetail from "./components/JobDetail";
 import {
   AlertTriangle,
   ArrowRight,
@@ -24,7 +25,6 @@ import {
   Moon,
   Phone,
   Power,
-  QrCode,
   RotateCcw,
   Save,
   Settings,
@@ -53,7 +53,6 @@ import {
   driverMenu,
   sampleJobs,
   statusLabels,
-  timelineEvents,
   type JobStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
@@ -77,7 +76,6 @@ import {
 } from "@/lib/profile-repository";
 import {
   createJob,
-  createTrackingShareLink,
   ensureAccessProfile,
   getUserProfile,
   hasApprovedAccess,
@@ -324,20 +322,6 @@ export default function Home() {
     if (nextProfile) setProfile(nextProfile);
   }
 
-  async function shareSelectedJob() {
-    if (!profile || jobs.length === 0) return;
-    setBusyMessage("กำลังสร้างลิงก์ติดตาม...");
-    try {
-      const token = await createTrackingShareLink(selectedJob, profile);
-      const url = `${window.location.origin}/track/${token}`;
-      await navigator.clipboard.writeText(url);
-      setFirebaseMessage("สร้างลิงก์อายุ 7 วันและคัดลอกแล้ว");
-    } catch (error) {
-      setFirebaseMessage(toMessage(error));
-    } finally {
-      setBusyMessage("");
-    }
-  }
 
   if (!authReady) {
     return <SessionLoadingScreen />;
@@ -487,8 +471,9 @@ export default function Home() {
           <JobDetail
             job={selectedJob}
             canWrite={canWrite}
-            onShare={shareSelectedJob}
-            onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+            key={selectedJob.id}
+            actor={profile}
+            map={<GoogleLiveMap jobs={[selectedJob]} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />}
           />
         </JobDetailModal>
       )}
@@ -2079,88 +2064,6 @@ function JobDetailModal({ children, onClose }: { children: React.ReactNode; onCl
         {children}
       </div>
     </dialog>
-  );
-}
-
-function JobDetail({
-  job,
-  canWrite,
-  onShare,
-  onUpload
-}: {
-  job: TransportJob;
-  canWrite: boolean;
-  onShare: () => void;
-  onUpload: (file: File) => void;
-}) {
-  return (
-    <section className="detail-panel">
-      <div className="detail-head">
-        <div>
-          <h2>{job.id}</h2>
-          <p>{job.customer}</p>
-        </div>
-        <div className="detail-actions">
-          <button onClick={onShare}><Share2 size={18} /> Share</button>
-          <button><QrCode size={18} /> QR</button>
-          <button><Settings size={18} /></button>
-        </div>
-      </div>
-
-      <div className="tabs">
-        {["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"].map((tab, index) => (
-          <button key={tab} className={index === 4 ? "selected" : ""}>{tab}</button>
-        ))}
-      </div>
-
-      <div className="detail-grid">
-        <article>
-          <span className="label">Driver</span>
-          <strong>{job.driverName}</strong>
-          <p>{job.driverPhone}</p>
-        </article>
-        <article>
-          <span className="label">Tracking</span>
-          <strong>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์"}</strong>
-          <p>ล่าสุด {job.currentLocation.updatedAt}</p>
-        </article>
-        <article>
-          <span className="label">POD</span>
-          <strong>แนบหลักฐานส่งของ</strong>
-          <p>รูปจะถูกบีบอัดเหลือไม่เกิน 1 MB</p>
-          <label className="upload-button">
-            <FileImage size={17} />
-            เลือกไฟล์
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              disabled={!canWrite}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  onUpload(file);
-                  event.currentTarget.value = "";
-                }
-              }}
-            />
-          </label>
-        </article>
-      </div>
-
-      <div className="timeline">
-        {timelineEvents.map((event) => (
-          <article key={event.id}>
-            <time>{event.time}</time>
-            <span />
-            <div>
-              <strong>{event.title}</strong>
-              <p>{event.detail}</p>
-              <small>{event.actor}</small>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 

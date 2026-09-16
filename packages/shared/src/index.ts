@@ -56,6 +56,7 @@ export type TransportJob = {
   completedAt?: string;
   assignedDriverUid?: string;
   tripCount?: number;
+  notes?: string;
 };
 
 export type TimelineEvent = {

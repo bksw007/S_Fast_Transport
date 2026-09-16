@@ -3828,3 +3828,28 @@ textarea:focus {
 @media (max-width: 600px) {
   .job-detail-modal .detail-grid { grid-template-columns: 1fr; }
 }
+
+/* Only the detail body scrolls, keeping the title, close button and tabs visible. */
+.job-detail-modal[open] { display: flex; overflow: hidden; }
+.job-detail-modal-content { display: flex; flex-direction: column; width: 100%; min-height: 0; max-height: calc(100dvh - 34px); }
+.job-detail-modal-header { flex: 0 0 auto; background: var(--surface); }
+.job-detail-modal .job-detail-functional { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
+.job-detail-toolbar { flex: 0 0 auto; padding: 18px 18px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+.job-detail-toolbar .tabs { margin-bottom: 12px; }
+.job-detail-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 18px; }
+.job-detail-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.job-detail-fields div, .job-records article { padding: 14px; border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
+.job-detail-fields dt, .job-records time { display: block; color: var(--muted); font-size: .85rem; }
+.job-detail-fields dd { margin: 6px 0 0; white-space: pre-wrap; }
+.job-records { display: grid; gap: 12px; }
+.job-records strong, .job-records a { display: block; margin-top: 8px; }
+.job-action-panel { border: 1px solid var(--border); padding: 16px; border-radius: 12px; margin-bottom: 18px; }
+.job-action-panel label { display: grid; gap: 6px; margin: 12px 0; }
+.job-action-panel input, .job-action-panel textarea { width: 100%; padding: 10px; }
+.job-action-panel img { display: block; max-width: 100%; height: auto; }
+.job-action-close { float: right; }
+@media (max-width: 600px) {
+  .job-detail-fields { grid-template-columns: 1fr; }
+  .job-detail-toolbar { padding: 12px 12px 0; }
+  .job-detail-body { padding: 12px; }
+}

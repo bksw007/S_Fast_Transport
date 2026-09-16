@@ -601,6 +601,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     completedAt: timestampToIso(data.completedAt),
     assignedDriverUid: data.assignedDriverUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,
+    notes: data.notes ?? "",
     carrierName: data.carrierName ?? undefined
   };
 }
