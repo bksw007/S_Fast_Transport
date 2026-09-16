@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@s-fast-transport/shared": "0.1.0",
+    "exceljs": "^4.4.0",
     "firebase": "^11.10.0",
     "lucide-react": "^0.468.0",
     "next": "^16.2.9",

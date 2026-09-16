@@ -238,7 +238,7 @@ service cloud.firestore {
           && request.resource.data.organizationId == resource.data.organizationId
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
             "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
-            "currentLocation", "trackingStatus", "updatedAt"
+            "currentLocation", "trackingStatus", "updatedAt", "arrivedDeliveryAt", "completedAt"
           ])
           && (
             !request.resource.data.diff(resource.data).changedKeys().hasAny(["currentLocation"])

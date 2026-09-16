@@ -96,3 +96,26 @@ This step is required before Google login can be tested on an Android device.
 ## Core Model
 
 Tracking is tied to a job/work order, not only a driver. The latest location lives on `today_jobs/{jobId}.currentLocation` for fast dashboards, while detailed route history is written under `job_locations/{jobId}/points`.
+
+## Reports
+
+The Reports menu now contains working punctuality, job-status, resource-performance, and export views on desktop and mobile. It uses the existing authorized `today_jobs` subscription, including completed and cancelled jobs. The default period is the current month in Bangkok time; select all dates to include legacy jobs without `jobDate`.
+
+- Filter by job date, company, customer, job status, or job/driver/vehicle/route text. Detail tables show 25 jobs per page; exports include every matching job.
+- On-time delivery compares `arrivedDeliveryAt` with `deliveryDate` + `deliveryTime` in Asia/Bangkok. The denominator contains only non-cancelled jobs with both timestamps. Missing schedules or missing historical arrival times are reported as unassessable; GPS updates and completion times are not substituted for arrival.
+- Active jobs past their scheduled arrival are reported separately as overdue. Resource summaries cover vehicles, drivers, companies, and customers; trip totals are based on job records, not GPS-derived trips or utilization.
+- Excel export is a real `.xlsx` file with six sheets (overview, detail, vehicles, drivers, companies, customers). PDF export opens a separate print report; choose Save as PDF in the browser print dialog. Pop-ups must be allowed.
+- Both web and native driver status writers preserve the first server-recorded arrival/completion timestamp in a transaction. Existing historical jobs are not backfilled. Deploy the web app, updated native app, and `firebase/firestore.rules` together when releasing; old native versions do not write these timestamps.
+
+Validation commands:
+
+```sh
+node tests/reports.cjs
+node tests/report-status-recording.cjs
+node tests/reports-navigation.cjs
+npm run typecheck
+npm run lint
+npm run build -w @s-fast-transport/web
+```
+
+Report browser verification used isolated fixture data (31 jobs), tested pagination and filtering, read back the downloaded six-sheet workbook, and verified the filtered print report and mobile width. No production records were modified during those checks.

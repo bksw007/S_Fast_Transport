@@ -49,6 +49,13 @@ export type TransportJob = {
   alerts: string[];
   organizationId?: string;
   carrierName?: string;
+  jobDate?: string;
+  deliveryDate?: string;
+  deliveryTime?: string;
+  arrivedDeliveryAt?: string;
+  completedAt?: string;
+  assignedDriverUid?: string;
+  tripCount?: number;
 };
 
 export type TimelineEvent = {

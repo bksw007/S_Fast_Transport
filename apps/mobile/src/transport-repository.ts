@@ -5,6 +5,7 @@ import {
   getDoc,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -134,7 +135,16 @@ export async function updateDriverJobStatus(
   if (trackingEnabled && !job.trackingEnabled) patch.trackingStartedAt = serverTimestamp();
   if (!trackingEnabled) patch.trackingEndedAt = serverTimestamp();
 
-  await updateDoc(doc(db, "today_jobs", job.id), patch);
+  const jobRef = doc(db, "today_jobs", job.id);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    transaction.update(jobRef, {
+      ...patch,
+      ...(status === "arrived_delivery" && !snapshot.data().arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
+      ...(status === "completed" && !snapshot.data().completedAt ? { completedAt: serverTimestamp() } : {})
+    });
+  });
   await addDoc(collection(db, "job_events"), {
     jobId: job.id,
     organizationId: job.organizationId ?? profile.organizationId ?? "main",
@@ -185,6 +195,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     vehiclePlate: data.vehiclePlate ?? "-",
     pickupLocation: data.pickupLocation ?? "-",
     deliveryLocation: data.deliveryLocation ?? "-",
+    arrivedDeliveryAt: typeof data.arrivedDeliveryAt === "string" ? data.arrivedDeliveryAt : data.arrivedDeliveryAt?.toDate?.().toISOString(),
+    completedAt: typeof data.completedAt === "string" ? data.completedAt : data.completedAt?.toDate?.().toISOString(),
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: data.trackingEnabled === true,

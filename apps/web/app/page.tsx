@@ -59,6 +59,7 @@ import {
 } from "@s-fast-transport/shared";
 import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
+import { ReportsScreen } from "@/app/components/ReportsScreen";
 import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
 import { subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
@@ -152,6 +153,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [jobsState, setJobsState] = useState<"loading" | "ready" | "error">("loading");
   const [jobs, setJobs] = useState<TransportJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -228,13 +230,15 @@ export default function Home() {
       return;
     }
 
+    let failed = false;
     return subscribeTodayJobs(
       profile,
       (nextJobs) => {
+        setJobsState(failed ? "error" : "ready");
         setJobs(nextJobs);
         setSelectedJobId((current) => current || nextJobs[0]?.id || "");
       },
-      (message) => setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`)
+      (message) => { failed = true; setJobsState("error"); setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`); }
     );
   }, [user, profile]);
 
@@ -424,6 +428,7 @@ export default function Home() {
             />
           ) : (
             <AdminMobileScreen
+              jobsState={jobsState}
               allJobs={jobs}
               profile={profile}
               screen={adminScreen}
@@ -470,6 +475,8 @@ export default function Home() {
             <FleetAndDriversScreen actor={profile} />
           ) : adminScreen === "ลูกค้า" && isMainAdmin(profile) ? (
             <CustomerManagementScreen actor={profile} jobs={jobs} canWrite={canWrite} />
+          ) : adminScreen === "Reports" ? (
+            <ReportsScreen jobs={jobs} dataState={jobsState} />
           ) : adminScreen === "User Management" ? (
             <AccessManagementScreen actor={profile} />
           ) : adminScreen === "โปรไฟล์" ? (
@@ -666,6 +673,7 @@ function DriverMobileScreen({
 }
 
 function AdminMobileScreen({
+  jobsState,
   allJobs,
   profile,
   screen,
@@ -677,6 +685,7 @@ function AdminMobileScreen({
   canWrite,
   onProfileUpdated
 }: {
+  jobsState: "loading" | "ready" | "error";
   allJobs: TransportJob[];
   profile: UserProfile;
   screen: AdminScreen;
@@ -718,6 +727,8 @@ function AdminMobileScreen({
   if (screen === "ลูกค้า" && isMainAdmin(profile)) {
     return <CustomerManagementScreen actor={profile} jobs={allJobs} canWrite={canWrite} />;
   }
+
+  if (screen === "Reports") return <ReportsScreen jobs={allJobs} dataState={jobsState} />;
 
   if (screen === "รถและคนขับ") {
     return <FleetAndDriversScreen actor={profile} />;
@@ -979,11 +990,6 @@ const featureDetails: Record<string, { title: string; description: string; items
     title: "ลูกค้าและลิงก์ติดตาม",
     description: "จัดการลูกค้าและแชร์สถานะงานโดยไม่ต้องให้ลูกค้าล็อกอิน",
     items: ["รายชื่อลูกค้า", "งานของลูกค้า", "สร้างลิงก์ติดตามเฉพาะงาน", "กำหนดวันหมดอายุของลิงก์"]
-  },
-  "Reports": {
-    title: "รายงาน",
-    description: "สรุปผลงานขนส่งตามบริษัท รถ คนขับ และลูกค้า",
-    items: ["อัตราส่งตรงเวลา", "งานสำเร็จและงานล่าช้า", "ประสิทธิภาพรถและคนขับ", "ส่งออก Excel หรือ PDF"]
   },
   "แจ้งเตือน": {
     title: "ศูนย์แจ้งเตือน",

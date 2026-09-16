@@ -447,15 +447,20 @@ export async function deleteListOption(
 export async function updateJobStatus(job: TransportJob, status: JobStatus, actor: UserProfile) {
   const trackingEnabled = status !== "completed" && status !== "cancelled";
 
-  await updateDoc(doc(db, "today_jobs", job.id), {
-    status,
-    trackingEnabled,
-    trackingStatus: toTrackingStatus(status),
-    currentLocation: {
-      ...job.currentLocation,
-      updatedAt: new Date().toISOString()
-    },
-    updatedAt: serverTimestamp()
+  const jobRef = doc(db, "today_jobs", job.id);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const existing = snapshot.data();
+    transaction.update(jobRef, {
+      status,
+      ...(status === "arrived_delivery" && !existing.arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
+      ...(status === "completed" && !existing.completedAt ? { completedAt: serverTimestamp() } : {}),
+      trackingEnabled,
+      trackingStatus: toTrackingStatus(status),
+      currentLocation: { ...job.currentLocation, updatedAt: new Date().toISOString() },
+      updatedAt: serverTimestamp()
+    });
   });
 
   await addDoc(collection(db, "job_events"), {
@@ -589,6 +594,13 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     currentLocation,
     alerts: Array.isArray(data.alerts) ? data.alerts : [],
     organizationId: data.organizationId ?? undefined,
+    jobDate: data.jobDate ?? undefined,
+    deliveryDate: data.deliveryDate ?? undefined,
+    deliveryTime: data.deliveryTime ?? undefined,
+    arrivedDeliveryAt: timestampToIso(data.arrivedDeliveryAt),
+    completedAt: timestampToIso(data.completedAt),
+    assignedDriverUid: data.assignedDriverUid ?? undefined,
+    tripCount: Number(data.tripCount) || 1,
     carrierName: data.carrierName ?? undefined
   };
 }
