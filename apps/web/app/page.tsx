@@ -346,7 +346,7 @@ export default function Home() {
             <Image className="brand-logo" src="/icons/truck-logo.png" alt="S Fast Transport" width={48} height={48} />
             <div>
               <strong>S Fast Transport</strong>
-              <span>Real-time job tracking</span>
+              <span>Transport Management</span>
             </div>
           </div>
           <div className="top-actions">
@@ -534,80 +534,43 @@ function SectionMenu({
     ? driverMenuDetails
     : adminMenuDetails.filter((item) => !("mainOnly" in item && item.mainOnly) || isMainAdmin(profile));
   const activeScreen = mode === "driver" ? driverScreen : adminScreen;
-  const organizationLogoUrl = profile.organizationType === "main"
-    ? "/icons/truck-logo.png"
-    : profile.organizationLogoUrl;
+  const groups = mode === "driver"
+    ? [{ title: "งานของฉัน", items }]
+    : [
+        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "แจ้งเตือน"].includes(item.label)) },
+        { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "Reports"].includes(item.label)) },
+        { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
+      ];
+  const displayLabels: Record<string, string> = { "Jobs / ใบงาน": "ใบงานขนส่ง", "Live Tracking": "ติดตามรถ", "User Management": "จัดการผู้ใช้งาน", "Settings": "ตั้งค่าระบบ", "Reports": "รายงาน" };
+  function navigate(screen: string) {
+    if (mode === "driver") onDriverScreenChange(screen as DriverScreen);
+    else onAdminScreenChange(screen as AdminScreen);
+    onNavigate();
+  }
 
   return (
-    <nav id="primary-navigation" className={`section-menu ${open ? "mobile-open" : ""}`} aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
-      <div className="menu-account-stack">
-        <section className="menu-context-card">
-          <span
-            className="menu-company-logo"
-            style={organizationLogoUrl ? { backgroundImage: `url(${organizationLogoUrl})` } : undefined}
-            aria-hidden="true"
-          >
-            {!organizationLogoUrl && <Building2 size={20} />}
-          </span>
-          <div>
-            <small>{profile.organizationName || "S Fast Transport"}</small>
-            <strong>{profile.organizationType === "subcontract" ? "ผู้ดูแลบริษัทซับคอนแท็ค" : mode === "driver" ? "คนขับบริษัทหลัก" : "ผู้ดูแลบริษัทหลัก"}</strong>
-          </div>
-        </section>
-
-        <section className="menu-profile-card">
-          <span
-            className="menu-avatar"
-            style={profile.photoURL ? { backgroundImage: `url(${profile.photoURL})` } : undefined}
-            aria-hidden="true"
-          >
-            {!profile.photoURL && <UserRound size={21} />}
-          </span>
-          <div className="menu-profile-copy">
-            <strong>{profile.fullName || profile.displayName || user.displayName || user.email}</strong>
-            <span>{user.email}</span>
-          </div>
-        </section>
-
-        <section className="menu-session-card">
-          <div><Bell size={15} /><span>{statusMessage}</span></div>
-          <button onClick={() => signOut(auth)}><LogOut size={16} /> ออกจากระบบ</button>
-        </section>
+    <nav id="primary-navigation" className={`section-menu sidebar-navigation ${open ? "mobile-open" : ""}`} aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
+      <div className="sidebar-workspace"><Building2 size={17} /><div><strong>{profile.organizationName || "S Fast Transport"}</strong><span>{mode === "driver" ? "พื้นที่ทำงานคนขับ" : profile.organizationType === "subcontract" ? "ผู้ดูแลบริษัทขนส่ง" : "ผู้ดูแลบริษัทหลัก"}</span></div></div>
+      <div className="sidebar-menu-scroll">
+        {groups.filter(group => group.items.length > 0).map(group => <section className="sidebar-menu-group" key={group.title} aria-label={group.title}>
+          <h2>{group.title}</h2>
+          <div className="sidebar-menu-list">{group.items.map(item => {
+            const Icon = item.icon;
+            const selected = activeScreen === item.label;
+            return <button key={item.label} className={selected ? "selected" : ""} aria-current={selected ? "page" : undefined} title={item.description} onClick={() => navigate(item.label)}>
+              <Icon size={19} aria-hidden="true" /><span>{displayLabels[item.label] || item.label}</span>
+              {item.label === "User Management" && pendingAccessCount > 0 && <span className="sidebar-count" aria-label={`${pendingAccessCount} คำขอรออนุมัติ`}>{pendingAccessCount > 99 ? "99+" : pendingAccessCount}</span>}
+            </button>;
+          })}</div>
+        </section>)}
       </div>
-
-      <div className="section-menu-heading">
-        <span>เมนูหลัก</span>
-        <small>{mode === "driver" ? "สำหรับคนขับ" : "สำหรับผู้ดูแล"}</small>
-      </div>
-      <div className="section-menu-grid">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const selected = activeScreen === item.label;
-
-          return (
-            <button
-              key={item.label}
-              className={selected ? "selected" : ""}
-              aria-current={selected ? "page" : undefined}
-              onClick={() => {
-                if (mode === "driver") {
-                  onDriverScreenChange(item.label as DriverScreen);
-                } else {
-                  onAdminScreenChange(item.label as AdminScreen);
-                }
-                onNavigate();
-              }}
-            >
-              <span className="section-menu-icon"><Icon size={19} /></span>
-              <span className="section-menu-copy">
-                <strong>{item.label}</strong>
-                <small>{item.description}</small>
-              </span>
-              {item.label === "User Management" && pendingAccessCount > 0 && <span className="menu-notification-badge">{pendingAccessCount}</span>}
-            </button>
-          );
-        })}
-      </div>
+      <footer className="sidebar-footer">
+        <p className="sidebar-session" role="status"><span aria-hidden="true" />{statusMessage}</p>
+        <div className="sidebar-account"><button className="sidebar-profile" onClick={() => navigate("โปรไฟล์")} aria-label="เปิดโปรไฟล์ของฉัน">
+          <span className="sidebar-avatar" style={profile.photoURL ? { backgroundImage: `url(${profile.photoURL})` } : undefined} aria-hidden="true">{!profile.photoURL && <UserRound size={20} />}</span>
+          <span><strong>{profile.fullName || profile.displayName || user.displayName || user.email}</strong><small>{user.email}</small></span>
+        </button><button className="sidebar-signout" onClick={() => signOut(auth)} aria-label="ออกจากระบบ" title="ออกจากระบบ"><LogOut size={18} /></button></div>
+      </footer>
     </nav>
   );
 }
