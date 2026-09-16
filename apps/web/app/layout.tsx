@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./styles.css";
 import "./theme.css";
+import DatePickerBehavior from "./components/DatePickerBehavior";
 
 export const metadata: Metadata = {
   title: "S Fast Transport",
@@ -33,7 +34,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th">
-      <body>{children}</body>
+      <body><DatePickerBehavior />{children}</body>
     </html>
   );
 }
