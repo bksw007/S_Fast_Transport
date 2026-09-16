@@ -468,6 +468,8 @@ export default function Home() {
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
             <FleetAndDriversScreen actor={profile} />
+          ) : adminScreen === "ลูกค้า" && isMainAdmin(profile) ? (
+            <CustomerManagementScreen actor={profile} jobs={jobs} canWrite={canWrite} />
           ) : adminScreen === "User Management" ? (
             <AccessManagementScreen actor={profile} />
           ) : adminScreen === "โปรไฟล์" ? (
