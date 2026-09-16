@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./styles.css";
+import "./theme.css";
 
 export const metadata: Metadata = {
   title: "S Fast Transport",
