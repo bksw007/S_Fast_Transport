@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import JobDetail from "./components/JobDetail";
+import AdminDashboard from "./components/AdminDashboard";
 import {
   AlertTriangle,
   ArrowRight,
@@ -392,7 +393,7 @@ export default function Home() {
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
-          onAdminScreenChange={setAdminScreen}
+          onAdminScreenChange={(screen) => { setJobDetailOpen(false); setAdminScreen(screen); }}
           onNavigate={() => setMobileMenuOpen(false)}
         />
 
@@ -420,7 +421,7 @@ export default function Home() {
               activeJobs={activeJobs}
               selectedJob={selectedJob}
               selectedJobId={selectedJob.id}
-              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }}
+              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard"); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               canWrite={canWrite}
               onProfileUpdated={refreshCurrentProfile}
@@ -437,7 +438,7 @@ export default function Home() {
               profile={profile}
               activeJobs={activeJobs}
               selectedJobId={selectedJob.id}
-              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }}
+              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard"); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               canWrite={canWrite}
               compact={false}
@@ -448,7 +449,7 @@ export default function Home() {
               ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
-            <AdminDashboard activeJobs={jobs} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
+            <AdminDashboard jobs={jobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} />
           ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
@@ -466,7 +467,7 @@ export default function Home() {
           )}
         </aside>
       )}
-      {mode === "admin" && adminScreen === "Jobs / ใบงาน" && jobDetailOpen && activeJobs.some((job) => job.id === selectedJobId) && (
+      {mode === "admin" && (adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard") && jobDetailOpen && jobs.some((job) => job.id === selectedJobId) && (
         <JobDetailModal onClose={() => setJobDetailOpen(false)}>
           <JobDetail
             job={selectedJob}
@@ -689,7 +690,7 @@ function AdminMobileScreen({
   onProfileUpdated: () => Promise<void>;
 }) {
   if (screen === "Dashboard") {
-    return <AdminDashboard activeJobs={activeJobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+    return <AdminDashboard jobs={allJobs} dataState={jobsState} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
   }
 
   if (screen === "Jobs / ใบงาน") {
@@ -1573,48 +1574,6 @@ function ProofScreen({
           <p>เลือกงานอื่นจากเมนูงานวันนี้ก่อน หากต้องการอัปโหลดให้ใบงานอื่น</p>
         </div>
       </article>
-    </section>
-  );
-}
-
-function AdminDashboard({
-  activeJobs,
-  selectedJobId,
-  onSelectJob
-}: {
-  activeJobs: TransportJob[];
-  selectedJobId: string;
-  onSelectJob: (jobId: string) => void;
-}) {
-  const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
-  const completedCount = activeJobs.filter((job) => job.status === "completed").length;
-
-  return (
-    <section className="screen">
-      <div className="section-title">
-        <div>
-          <h1>Dashboard</h1>
-          <p>ภาพรวมงานขนส่งวันนี้</p>
-        </div>
-        <span className="live-dot">Today</span>
-      </div>
-
-      <div className="stat-strip dashboard-stats">
-        <Metric icon={<Truck size={18} />} label="งาน active" value={`${activeJobs.length}`} />
-        <Metric icon={<AlertTriangle size={18} />} label="แจ้งเตือน" value={`${alertCount}`} />
-        <Metric icon={<CheckCircle2 size={18} />} label="ปิดงานแล้ว" value={`${completedCount}`} />
-      </div>
-
-      <div className="job-list">
-        {activeJobs.map((job) => (
-          <JobSummaryCard
-            key={job.id}
-            job={job}
-            selected={job.id === selectedJobId}
-            onSelect={onSelectJob}
-          />
-        ))}
-      </div>
     </section>
   );
 }
