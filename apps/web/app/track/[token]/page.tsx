@@ -64,9 +64,9 @@ export default function PublicTrackingPage() {
       <section className="tracking-grid">
         <article className="tracking-route">
           <div className="tracking-section-title"><Navigation size={20} /><div><strong>เส้นทางจัดส่ง</strong><span>ตำแหน่งที่เปิดเผยเฉพาะงานนี้</span></div></div>
-          <div className="tracking-stop"><span className="origin" /><div><small>จุดรับสินค้า</small><strong>{tracking.pickupLocation}</strong></div></div>
+          <div className="tracking-stop"><span className="origin" /><div><small>จุดรับสินค้า</small><strong>{tracking.pickupLocation}</strong>{tracking.pickupPlace && <a href={tracking.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดรับใน Google Maps</a>}</div></div>
           <div className="tracking-line" />
-          <div className="tracking-stop"><span className="destination" /><div><small>จุดส่งสินค้า</small><strong>{tracking.deliveryLocation}</strong></div></div>
+          <div className="tracking-stop"><span className="destination" /><div><small>จุดส่งสินค้า</small><strong>{tracking.deliveryLocation}</strong>{tracking.deliveryPlace && <a href={tracking.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดส่งใน Google Maps</a>}</div></div>
           {mapUrl && <a className="tracking-map-link" href={mapUrl} target="_blank" rel="noreferrer"><MapPin size={18} /> เปิดตำแหน่งล่าสุดใน Google Maps</a>}
         </article>
 

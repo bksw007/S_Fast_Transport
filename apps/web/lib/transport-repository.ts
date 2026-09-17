@@ -22,7 +22,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { loadCompanySettings } from "./settings-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
-import { statusLabels, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
+import { statusLabels, type JobPlace, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
 
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
 export type OrganizationType = "main" | "subcontract";
@@ -75,10 +75,12 @@ export type JobDraft = {
   vehiclePlate: string;
   assignedEmployee: string;
   pickupLocation: string;
+  pickupPlace?: JobPlace;
   pickupDate: string;
   pickupTime: string;
   pickupContact: string;
   deliveryLocation: string;
+  deliveryPlace?: JobPlace;
   deliveryDate: string;
   deliveryTime: string;
   deliveryContact: string;
@@ -296,8 +298,11 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     throw new Error("ไม่พบบัญชีคนขับที่อนุมัติแล้ว กรุณาใส่ชื่อในช่อง “มอบหมายพนักงาน (แอพ)” ให้ตรงกับชื่อบัญชี");
   }
 
+  const { pickupPlace, deliveryPlace, ...jobFields } = draft;
   await addDoc(collection(db, "today_jobs"), {
-    ...draft,
+    ...jobFields,
+    ...(pickupPlace ? { pickupPlace } : {}),
+    ...(deliveryPlace ? { deliveryPlace } : {}),
     workOrder,
     assignedDriverUid: assignedDriver.id,
     organizationId,
@@ -535,6 +540,8 @@ export async function createTrackingShareLink(job: TransportJob, actor: UserProf
     statusLabel: statusLabels[job.status],
     pickupLocation: job.pickupLocation,
     deliveryLocation: job.deliveryLocation,
+    ...(job.pickupPlace ? { pickupPlace: job.pickupPlace } : {}),
+    ...(job.deliveryPlace ? { deliveryPlace: job.deliveryPlace } : {}),
     vehicleLabel: job.vehiclePlate,
     carrierName: companySettings.name || job.carrierName || actor.organizationName || "S Fast Transport",
     eta: job.eta,
@@ -590,6 +597,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     vehiclePlate: data.vehiclePlate ?? "-",
     pickupLocation: data.pickupLocation ?? "-",
     deliveryLocation: data.deliveryLocation ?? "-",
+    pickupPlace: toJobPlace(data.pickupPlace),
+    deliveryPlace: toJobPlace(data.deliveryPlace),
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: Boolean(data.trackingEnabled),
@@ -607,6 +616,27 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     tripCount: Number(data.tripCount) || 1,
     notes: data.notes ?? "",
     carrierName: data.carrierName ?? undefined
+  };
+}
+
+function toJobPlace(value: unknown): JobPlace | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const data = value as Record<string, unknown>;
+  const lat = Number(data.lat);
+  const lng = Number(data.lng);
+  const name = String(data.name ?? "");
+  const originalMapsUrl = String(data.originalMapsUrl ?? "");
+  const navigationUrl = String(data.navigationUrl ?? "");
+  if (!name || !navigationUrl || !Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
+  return {
+    ...(data.locationId ? { locationId: String(data.locationId) } : {}),
+    name,
+    ...(data.googleName ? { googleName: String(data.googleName) } : {}),
+    originalMapsUrl,
+    navigationUrl,
+    lat,
+    lng,
+    ...(data.googlePlaceId ? { googlePlaceId: String(data.googlePlaceId) } : {})
   };
 }
 

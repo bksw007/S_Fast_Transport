@@ -220,6 +220,16 @@ service cloud.firestore {
         && canManageListOption(orgId, resource.data);
     }
 
+    match /organizations/{orgId}/locations/{locationId} {
+      allow read: if activeUser() && (isMainAdmin() || orgId == organizationId());
+      allow create: if request.resource.data.organizationId == orgId
+        && canManageListOption(orgId, request.resource.data);
+      allow update: if resource.data.organizationId == orgId
+        && request.resource.data.organizationId == orgId
+        && canManageListOption(orgId, resource.data);
+      allow delete: if false;
+    }
+
     match /today_jobs/{jobId} {
       allow read: if activeUser() && canReadJob(resource.data);
       allow create: if isMainAdmin()

@@ -38,6 +38,7 @@
 .tracking-stop .destination { border-radius: 3px; background: var(--track-accent); }
 .tracking-stop small, .tracking-stop strong { display: block; }
 .tracking-stop small { color: var(--track-muted); margin-bottom: 3px; }
+.tracking-stop a { display: inline-block; margin-top: 6px; color: var(--track-accent); font-size: .76rem; font-weight: 800; }
 .tracking-line { width: 2px; height: 46px; margin-left: 6px; background: repeating-linear-gradient(var(--track-accent) 0 6px, transparent 6px 11px); }
 .tracking-map-link { margin-top: 26px; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; color: white; background: var(--track-accent); font-weight: 900; }
 .tracking-summary { padding: 10px 22px; }

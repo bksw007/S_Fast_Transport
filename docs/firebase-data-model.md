@@ -68,7 +68,9 @@ Hot collection for the active dashboard.
 - `carrierName`
 - `workOrder`, `jobDate`, `cargoType`, `vehicleType`, `tripCount`
 - `pickupLocation`, `pickupDate`, `pickupTime`, `pickupContact`
+- `pickupPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
 - `deliveryLocation`, `deliveryDate`, `deliveryTime`, `deliveryContact`
+- `deliveryPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
 - `assignedEmployee`, `driverName`, `driverPhone`, `vehiclePlate`
 - `notes`
 - `assignedDriverUid`
@@ -81,6 +83,16 @@ Hot collection for the active dashboard.
 - `currentLocation.{lat,lng,speed,heading,accuracy,updatedAt}`
 - `trackingStatus`
 - `locationAlert.{active,staleSince,lastNotifiedAt,recoveredAt}`: สถานะเตือนเมื่อ GPS ขาดเกิน 20 นาที
+
+### organizations/{organizationId}/locations/{locationId}
+
+คลังสถานที่ของบริษัท ใช้ซ้ำในใบงาน แต่ใบงานจะเก็บ snapshot ของสถานที่เพื่อไม่ให้ข้อมูลย้อนหลังเปลี่ยนตามรายการกลาง
+
+- `organizationId`, `name`, `googleName`
+- `originalMapsUrl`, `navigationUrl`
+- `lat`, `lng`, `googlePlaceId` (optional)
+- `notes`, `active`
+- `createdByUid`, `updatedByUid`, `createdAt`, `updatedAt`
 
 ### vehicles/{organizationId--normalizedPlate}
 

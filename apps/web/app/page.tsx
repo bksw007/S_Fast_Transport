@@ -5,6 +5,7 @@ import Image from "next/image";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
 import SettingsScreen, { type AppearanceSettings } from "./components/SettingsScreen";
+import LocationManagementScreen from "./components/LocationManagementScreen";
 import {
   AlertTriangle,
   ArrowRight,
@@ -23,6 +24,7 @@ import {
   ListChecks,
   LogOut,
   MapPin,
+  MapPinned,
   Menu,
   Moon,
   Phone,
@@ -55,11 +57,13 @@ import {
   driverMenu,
   sampleJobs,
   statusLabels,
+  type JobPlace,
   type JobStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
 import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
+import { LocationPicker } from "@/app/components/LocationPicker";
 import { ReportsScreen } from "@/app/components/ReportsScreen";
 import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
@@ -475,6 +479,8 @@ export default function Home() {
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
             <FleetAndDriversScreen actor={profile} />
+          ) : adminScreen === "สถานที่และพิกัด" ? (
+            <LocationManagementScreen actor={profile} />
           ) : adminScreen === "ลูกค้า" && isMainAdmin(profile) ? (
             <CustomerManagementScreen actor={profile} jobs={jobs} canWrite={canWrite} />
           ) : adminScreen === "Reports" ? (
@@ -520,12 +526,13 @@ const adminMenuDetails = [
   { label: adminMenu[2], description: "ติดตามรถแบบสด", icon: MapPin },
   { label: adminMenu[3], description: "ซับคอนแท็ค", icon: Building2, mainOnly: true },
   { label: adminMenu[4], description: "รถและผู้ปฏิบัติงาน", icon: Users },
-  { label: adminMenu[5], description: "ลูกค้าและลิงก์ติดตาม", icon: Share2, mainOnly: true },
-  { label: adminMenu[6], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
-  { label: adminMenu[7], description: "เหตุผิดปกติ", icon: ShieldAlert },
-  { label: adminMenu[8], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
-  { label: adminMenu[9], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
-  { label: adminMenu[10], description: "ข้อมูลบริษัท", icon: Settings }
+  { label: adminMenu[5], description: "คลังจุดรับและจุดส่ง", icon: MapPinned },
+  { label: adminMenu[6], description: "ลูกค้าและลิงก์ติดตาม", icon: Share2, mainOnly: true },
+  { label: adminMenu[7], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
+  { label: adminMenu[8], description: "เหตุผิดปกติ", icon: ShieldAlert },
+  { label: adminMenu[9], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
+  { label: adminMenu[10], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
+  { label: adminMenu[11], description: "ข้อมูลบริษัท", icon: Settings }
 ] as const;
 
 function SectionMenu({
@@ -713,6 +720,8 @@ function AdminMobileScreen({
   if (screen === "รถและคนขับ") {
     return <FleetAndDriversScreen actor={profile} />;
   }
+
+  if (screen === "สถานที่และพิกัด") return <LocationManagementScreen actor={profile} />;
 
   if (screen === "User Management" && isMainAdmin(profile)) {
     return <AccessManagementScreen actor={profile} />;
@@ -1402,8 +1411,8 @@ function DriverView({
           </a>
         </div>
         <div className="route-block">
-          <RoutePoint title="รับสินค้า" value={job.pickupLocation} />
-          <RoutePoint title="ส่งสินค้า" value={job.deliveryLocation} />
+          <RoutePoint title="รับสินค้า" value={job.pickupLocation} href={job.pickupPlace?.navigationUrl} />
+          <RoutePoint title="ส่งสินค้า" value={job.deliveryLocation} href={job.deliveryPlace?.navigationUrl} />
         </div>
         <div className="metric-row">
           <Metric icon={<Clock3 size={18} />} label="ETA" value={job.eta} />
@@ -1501,8 +1510,8 @@ function MapScreen({
         status={`${selectedJob.currentLocation.speed} กม./ชม.`}
       >
         <div className="route-block">
-          <RoutePoint title="รับสินค้า" value={selectedJob.pickupLocation} />
-          <RoutePoint title="ส่งสินค้า" value={selectedJob.deliveryLocation} />
+          <RoutePoint title="รับสินค้า" value={selectedJob.pickupLocation} href={selectedJob.pickupPlace?.navigationUrl} />
+          <RoutePoint title="ส่งสินค้า" value={selectedJob.deliveryLocation} href={selectedJob.deliveryPlace?.navigationUrl} />
         </div>
       </CompactJobCard>
     </section>
@@ -1886,6 +1895,7 @@ function AdminView({
               <DispatchStop
                 title="รับงาน"
                 location={draft.pickupLocation}
+                place={draft.pickupPlace}
                 date={draft.pickupDate}
                 time={draft.pickupTime}
                 contact={draft.pickupContact}
@@ -1893,10 +1903,12 @@ function AdminView({
                 fields={{ location: "pickupLocation", date: "pickupDate", time: "pickupTime", contact: "pickupContact" }}
                 organizationId={organizationId}
                 actor={profile}
+                onLocationChange={(name, place) => setDraft(current => ({ ...current, pickupLocation: name, pickupPlace: place }))}
               />
               <DispatchStop
                 title="ส่งงาน"
                 location={draft.deliveryLocation}
+                place={draft.deliveryPlace}
                 date={draft.deliveryDate}
                 time={draft.deliveryTime}
                 contact={draft.deliveryContact}
@@ -1904,6 +1916,7 @@ function AdminView({
                 fields={{ location: "deliveryLocation", date: "deliveryDate", time: "deliveryTime", contact: "deliveryContact" }}
                 organizationId={organizationId}
                 actor={profile}
+                onLocationChange={(name, place) => setDraft(current => ({ ...current, deliveryLocation: name, deliveryPlace: place }))}
               />
             </div>
 
@@ -1954,16 +1967,19 @@ function DispatchField({ label, wide = false, children }: { label: string; wide?
 function DispatchStop({
   title,
   location,
+  place,
   date,
   time,
   contact,
   onChange,
   fields,
   organizationId,
-  actor
+  actor,
+  onLocationChange
 }: {
   title: string;
   location: string;
+  place?: JobPlace;
   date: string;
   time: string;
   contact: string;
@@ -1971,11 +1987,12 @@ function DispatchStop({
   fields: { location: keyof JobDraft; date: keyof JobDraft; time: keyof JobDraft; contact: keyof JobDraft };
   organizationId: string;
   actor: UserProfile;
+  onLocationChange: (name: string, place?: JobPlace) => void;
 }) {
   return (
     <fieldset className="dispatch-stop">
       <legend>{title}</legend>
-      <DispatchField label="สถานที่"><ListManagerComboBox field="location" value={location} onChange={(value) => onChange(fields.location, value)} placeholder={`ค้นหาหรือเพิ่มสถานที่${title === "รับงาน" ? "รับ" : "ส่ง"}`} organizationId={organizationId} actor={actor} /></DispatchField>
+      <DispatchField label="สถานที่"><LocationPicker value={location} place={place} title={title} organizationId={organizationId} actor={actor} onChange={onLocationChange} /></DispatchField>
       <DispatchField label="วันที่"><input type="date" value={date} onChange={(event) => onChange(fields.date, event.target.value)} /></DispatchField>
       <DispatchField label="เวลา"><input type="time" value={time} onChange={(event) => onChange(fields.time, event.target.value)} /></DispatchField>
       <DispatchField label="ติดต่อ"><ListManagerComboBox field="contact" value={contact} onChange={(value) => onChange(fields.contact, value)} placeholder="ค้นหาหรือเพิ่มผู้ติดต่อ" organizationId={organizationId} actor={actor} /></DispatchField>
@@ -2016,7 +2033,7 @@ function JobDetailModal({ children, onClose }: { children: React.ReactNode; onCl
   );
 }
 
-function RoutePoint({ title, value }: { title: string; value: string }) {
+function RoutePoint({ title, value, href }: { title: string; value: string; href?: string }) {
   return (
     <div className="route-point">
       <MapPin size={18} />
@@ -2024,6 +2041,7 @@ function RoutePoint({ title, value }: { title: string; value: string }) {
         <span>{title}</span>
         <strong>{value}</strong>
       </div>
+      {href && <a className="route-navigation-link" href={href} target="_blank" rel="noreferrer"><MapPinned size={15} /> นำทาง</a>}
     </div>
   );
 }

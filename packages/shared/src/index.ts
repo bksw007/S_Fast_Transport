@@ -31,6 +31,17 @@ export type LocationPoint = {
   updatedAt: string;
 };
 
+export type JobPlace = {
+  locationId?: string;
+  name: string;
+  googleName?: string;
+  originalMapsUrl: string;
+  navigationUrl: string;
+  lat: number;
+  lng: number;
+  googlePlaceId?: string;
+};
+
 export type TransportJob = {
   id: string;
   workOrder: string;
@@ -40,6 +51,8 @@ export type TransportJob = {
   vehiclePlate: string;
   pickupLocation: string;
   deliveryLocation: string;
+  pickupPlace?: JobPlace;
+  deliveryPlace?: JobPlace;
   status: JobStatus;
   trackingStatus: TrackingStatus;
   trackingEnabled: boolean;
@@ -98,6 +111,7 @@ export const adminMenu = [
   "Live Tracking",
   "บริษัทขนส่ง",
   "รถและคนขับ",
+  "สถานที่และพิกัด",
   "ลูกค้า",
   "Reports",
   "แจ้งเตือน",
