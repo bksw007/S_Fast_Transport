@@ -1538,13 +1538,9 @@ h2 {
 }
 
 .location-picker { display: grid; flex: 1; min-width: 0; gap: 7px; }
-.location-picker > select { width: 100%; min-height: 40px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; }
-.location-picker-actions, .location-link-panel label > div, .location-coordinate { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-.location-picker-actions button, .location-picker-actions a, .location-link-panel button { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 8px; font-size: .68rem; font-weight: 850; text-decoration: none; }
-.location-link-panel { padding: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }
-.location-link-panel label, .location-link-panel label > span { width: 100%; }
-.location-link-panel label > span { display: block; margin-bottom: 6px; color: var(--muted); font-size: .68rem; font-weight: 800; }
-.location-link-panel input { flex: 1; }
+.location-picker > select, .location-picker > input { width: 100%; min-height: 40px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; }
+.location-picker-actions, .location-coordinate { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.location-picker-actions button, .location-picker-actions a { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 8px; font-size: .68rem; font-weight: 850; text-decoration: none; }
 .location-coordinate { padding: 8px 10px; color: var(--muted); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border-radius: 8px; font-size: .68rem; }
 .location-coordinate span { flex: 1; min-width: 120px; }
 .location-coordinate code, .location-library-grid code { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

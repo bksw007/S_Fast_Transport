@@ -134,3 +134,7 @@ export function savedLocationToJobPlace(location: SavedLocation): JobPlace {
   };
 }
 
+export function selectSavedLocation(id: string, locations: SavedLocation[]) {
+  const location = locations.find((item) => item.id === id && item.active);
+  return location ? { name: location.name, place: savedLocationToJobPlace(location) } : null;
+}

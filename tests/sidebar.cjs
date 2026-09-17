@@ -16,8 +16,10 @@ function nodes(node) { if (!node || typeof node !== 'object') return []; return 
 function menu(mode, role) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount: 3, adminScreen: 'Dashboard', driverScreen: 'งานวันนี้', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; } })); }
 let rendered = menu('admin', 'admin');
 let links = rendered.filter(n => n.type === 'button' && n.props.title);
-assert.equal(links.length, 12); // 11 navigation entries and sign out.
+assert.equal(links.length, 13); // 12 navigation entries and sign out.
 assert.equal(rendered.filter(n => n.props?.['aria-current'] === 'page').length, 1);
+const transportGroup = rendered.find(n => n.type === 'section' && n.props?.['aria-label'] === 'งานขนส่ง');
+assert.ok(nodes(transportGroup).some(n => n.props?.title === 'คลังชื่อ ลิงก์ และพิกัดแผนที่'));
 links.find(n => n.props.title === 'สิทธิ์ Google Login').props.onClick();
 assert.equal(selected, 'User Management'); assert.equal(closed, true);
 rendered.find(n => n.props?.['aria-label'] === 'ออกจากระบบ').props.onClick(); assert.equal(signedOut, true);

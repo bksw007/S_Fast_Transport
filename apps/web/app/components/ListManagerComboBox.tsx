@@ -118,7 +118,6 @@ export function ListManagerComboBox({
     onChange(item.value);
     setOpen(false);
     setActiveIndex(-1);
-    inputRef.current?.focus();
   }
 
   async function runMutation(key: string, action: () => Promise<void>) {
@@ -137,7 +136,11 @@ export function ListManagerComboBox({
   async function addCurrentValue() {
     const nextValue = value.trim();
     if (!nextValue || exactMatch) return;
-    await runMutation("add", () => createListOption(organizationId, field, nextValue, actor));
+    await runMutation("add", async () => {
+      await createListOption(organizationId, field, nextValue, actor);
+      setOpen(false);
+      setActiveIndex(-1);
+    });
   }
 
   async function saveEdit(item: ListOption) {

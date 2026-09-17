@@ -479,7 +479,7 @@ export default function Home() {
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
             <FleetAndDriversScreen actor={profile} />
-          ) : adminScreen === "สถานที่และพิกัด" ? (
+          ) : adminScreen === "ตั้งค่าพิกัดแผนที่" ? (
             <LocationManagementScreen actor={profile} />
           ) : adminScreen === "ลูกค้า" && isMainAdmin(profile) ? (
             <CustomerManagementScreen actor={profile} jobs={jobs} canWrite={canWrite} />
@@ -526,7 +526,7 @@ const adminMenuDetails = [
   { label: adminMenu[2], description: "ติดตามรถแบบสด", icon: MapPin },
   { label: adminMenu[3], description: "ซับคอนแท็ค", icon: Building2, mainOnly: true },
   { label: adminMenu[4], description: "รถและผู้ปฏิบัติงาน", icon: Users },
-  { label: adminMenu[5], description: "คลังจุดรับและจุดส่ง", icon: MapPinned },
+  { label: adminMenu[5], description: "คลังชื่อ ลิงก์ และพิกัดแผนที่", icon: MapPinned },
   { label: adminMenu[6], description: "ลูกค้าและลิงก์ติดตาม", icon: Share2, mainOnly: true },
   { label: adminMenu[7], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
   { label: adminMenu[8], description: "เหตุผิดปกติ", icon: ShieldAlert },
@@ -567,7 +567,7 @@ function SectionMenu({
   const groups = mode === "driver"
     ? [{ title: "งานของฉัน", items }]
     : [
-        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "แจ้งเตือน"].includes(item.label)) },
+        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
         { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "Reports"].includes(item.label)) },
         { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
       ];
@@ -721,7 +721,7 @@ function AdminMobileScreen({
     return <FleetAndDriversScreen actor={profile} />;
   }
 
-  if (screen === "สถานที่และพิกัด") return <LocationManagementScreen actor={profile} />;
+  if (screen === "ตั้งค่าพิกัดแผนที่") return <LocationManagementScreen actor={profile} />;
 
   if (screen === "User Management" && isMainAdmin(profile)) {
     return <AccessManagementScreen actor={profile} />;
@@ -1992,7 +1992,7 @@ function DispatchStop({
   return (
     <fieldset className="dispatch-stop">
       <legend>{title}</legend>
-      <DispatchField label="สถานที่"><LocationPicker value={location} place={place} title={title} organizationId={organizationId} actor={actor} onChange={onLocationChange} /></DispatchField>
+      <DispatchField label="สถานที่"><LocationPicker value={location} place={place} title={title} organizationId={organizationId} onChange={onLocationChange} /></DispatchField>
       <DispatchField label="วันที่"><input type="date" value={date} onChange={(event) => onChange(fields.date, event.target.value)} /></DispatchField>
       <DispatchField label="เวลา"><input type="time" value={time} onChange={(event) => onChange(fields.time, event.target.value)} /></DispatchField>
       <DispatchField label="ติดต่อ"><ListManagerComboBox field="contact" value={contact} onChange={(value) => onChange(fields.contact, value)} placeholder="ค้นหาหรือเพิ่มผู้ติดต่อ" organizationId={organizationId} actor={actor} /></DispatchField>

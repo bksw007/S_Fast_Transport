@@ -78,7 +78,7 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
   }
 
   return <section className="screen location-management-screen">
-    <div className="section-title"><div><h1>สถานที่และพิกัด</h1><p>บันทึกจุดรับ–ส่งประจำ พร้อมลิงก์นำทางสำหรับคนขับ</p></div></div>
+    <div className="section-title"><div><h1>ตั้งค่าพิกัดแผนที่</h1><p>จับคู่ชื่อสถานที่ ลิงก์ Google Maps และพิกัด เพื่อเลือกใช้ในใบงานได้อย่างถูกต้อง</p></div></div>
     <form className="location-library-form" onSubmit={event => { event.preventDefault(); void save(); }}>
       <header><span className="location-library-icon"><MapPinned size={22} /></span><div><h2>{editingId ? "แก้ไขสถานที่" : "เพิ่มสถานที่จาก Google Maps"}</h2><p>วางลิงก์ที่ลูกค้าส่งมา แล้วตั้งชื่อให้เข้าใจง่ายในบริษัท</p></div></header>
       <label className="wide"><span>ลิงก์ Google Maps</span><div className="location-resolve-row"><input required type="url" value={draft.originalMapsUrl} onChange={event => setDraft({ ...draft, originalMapsUrl: event.target.value })} placeholder="https://maps.app.goo.gl/..." /><button type="button" disabled={busy === "resolve" || !draft.originalMapsUrl.trim()} onClick={() => void readLink()}>{busy === "resolve" ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} อ่านลิงก์</button></div></label>
