@@ -56,6 +56,17 @@ service firebase.storage {
         )));
     }
 
+    function canManageOrganization(orgId) {
+      return activeUser()
+        && (
+          isMainAdmin()
+          || (
+            isSubcontractAdmin()
+            && profile().data.organizationId == orgId
+          )
+        );
+    }
+
     match /proof_of_delivery/{jobId}/{uid}/{fileName} {
       allow read: if isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId);
       allow write: if activeUser()
@@ -103,6 +114,29 @@ service firebase.storage {
           )
         );
       allow delete: if activeUser() && request.auth.uid == uid;
+    }
+
+    match /vehicle_files/{orgId}/{vehicleId}/{category}/{fileKind}/{fileName} {
+      allow read: if canManageOrganization(orgId);
+      allow create, update: if canManageOrganization(orgId)
+        && category in ["documents", "images"]
+        && (
+          (category == "documents" && fileKind in ["compulsoryInsurance", "vehicleInsurance", "cargoInsurance", "other"])
+          || (category == "images" && fileKind in ["front", "rear", "right", "left"])
+        )
+        && request.resource.size > 0
+        && (
+          (
+            request.resource.size <= 1 * 1024 * 1024
+            && request.resource.contentType.matches("image/jpeg|image/png|image/webp")
+          )
+          || (
+            category == "documents"
+            && request.resource.size <= 5 * 1024 * 1024
+            && request.resource.contentType == "application/pdf"
+          )
+        );
+      allow delete: if canManageOrganization(orgId);
     }
   }
 }

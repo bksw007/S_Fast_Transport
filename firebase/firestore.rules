@@ -353,6 +353,17 @@ service cloud.firestore {
         );
     }
 
+    match /vehicle_share_links/{linkId} {
+      allow get: if isMainCompanyAdmin()
+        || (resource.data.enabled == true && request.time < resource.data.expiresAt);
+      allow list: if isMainCompanyAdmin()
+        || (activeUser() && sameOrganization(resource.data));
+      allow create: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+      allow update, delete: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data));
+    }
+
     match /vehicles/{docId} {
       allow read: if isMainCompanyAdmin() || sameOrganization(resource.data);
       allow create: if isMainCompanyAdmin()

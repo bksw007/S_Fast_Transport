@@ -7,15 +7,19 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
   type DocumentData,
   type Unsubscribe
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { getBlob, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { db, storage } from "./firebase";
 import { isMainAdmin, type UserProfile } from "./transport-repository";
 import { splitThaiVehiclePlate } from "./thai-provinces";
+import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
+import { loadCompanySettings } from "./settings-repository";
 
 export type SubcontractOrganization = {
   id: string;
@@ -32,6 +36,18 @@ export type OrganizationDraft = Omit<SubcontractOrganization, "id" | "active"> &
 
 export type VehicleStatus = "available" | "assigned" | "maintenance" | "inactive";
 
+export const vehicleDocumentKinds = ["compulsoryInsurance", "vehicleInsurance", "cargoInsurance", "other"] as const;
+export const vehicleImageKinds = ["front", "rear", "right", "left"] as const;
+export type VehicleDocumentKind = (typeof vehicleDocumentKinds)[number];
+export type VehicleImageKind = (typeof vehicleImageKinds)[number];
+export type VehicleFile = {
+  storagePath: string;
+  fileName: string;
+  contentType: string;
+};
+export type VehicleDocuments = Partial<Record<VehicleDocumentKind, VehicleFile>>;
+export type VehicleImages = Partial<Record<VehicleImageKind, VehicleFile>>;
+
 export type TransportVehicle = {
   id: string;
   organizationId: string;
@@ -45,12 +61,19 @@ export type TransportVehicle = {
   vehicleWeightKg: number | null;
   compulsoryInsuranceExpiry: string;
   insuranceExpiry: string;
+  documents: VehicleDocuments;
+  images: VehicleImages;
   status: VehicleStatus;
 };
 
-export type VehicleDraft = Omit<TransportVehicle, "id" | "organizationId" | "plate" | "capacityKg" | "vehicleWeightKg"> & {
+export type VehicleDraft = Omit<TransportVehicle, "id" | "organizationId" | "plate" | "capacityKg" | "vehicleWeightKg" | "documents" | "images"> & {
   capacityKg: string;
   vehicleWeightKg: string;
+};
+
+export type VehicleUploadSelection = {
+  documents: Partial<Record<VehicleDocumentKind, File>>;
+  images: Partial<Record<VehicleImageKind, File>>;
 };
 
 export type DriverStatus = "available" | "assigned" | "leave" | "inactive";
@@ -100,6 +123,25 @@ function assertOrganizationAccess(profile: UserProfile, organizationId: string) 
 
 function cleanText(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function toVehicleFiles<K extends string>(value: unknown, allowedKinds: readonly K[]): Partial<Record<K, VehicleFile>> {
+  if (!value || typeof value !== "object") return {};
+  const source = value as Record<string, unknown>;
+  const result: Partial<Record<K, VehicleFile>> = {};
+  allowedKinds.forEach((kind) => {
+    const candidate = source[kind];
+    if (!candidate || typeof candidate !== "object") return;
+    const file = candidate as Record<string, unknown>;
+    const storagePath = typeof file.storagePath === "string" ? file.storagePath : "";
+    if (!storagePath.startsWith("vehicle_files/")) return;
+    result[kind] = {
+      storagePath,
+      fileName: typeof file.fileName === "string" ? file.fileName : "",
+      contentType: typeof file.contentType === "string" ? file.contentType : ""
+    };
+  });
+  return result;
 }
 
 function resourceDocumentId(organizationId: string, value: string) {
@@ -235,6 +277,8 @@ function toVehicle(id: string, data: DocumentData): TransportVehicle {
     vehicleWeightKg: Number.isFinite(data.vehicleWeightKg) ? data.vehicleWeightKg : null,
     compulsoryInsuranceExpiry: data.compulsoryInsuranceExpiry ?? data.registrationExpiry ?? "",
     insuranceExpiry: data.insuranceExpiry ?? "",
+    documents: toVehicleFiles(data.documents, vehicleDocumentKinds),
+    images: toVehicleFiles(data.images, vehicleImageKinds),
     status: data.status ?? "available"
   };
 }
@@ -296,6 +340,7 @@ export async function createVehicle(organizationId: string, draft: VehicleDraft,
   batch.set(listOptionRef(organizationId, "vehicle_plate", payload.plate), listOptionPayload(organizationId, "vehicle_plate", payload.plate, actor), { merge: true });
   batch.set(listOptionRef(organizationId, "vehicle_type", payload.vehicleType), listOptionPayload(organizationId, "vehicle_type", payload.vehicleType, actor), { merge: true });
   await batch.commit();
+  return vehicleRef.id;
 }
 
 export async function updateVehicle(vehicle: TransportVehicle, draft: VehicleDraft, actor: UserProfile) {
@@ -315,16 +360,140 @@ export async function updateVehicle(vehicle: TransportVehicle, draft: VehicleDra
     batch.set(listOptionRef(vehicle.organizationId, "vehicle_plate", payload.plate), listOptionPayload(vehicle.organizationId, "vehicle_plate", payload.plate, actor), { merge: true });
     batch.set(listOptionRef(vehicle.organizationId, "vehicle_type", payload.vehicleType), listOptionPayload(vehicle.organizationId, "vehicle_type", payload.vehicleType, actor), { merge: true });
     await batch.commit();
-    return;
+    return currentRef.id;
   }
   if ((await getDoc(nextRef)).exists()) throw new Error("ทะเบียนรถนี้มีอยู่ในบริษัทแล้ว");
   const batch = writeBatch(db);
-  batch.set(nextRef, { ...payload, createdByUid: actor.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  batch.set(nextRef, {
+    ...payload,
+    documents: vehicle.documents,
+    images: vehicle.images,
+    createdByUid: actor.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
   batch.delete(currentRef);
   batch.set(listOptionRef(vehicle.organizationId, "vehicle_plate", payload.plate), listOptionPayload(vehicle.organizationId, "vehicle_plate", payload.plate, actor), { merge: true });
   batch.set(listOptionRef(vehicle.organizationId, "vehicle_type", payload.vehicleType), listOptionPayload(vehicle.organizationId, "vehicle_type", payload.vehicleType, actor), { merge: true });
   await batch.commit();
+  return nextRef.id;
 }
+
+function safeObjectName(file: File) {
+  const extension = file.name.split(".").pop()?.toLocaleLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  return `${Date.now()}-${crypto.randomUUID()}.${extension}`;
+}
+
+function validateVehicleFile(file: File, imagesOnly: boolean) {
+  const isPdf = file.type === "application/pdf";
+  if (!isImageFile(file) && (imagesOnly || !isPdf)) {
+    throw new Error(imagesOnly ? "ภาพรถรองรับเฉพาะ JPG, PNG หรือ WEBP" : "เอกสารรถรองรับเฉพาะ JPG, PNG, WEBP หรือ PDF");
+  }
+  const limit = isPdf ? 5 * 1024 * 1024 : MAX_SOURCE_IMAGE_BYTES;
+  if (file.size <= 0 || file.size > limit) {
+    throw new Error(isPdf ? "เอกสาร PDF ต้องมีขนาดไม่เกิน 5 MB" : "รูปต้นฉบับต้องมีขนาดไม่เกิน 20 MB");
+  }
+}
+
+async function uploadVehicleFile(
+  organizationId: string,
+  vehicleId: string,
+  category: "documents" | "images",
+  kind: VehicleDocumentKind | VehicleImageKind,
+  file: File
+): Promise<VehicleFile> {
+  validateVehicleFile(file, category === "images");
+  const uploadFile = isImageFile(file) ? await compressImageForUpload(file) : file;
+  if (isImageFile(uploadFile) && uploadFile.size > MAX_STORED_IMAGE_BYTES) throw new Error("รูปที่บีบอัดแล้วต้องมีขนาดไม่เกิน 1 MB");
+  const storagePath = `vehicle_files/${organizationId}/${vehicleId}/${category}/${kind}/${safeObjectName(uploadFile)}`;
+  await uploadBytes(ref(storage, storagePath), uploadFile, { contentType: uploadFile.type });
+  return { storagePath, fileName: cleanText(uploadFile.name).slice(0, 120), contentType: uploadFile.type };
+}
+
+export async function uploadVehicleFiles(
+  organizationId: string,
+  vehicleId: string,
+  selection: VehicleUploadSelection,
+  actor: UserProfile
+) {
+  assertOrganizationAccess(actor, organizationId);
+  const documentEntries = Object.entries(selection.documents) as [VehicleDocumentKind, File][];
+  const imageEntries = Object.entries(selection.images) as [VehicleImageKind, File][];
+  const [documents, images] = await Promise.all([
+    Promise.all(documentEntries.map(async ([kind, file]) => [kind, await uploadVehicleFile(organizationId, vehicleId, "documents", kind, file)] as const)),
+    Promise.all(imageEntries.map(async ([kind, file]) => [kind, await uploadVehicleFile(organizationId, vehicleId, "images", kind, file)] as const))
+  ]);
+  const changes: Record<string, unknown> = { updatedByUid: actor.uid, updatedAt: serverTimestamp() };
+  documents.forEach(([kind, file]) => { changes[`documents.${kind}`] = file; });
+  images.forEach(([kind, file]) => { changes[`images.${kind}`] = file; });
+  if (documents.length || images.length) await updateDoc(doc(db, "vehicles", vehicleId), changes);
+}
+
+export async function getVehicleFilePreviewURL(storagePath: string) {
+  if (!storagePath.startsWith("vehicle_files/")) throw new Error("ตำแหน่งไฟล์รถไม่ถูกต้อง");
+  return getDownloadURL(ref(storage, storagePath));
+}
+
+export async function downloadVehicleFile(storagePath: string, fileName: string) {
+  if (!storagePath.startsWith("vehicle_files/")) throw new Error("ตำแหน่งไฟล์รถไม่ถูกต้อง");
+  const blob = await getBlob(ref(storage, storagePath), 5 * 1024 * 1024);
+  const objectURL = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectURL;
+  link.download = cleanText(fileName) || "vehicle-file";
+  link.rel = "noopener";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(objectURL), 1_000);
+}
+
+async function publicVehicleFiles<T extends string>(files: Partial<Record<T, VehicleFile>>) {
+  const entries = Object.entries(files) as [T, VehicleFile][];
+  return Promise.all(entries.map(async ([kind, file]) => ({
+    kind,
+    fileName: file.fileName,
+    contentType: file.contentType,
+    url: await getVehicleFilePreviewURL(file.storagePath)
+  })));
+}
+
+export async function createVehicleShareLink(vehicle: TransportVehicle, actor: UserProfile) {
+  assertOrganizationAccess(actor, vehicle.organizationId);
+  const companySettings = await loadCompanySettings(vehicle.organizationId);
+  const [documents, images] = await Promise.all([
+    publicVehicleFiles(vehicle.documents),
+    publicVehicleFiles(vehicle.images)
+  ]);
+  const token = crypto.randomUUID().replaceAll("-", "");
+  const expiresAt = Timestamp.fromDate(new Date(Date.now() + companySettings.trackingLinkDays * 86_400_000));
+  await setDoc(doc(db, "vehicle_share_links", token), {
+    organizationId: vehicle.organizationId,
+    organizationName: companySettings.name || actor.organizationName || "S Fast Transport",
+    enabled: true,
+    expiresAt,
+    plate: vehicle.plate,
+    vehicleType: vehicle.vehicleType,
+    brand: vehicle.brand,
+    model: vehicle.model,
+    capacityKg: vehicle.capacityKg,
+    vehicleWeightKg: vehicle.vehicleWeightKg,
+    compulsoryInsuranceExpiry: vehicle.compulsoryInsuranceExpiry,
+    insuranceExpiry: vehicle.insuranceExpiry,
+    statusLabel: vehicleStatusLabelsForShare[vehicle.status],
+    documents,
+    images,
+    createdByUid: actor.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  return token;
+}
+
+const vehicleStatusLabelsForShare: Record<VehicleStatus, string> = {
+  available: "พร้อมใช้งาน",
+  assigned: "กำลังปฏิบัติงาน",
+  maintenance: "ซ่อมบำรุง",
+  inactive: "ระงับใช้งาน"
+};
 
 export async function setVehicleActive(vehicle: TransportVehicle, active: boolean, actor: UserProfile) {
   assertOrganizationAccess(actor, vehicle.organizationId);

@@ -1,0 +1,70 @@
+.public-vehicle-shell,
+.public-vehicle-state {
+  --vehicle-ink: var(--ui-ink);
+  --vehicle-muted: var(--ui-muted);
+  --vehicle-border: var(--ui-border);
+  --vehicle-accent: var(--ui-accent);
+  min-height: 100vh;
+  color: var(--vehicle-ink);
+  font-family: "IBM Plex Sans Thai", "Noto Sans Thai", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+}
+
+.public-vehicle-shell { padding: clamp(18px, 4vw, 46px); }
+.public-vehicle-header { max-width: 1100px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.public-vehicle-brand { display: flex; align-items: center; gap: 12px; }
+.public-vehicle-brand img { padding: 4px; border: 1px solid var(--vehicle-border); border-radius: 12px; background: white; }
+.public-vehicle-brand strong, .public-vehicle-brand span { display: block; }
+.public-vehicle-brand span { color: var(--vehicle-muted); font-size: .76rem; }
+.public-vehicle-header button { min-height: 42px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border: 1px solid var(--vehicle-border); border-radius: 9px; color: var(--vehicle-ink); background: var(--ui-surface); font: inherit; font-size: .76rem; font-weight: 800; }
+.public-vehicle-hero { max-width: 1100px; margin: 0 auto 16px; padding: clamp(24px, 5vw, 46px); display: flex; align-items: end; justify-content: space-between; gap: 24px; border: 1px solid var(--vehicle-border); border-radius: 18px; background: radial-gradient(circle at 88% 10%, color-mix(in srgb, var(--vehicle-accent) 14%, transparent), transparent 36%), var(--ui-surface-soft); box-shadow: var(--shadow-card); }
+.public-vehicle-hero > div > span { color: var(--vehicle-muted); font-size: .7rem; font-weight: 900; letter-spacing: .14em; }
+.public-vehicle-hero h1 { margin: 8px 0 5px; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -.04em; }
+.public-vehicle-hero p { color: var(--vehicle-muted); }
+.public-vehicle-status { display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-radius: 999px; color: var(--vehicle-accent); background: color-mix(in srgb, var(--vehicle-accent) 10%, var(--ui-surface)); font-size: .73rem; white-space: nowrap; }
+.public-vehicle-status span { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 13%, transparent); }
+.public-vehicle-facts { max-width: 1100px; margin: 0 auto 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.public-vehicle-facts article { min-width: 0; display: grid; grid-template-columns: 26px 1fr; gap: 2px 8px; padding: 16px; border: 1px solid var(--vehicle-border); border-radius: 12px; background: var(--ui-surface); }
+.public-vehicle-facts svg { grid-row: 1 / 3; color: var(--vehicle-accent); }
+.public-vehicle-facts span { color: var(--vehicle-muted); font-size: .68rem; }
+.public-vehicle-facts strong { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.public-vehicle-section { max-width: 1100px; margin: 0 auto 16px; overflow: hidden; border: 1px solid var(--vehicle-border); border-radius: 14px; background: var(--ui-surface); box-shadow: var(--shadow-card); }
+.public-vehicle-section > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--vehicle-border); background: var(--ui-surface-soft); }
+.public-vehicle-section > header span { color: var(--vehicle-muted); font-size: .58rem; font-weight: 900; letter-spacing: .15em; }
+.public-vehicle-section > header h2 { margin-top: 3px; font-size: 1rem; }
+.public-vehicle-section > header svg { color: var(--vehicle-accent); }
+.public-vehicle-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 14px; }
+.public-vehicle-gallery figure { position: relative; min-height: 230px; overflow: hidden; border-radius: 11px; background: var(--ui-surface-soft); }
+.public-vehicle-gallery img { width: 100%; height: 100%; object-fit: cover; }
+.public-vehicle-gallery figcaption { position: absolute; left: 10px; bottom: 10px; padding: 5px 8px; border-radius: 7px; color: white; background: rgba(12, 19, 21, .72); backdrop-filter: blur(8px); font-size: .68rem; font-weight: 800; }
+.public-vehicle-documents { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; padding: 14px; }
+.public-vehicle-documents a { min-width: 0; display: grid; grid-template-columns: 25px 1fr auto; align-items: center; gap: 9px; padding: 12px; border: 1px solid var(--vehicle-border); border-radius: 10px; color: var(--vehicle-ink); background: var(--ui-surface-soft); }
+.public-vehicle-documents a > svg { color: var(--vehicle-accent); }
+.public-vehicle-documents a span, .public-vehicle-documents a strong, .public-vehicle-documents a small { min-width: 0; display: block; }
+.public-vehicle-documents a small { overflow: hidden; margin-top: 2px; color: var(--vehicle-muted); font-size: .67rem; text-overflow: ellipsis; white-space: nowrap; }
+.public-vehicle-empty { padding: 28px; color: var(--vehicle-muted); text-align: center; }
+.public-vehicle-footer { max-width: 1100px; margin: 22px auto 0; color: var(--vehicle-muted); font-size: .74rem; text-align: center; }
+.public-vehicle-state { display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; }
+.public-vehicle-state svg { color: var(--vehicle-accent); }
+.public-vehicle-state p { color: var(--vehicle-muted); }
+
+@media (max-width: 760px) {
+  .public-vehicle-hero { align-items: flex-start; flex-direction: column; }
+  .public-vehicle-facts { grid-template-columns: repeat(2, 1fr); }
+  .public-vehicle-gallery, .public-vehicle-documents { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .public-vehicle-header { align-items: stretch; flex-direction: column; }
+  .public-vehicle-header button { justify-content: center; }
+  .public-vehicle-facts { grid-template-columns: 1fr; }
+  .public-vehicle-gallery figure { min-height: 190px; }
+}
+
+@media print {
+  .public-vehicle-shell { padding: 0; background: white; }
+  .public-vehicle-header button { display: none; }
+  .public-vehicle-section, .public-vehicle-hero { break-inside: avoid; box-shadow: none; }
+  .public-vehicle-gallery figure { min-height: 180px; }
+  @page { size: A4 portrait; margin: 12mm; }
+}
