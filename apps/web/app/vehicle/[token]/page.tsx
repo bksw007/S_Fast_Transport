@@ -55,7 +55,7 @@ export default function PublicVehiclePage() {
 
       <section className="public-vehicle-section">
         <header><div><span>VEHICLE VIEWS</span><h2>ภาพรถ 4 ด้าน</h2></div><Truck size={23} /></header>
-        {vehicle.images.length ? <div className="public-vehicle-gallery">{vehicle.images.map((file) => <figure key={file.kind}><Image unoptimized src={file.url} alt={`ภาพรถ${imageLabels[file.kind]}`} width={900} height={600} sizes="(max-width: 720px) 100vw, 50vw" /><figcaption>{imageLabels[file.kind]}</figcaption></figure>)}</div> : <p className="public-vehicle-empty">ยังไม่มีภาพรถแนบไว้</p>}
+        {vehicle.images.length ? <div className="public-vehicle-documents">{vehicle.images.map((file) => <a className="public-vehicle-document" key={file.kind} href={file.url} target="_blank" rel="noreferrer"><span className="public-vehicle-document-preview is-photo"><Image unoptimized src={file.url} alt={`ภาพรถ${imageLabels[file.kind]}`} width={900} height={600} sizes="(max-width: 720px) 100vw, 50vw" /></span><span className="public-vehicle-document-meta"><span><strong>{imageLabels[file.kind]}</strong><small>{file.fileName || `ภาพรถ${imageLabels[file.kind]}`}</small></span><ExternalLink size={15} /></span></a>)}</div> : <p className="public-vehicle-empty">ยังไม่มีภาพรถแนบไว้</p>}
       </section>
 
       <section className="public-vehicle-section">

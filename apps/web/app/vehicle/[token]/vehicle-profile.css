@@ -33,15 +33,12 @@
 .public-vehicle-section > header span { color: var(--vehicle-muted); font-size: .58rem; font-weight: 900; letter-spacing: .15em; }
 .public-vehicle-section > header h2 { margin-top: 3px; font-size: 1rem; }
 .public-vehicle-section > header svg { color: var(--vehicle-accent); }
-.public-vehicle-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 14px; }
-.public-vehicle-gallery figure { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--vehicle-border); border-radius: 11px; background: var(--ui-surface-soft); }
-.public-vehicle-gallery img { width: 100%; height: 100%; object-fit: cover; }
-.public-vehicle-gallery figcaption { position: absolute; left: 10px; bottom: 10px; padding: 5px 8px; border-radius: 7px; color: white; background: rgba(12, 19, 21, .72); backdrop-filter: blur(8px); font-size: .68rem; font-weight: 800; }
 .public-vehicle-documents { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; padding: 14px; }
 .public-vehicle-document { min-width: 0; overflow: hidden; border: 1px solid var(--vehicle-border); border-radius: 11px; color: var(--vehicle-ink); background: var(--ui-surface-soft); transition: border-color 150ms ease, transform 150ms ease; }
 .public-vehicle-document:hover { border-color: color-mix(in srgb, var(--vehicle-accent) 38%, var(--vehicle-border)); transform: translateY(-1px); }
 .public-vehicle-document-preview { aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; color: var(--vehicle-accent); background: color-mix(in srgb, var(--vehicle-accent) 6%, var(--ui-surface)); }
 .public-vehicle-document-preview img { width: 100%; height: 100%; object-fit: contain; background: #ffffff; }
+.public-vehicle-document-preview.is-photo img { object-fit: cover; }
 .public-vehicle-document-preview.is-pdf { align-content: center; gap: 7px; }
 .public-vehicle-document-preview.is-pdf em { font-size: .62rem; font-style: normal; font-weight: 900; letter-spacing: .14em; }
 .public-vehicle-document-meta { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 12px; border-top: 1px solid var(--vehicle-border); }
@@ -57,21 +54,19 @@
 @media (max-width: 760px) {
   .public-vehicle-hero { align-items: flex-start; flex-direction: column; }
   .public-vehicle-facts { grid-template-columns: repeat(2, 1fr); }
-  .public-vehicle-gallery, .public-vehicle-documents { grid-template-columns: 1fr; }
+  .public-vehicle-documents { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
   .public-vehicle-header { align-items: stretch; flex-direction: column; }
   .public-vehicle-header button { justify-content: center; }
   .public-vehicle-facts { grid-template-columns: 1fr; }
-  .public-vehicle-gallery figure { aspect-ratio: 4 / 3; }
 }
 
 @media print {
   .public-vehicle-shell { padding: 0; background: white; }
   .public-vehicle-header button { display: none; }
   .public-vehicle-section, .public-vehicle-hero { break-inside: avoid; box-shadow: none; }
-  .public-vehicle-gallery figure { aspect-ratio: 4 / 3; }
   .public-vehicle-document-preview { aspect-ratio: 4 / 3; }
   @page { size: A4 portrait; margin: 12mm; }
 }
