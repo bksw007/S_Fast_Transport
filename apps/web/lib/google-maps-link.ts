@@ -39,6 +39,15 @@ function coordinatesFromUrl(url: URL) {
   const queryPair = query?.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
   if (queryPair) return { lat: Number(queryPair[1]), lng: Number(queryPair[2]) };
 
+  const pathPair = url.pathname
+    .split("/")
+    .filter(Boolean)
+    .find((segment) => /^[+-]?\d+(?:\.\d+)?,[+-]?\d+(?:\.\d+)?$/.test(decodeURIComponent(segment)));
+  if (pathPair) {
+    const [lat, lng] = decodeURIComponent(pathPair).split(",").map(Number);
+    return { lat, lng };
+  }
+
   const viewportPair = decoded.match(/\/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
   if (viewportPair) return { lat: Number(viewportPair[1]), lng: Number(viewportPair[2]) };
 

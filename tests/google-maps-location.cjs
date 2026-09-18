@@ -23,6 +23,16 @@ assert.ok(place.navigationUrl.includes('destination=13.7061641,100.5809793'));
 const queryPlace = api.parseGoogleMapsUrl('https://www.google.com/maps/search/?api=1&query=13.1%2C100.2&query_place_id=ChIJtest');
 assert.equal(queryPlace.googlePlaceId, 'ChIJtest');
 assert.equal(queryPlace.lat, 13.1);
+
+const unnamedPin = api.parseGoogleMapsUrl(
+  'https://maps.app.goo.gl/zPtnoAEaapYwpBQSA',
+  'https://www.google.com/maps/search/13.734960,+100.761462?entry=tts'
+);
+assert.equal(unnamedPin.googleName, 'สถานที่จาก Google Maps');
+assert.equal(unnamedPin.lat, 13.73496);
+assert.equal(unnamedPin.lng, 100.761462);
+assert.ok(unnamedPin.navigationUrl.includes('destination=13.73496,100.761462'));
+
 assert.throws(() => api.parseGoogleMapsUrl('https://example.com/maps/@13,100'));
 assert.throws(() => api.parseGoogleMapsUrl('https://www.google.com/maps/place/no-coordinates'));
 console.log('PASS: Google Maps URLs are validated, cleaned and converted to navigation coordinates');
