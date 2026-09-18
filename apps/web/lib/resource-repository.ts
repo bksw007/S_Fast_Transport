@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -14,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { isMainAdmin, type UserProfile } from "./transport-repository";
+import { splitThaiVehiclePlate } from "./thai-provinces";
 
 export type SubcontractOrganization = {
   id: string;
@@ -34,18 +36,21 @@ export type TransportVehicle = {
   id: string;
   organizationId: string;
   plate: string;
+  plateNumber: string;
+  plateProvince: string;
   vehicleType: string;
   brand: string;
   model: string;
   capacityKg: number | null;
-  registrationExpiry: string;
+  vehicleWeightKg: number | null;
+  compulsoryInsuranceExpiry: string;
   insuranceExpiry: string;
-  gpsDeviceId: string;
   status: VehicleStatus;
 };
 
-export type VehicleDraft = Omit<TransportVehicle, "id" | "organizationId" | "capacityKg"> & {
+export type VehicleDraft = Omit<TransportVehicle, "id" | "organizationId" | "plate" | "capacityKg" | "vehicleWeightKg"> & {
   capacityKg: string;
+  vehicleWeightKg: string;
 };
 
 export type DriverStatus = "available" | "assigned" | "leave" | "inactive";
@@ -213,17 +218,23 @@ export async function setSubcontractOrganizationActive(
 }
 
 function toVehicle(id: string, data: DocumentData): TransportVehicle {
+  const legacyPlate = data.plate ?? "";
+  const legacyPlateParts = splitThaiVehiclePlate(legacyPlate);
+  const plateNumber = data.plateNumber ?? legacyPlateParts.plateNumber;
+  const plateProvince = data.plateProvince ?? legacyPlateParts.plateProvince;
   return {
     id,
     organizationId: data.organizationId ?? "",
-    plate: data.plate ?? "",
+    plate: legacyPlate || [plateNumber, plateProvince].filter(Boolean).join(" "),
+    plateNumber,
+    plateProvince,
     vehicleType: data.vehicleType ?? "",
     brand: data.brand ?? "",
     model: data.model ?? "",
     capacityKg: Number.isFinite(data.capacityKg) ? data.capacityKg : null,
-    registrationExpiry: data.registrationExpiry ?? "",
+    vehicleWeightKg: Number.isFinite(data.vehicleWeightKg) ? data.vehicleWeightKg : null,
+    compulsoryInsuranceExpiry: data.compulsoryInsuranceExpiry ?? data.registrationExpiry ?? "",
     insuranceExpiry: data.insuranceExpiry ?? "",
-    gpsDeviceId: data.gpsDeviceId ?? "",
     status: data.status ?? "available"
   };
 }
@@ -243,22 +254,29 @@ export function subscribeVehicles(
 }
 
 function vehiclePayload(organizationId: string, draft: VehicleDraft) {
-  const plate = cleanText(draft.plate);
-  if (!plate) throw new Error("กรุณากรอกทะเบียนรถ");
+  const plateNumber = cleanText(draft.plateNumber);
+  const plateProvince = cleanText(draft.plateProvince);
+  if (!plateNumber) throw new Error("กรุณากรอกเลขทะเบียน");
+  if (!plateProvince) throw new Error("กรุณาเลือกจังหวัดทะเบียน");
+  const plate = `${plateNumber} ${plateProvince}`;
   if (!cleanText(draft.vehicleType)) throw new Error("กรุณากรอกประเภทรถ");
   const capacity = draft.capacityKg.trim() ? Number(draft.capacityKg) : null;
   if (capacity !== null && (!Number.isFinite(capacity) || capacity < 0)) throw new Error("น้ำหนักบรรทุกไม่ถูกต้อง");
+  const vehicleWeight = draft.vehicleWeightKg.trim() ? Number(draft.vehicleWeightKg) : null;
+  if (vehicleWeight !== null && (!Number.isFinite(vehicleWeight) || vehicleWeight < 0)) throw new Error("น้ำหนักตัวรถไม่ถูกต้อง");
   return {
     organizationId,
     plate,
     plateNormalized: plate.toLocaleLowerCase("th-TH"),
+    plateNumber,
+    plateProvince,
     vehicleType: cleanText(draft.vehicleType),
     brand: cleanText(draft.brand),
     model: cleanText(draft.model),
     capacityKg: capacity,
-    registrationExpiry: draft.registrationExpiry,
+    vehicleWeightKg: vehicleWeight,
+    compulsoryInsuranceExpiry: draft.compulsoryInsuranceExpiry,
     insuranceExpiry: draft.insuranceExpiry,
-    gpsDeviceId: cleanText(draft.gpsDeviceId),
     status: draft.status
   };
 }
@@ -287,7 +305,13 @@ export async function updateVehicle(vehicle: TransportVehicle, draft: VehicleDra
   const nextRef = doc(db, "vehicles", resourceDocumentId(vehicle.organizationId, payload.plate));
   if (currentRef.path === nextRef.path) {
     const batch = writeBatch(db);
-    batch.update(currentRef, { ...payload, updatedByUid: actor.uid, updatedAt: serverTimestamp() });
+    batch.update(currentRef, {
+      ...payload,
+      gpsDeviceId: deleteField(),
+      registrationExpiry: deleteField(),
+      updatedByUid: actor.uid,
+      updatedAt: serverTimestamp()
+    });
     batch.set(listOptionRef(vehicle.organizationId, "vehicle_plate", payload.plate), listOptionPayload(vehicle.organizationId, "vehicle_plate", payload.plate, actor), { merge: true });
     batch.set(listOptionRef(vehicle.organizationId, "vehicle_type", payload.vehicleType), listOptionPayload(vehicle.organizationId, "vehicle_type", payload.vehicleType, actor), { merge: true });
     await batch.commit();

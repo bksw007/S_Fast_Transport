@@ -43,6 +43,7 @@ import {
 } from "@/lib/resource-repository";
 import { subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
 import { downloadPrivateDocument, driverLicenseTypes, formatPhoneNumber, getPrivateDocumentPreviewURL } from "@/lib/profile-repository";
+import { thaiProvinces } from "@/lib/thai-provinces";
 
 const emptyOrganizationDraft: OrganizationDraft = {
   code: "",
@@ -55,14 +56,15 @@ const emptyOrganizationDraft: OrganizationDraft = {
 };
 
 const emptyVehicleDraft: VehicleDraft = {
-  plate: "",
+  plateNumber: "",
+  plateProvince: "",
   vehicleType: "",
   brand: "",
   model: "",
   capacityKg: "",
-  registrationExpiry: "",
+  vehicleWeightKg: "",
+  compulsoryInsuranceExpiry: "",
   insuranceExpiry: "",
-  gpsDeviceId: "",
   status: "available"
 };
 
@@ -340,7 +342,18 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
   function editVehicle(item: TransportVehicle) {
     setTab("vehicles");
     setEditingVehicle(item);
-    setVehicleDraft({ ...item, capacityKg: item.capacityKg?.toString() ?? "" });
+    setVehicleDraft({
+      plateNumber: item.plateNumber,
+      plateProvince: item.plateProvince,
+      vehicleType: item.vehicleType,
+      brand: item.brand,
+      model: item.model,
+      capacityKg: item.capacityKg?.toString() ?? "",
+      vehicleWeightKg: item.vehicleWeightKg?.toString() ?? "",
+      compulsoryInsuranceExpiry: item.compulsoryInsuranceExpiry,
+      insuranceExpiry: item.insuranceExpiry,
+      status: item.status
+    });
     setShowForm(true);
   }
 
@@ -441,13 +454,14 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
         <form className="resource-form" onSubmit={saveVehicle}>
           <header><div><small>{editingVehicle ? "EDIT VEHICLE" : "NEW VEHICLE"}</small><h2>{editingVehicle ? "แก้ไขข้อมูลรถ" : "เพิ่มรถ"}</h2></div><Truck size={24} /></header>
           <div className="resource-form-grid">
-            <ResourceField label="ทะเบียนรถ *"><input required disabled={Boolean(editingVehicle)} value={vehicleDraft.plate} placeholder="70-1234 กรุงเทพมหานคร" onChange={(event) => setVehicleDraft({ ...vehicleDraft, plate: event.target.value })} /></ResourceField>
+            <ResourceField label="เลขทะเบียน *"><input required value={vehicleDraft.plateNumber} placeholder="เช่น 70-1234" onChange={(event) => setVehicleDraft({ ...vehicleDraft, plateNumber: event.target.value })} /></ResourceField>
+            <ResourceField label="ทะเบียนจังหวัด *"><select required value={vehicleDraft.plateProvince} onChange={(event) => setVehicleDraft({ ...vehicleDraft, plateProvince: event.target.value })}><option value="">เลือกจังหวัด</option>{thaiProvinces.map((province) => <option key={province} value={province}>{province}</option>)}</select></ResourceField>
             <ResourceField label="ประเภทรถ *"><ListManagerComboBox field="vehicle_type" value={vehicleDraft.vehicleType} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={actor} required onChange={(value) => setVehicleDraft({ ...vehicleDraft, vehicleType: value })} /></ResourceField>
             <ResourceField label="ยี่ห้อ"><input value={vehicleDraft.brand} placeholder="Isuzu" onChange={(event) => setVehicleDraft({ ...vehicleDraft, brand: event.target.value })} /></ResourceField>
             <ResourceField label="รุ่น"><input value={vehicleDraft.model} placeholder="FXZ" onChange={(event) => setVehicleDraft({ ...vehicleDraft, model: event.target.value })} /></ResourceField>
             <ResourceField label="น้ำหนักบรรทุก (กก.)"><input type="number" min="0" value={vehicleDraft.capacityKg} placeholder="12000" onChange={(event) => setVehicleDraft({ ...vehicleDraft, capacityKg: event.target.value })} /></ResourceField>
-            <ResourceField label="รหัสอุปกรณ์ GPS"><input value={vehicleDraft.gpsDeviceId} placeholder="GPS-001" onChange={(event) => setVehicleDraft({ ...vehicleDraft, gpsDeviceId: event.target.value })} /></ResourceField>
-            <ResourceField label="ทะเบียนหมดอายุ"><input type="date" value={vehicleDraft.registrationExpiry} onChange={(event) => setVehicleDraft({ ...vehicleDraft, registrationExpiry: event.target.value })} /></ResourceField>
+            <ResourceField label="น้ำหนักตัวรถ (กก.)"><input type="number" min="0" value={vehicleDraft.vehicleWeightKg} placeholder="8500" onChange={(event) => setVehicleDraft({ ...vehicleDraft, vehicleWeightKg: event.target.value })} /></ResourceField>
+            <ResourceField label="พรบ.หมดอายุ"><input type="date" value={vehicleDraft.compulsoryInsuranceExpiry} onChange={(event) => setVehicleDraft({ ...vehicleDraft, compulsoryInsuranceExpiry: event.target.value })} /></ResourceField>
             <ResourceField label="ประกันหมดอายุ"><input type="date" value={vehicleDraft.insuranceExpiry} onChange={(event) => setVehicleDraft({ ...vehicleDraft, insuranceExpiry: event.target.value })} /></ResourceField>
             <ResourceField label="สถานะ" wide><select value={vehicleDraft.status} onChange={(event) => setVehicleDraft({ ...vehicleDraft, status: event.target.value as VehicleDraft["status"] })}>{Object.entries(vehicleStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></ResourceField>
           </div>
@@ -474,7 +488,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
       )}
 
       {tab === "vehicles" ? (
-        <div className="fleet-card-grid">{!vehicles.length && <div className="resource-empty"><Truck size={25} /><strong>ยังไม่มีรถในบริษัทนี้</strong><span>กด “เพิ่มรถ” เพื่อสร้างรายการแรก</span></div>}{vehicles.map((item) => <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className="fleet-icon"><Truck size={21} /></span><div><small>{item.vehicleType || "ไม่ระบุประเภท"}</small><h2>{item.plate}</h2></div><span className={`resource-status ${item.status}`}>{vehicleStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt>ยี่ห้อ / รุ่น</dt><dd>{[item.brand, item.model].filter(Boolean).join(" ") || "—"}</dd></div><div><dt>บรรทุก</dt><dd>{item.capacityKg ? `${item.capacityKg.toLocaleString()} กก.` : "—"}</dd></div><div><dt>GPS</dt><dd>{item.gpsDeviceId || "ยังไม่ผูก"}</dd></div><div className={expiryClass(item.registrationExpiry)}><dt>ทะเบียนหมดอายุ</dt><dd>{item.registrationExpiry || "—"}</dd></div><div className={expiryClass(item.insuranceExpiry)}><dt>ประกันหมดอายุ</dt><dd>{item.insuranceExpiry || "—"}</dd></div></dl><footer><button onClick={() => editVehicle(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleVehicle(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>)}</div>
+        <div className="fleet-card-grid">{!vehicles.length && <div className="resource-empty"><Truck size={25} /><strong>ยังไม่มีรถในบริษัทนี้</strong><span>กด “เพิ่มรถ” เพื่อสร้างรายการแรก</span></div>}{vehicles.map((item) => <article key={item.id} className={`fleet-card ${item.status === "inactive" ? "inactive" : ""}`}><header><span className="fleet-icon"><Truck size={21} /></span><div><small>{item.vehicleType || "ไม่ระบุประเภท"}</small><h2>{item.plate}</h2></div><span className={`resource-status ${item.status}`}>{vehicleStatusLabels[item.status]}</span></header><dl className="resource-details"><div><dt>ยี่ห้อ / รุ่น</dt><dd>{[item.brand, item.model].filter(Boolean).join(" ") || "—"}</dd></div><div><dt>น้ำหนักบรรทุก</dt><dd>{item.capacityKg ? `${item.capacityKg.toLocaleString()} กก.` : "—"}</dd></div><div><dt>น้ำหนักตัวรถ</dt><dd>{item.vehicleWeightKg ? `${item.vehicleWeightKg.toLocaleString()} กก.` : "—"}</dd></div><div className={expiryClass(item.compulsoryInsuranceExpiry)}><dt>พรบ.หมดอายุ</dt><dd>{item.compulsoryInsuranceExpiry || "—"}</dd></div><div className={expiryClass(item.insuranceExpiry)}><dt>ประกันหมดอายุ</dt><dd>{item.insuranceExpiry || "—"}</dd></div></dl><footer><button onClick={() => editVehicle(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleVehicle(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer></article>)}</div>
       ) : (
         <div className="fleet-card-grid">
           {!drivers.length && <div className="resource-empty"><UserRound size={25} /><strong>ยังไม่มีคนขับในบริษัทนี้</strong><span>กด “เพิ่มคนขับ” เพื่อสร้างรายการแรก</span></div>}
