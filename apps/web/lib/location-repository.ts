@@ -138,3 +138,17 @@ export function selectSavedLocation(id: string, locations: SavedLocation[]) {
   const location = locations.find((item) => item.id === id && item.active);
   return location ? { name: location.name, place: savedLocationToJobPlace(location) } : null;
 }
+
+export type LocationStatusFilter = "all" | "active" | "inactive";
+
+export function filterSavedLocations(locations: SavedLocation[], search: string, status: LocationStatusFilter) {
+  const queryText = search.trim().toLocaleLowerCase("th-TH");
+  return locations.filter((item) => {
+    if (status === "active" && !item.active) return false;
+    if (status === "inactive" && item.active) return false;
+    if (!queryText) return true;
+    return [item.name, item.googleName, item.notes, item.lat, item.lng]
+      .filter((value) => value !== undefined && value !== null)
+      .some((value) => String(value).toLocaleLowerCase("th-TH").includes(queryText));
+  });
+}
