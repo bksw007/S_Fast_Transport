@@ -60,7 +60,7 @@ export default function PublicVehiclePage() {
 
       <section className="public-vehicle-section">
         <header><div><span>VEHICLE DOCUMENTS</span><h2>เอกสารยานพาหนะ</h2></div><FileText size={23} /></header>
-        {vehicle.documents.length ? <div className="public-vehicle-documents">{vehicle.documents.map((file) => <a key={file.kind} href={file.url} target="_blank" rel="noreferrer"><FileText size={19} /><span><strong>{documentLabels[file.kind]}</strong><small>{file.fileName || "เปิดเอกสาร"}</small></span><ExternalLink size={15} /></a>)}</div> : <p className="public-vehicle-empty">ยังไม่มีเอกสารแนบไว้</p>}
+        {vehicle.documents.length ? <div className="public-vehicle-documents">{vehicle.documents.map((file) => <a className="public-vehicle-document" key={file.kind} href={file.url} target="_blank" rel="noreferrer"><span className={`public-vehicle-document-preview ${file.contentType.startsWith("image/") ? "is-image" : "is-pdf"}`}>{file.contentType.startsWith("image/") ? <Image unoptimized src={file.url} alt={`เอกสาร${documentLabels[file.kind]}`} width={720} height={960} sizes="(max-width: 720px) 100vw, 50vw" /> : <><FileText size={32} /><em>PDF</em></>}</span><span className="public-vehicle-document-meta"><span><strong>{documentLabels[file.kind]}</strong><small>{file.fileName || "เปิดเอกสาร"}</small></span><ExternalLink size={15} /></span></a>)}</div> : <p className="public-vehicle-empty">ยังไม่มีเอกสารแนบไว้</p>}
       </section>
 
       <footer className="public-vehicle-footer">ข้อมูลนี้จัดทำโดย {vehicle.organizationName} · ลิงก์หมดอายุ {new Date(vehicle.expiresAt).toLocaleDateString("th-TH", { dateStyle: "long" })}</footer>

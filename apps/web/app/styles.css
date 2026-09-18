@@ -2890,15 +2890,18 @@ h2 {
 .vehicle-stored-files > section > header span { min-width: 26px; padding: 2px 5px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); font-size: .59rem; text-align: center; }
 .vehicle-stored-files > section > small { display: block; padding: 12px 4px; color: var(--muted); font-size: .66rem; text-align: center; }
 .vehicle-stored-images { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
-.vehicle-stored-images button { position: relative; min-height: 72px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; color: var(--accent); background: var(--surface); }
-.vehicle-stored-images img { width: 100%; height: 72px; object-fit: cover; }
+.vehicle-stored-images button { position: relative; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; color: var(--accent); background: var(--surface); }
+.vehicle-stored-images img { width: 100%; height: 100%; object-fit: cover; }
 .vehicle-stored-images button span { position: absolute; left: 4px; bottom: 4px; padding: 2px 5px; border-radius: 4px; color: white; background: rgba(12, 21, 24, .72); font-size: .56rem; }
-.vehicle-stored-documents { display: grid; gap: 5px; }
-.vehicle-stored-documents > div { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 6px; border-radius: 7px; background: var(--surface); }
+.vehicle-stored-documents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.vehicle-stored-document-card { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.vehicle-document-preview { width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; border: 0; border-radius: 0; color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.vehicle-document-preview img { width: 100%; height: 100%; object-fit: contain; background: #ffffff; }
+.vehicle-stored-document-card > div { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px; padding: 6px; border-top: 1px solid var(--border); }
 .vehicle-stored-documents span, .vehicle-stored-documents strong, .vehicle-stored-documents small { min-width: 0; display: block; }
 .vehicle-stored-documents strong { font-size: .65rem; }
 .vehicle-stored-documents small { overflow: hidden; color: var(--muted); font-size: .57rem; text-overflow: ellipsis; white-space: nowrap; }
-.vehicle-stored-documents button { min-height: 28px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; color: var(--accent); background: var(--surface-2); font-size: .6rem; }
+.vehicle-stored-document-card > div button { min-height: 28px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; color: var(--accent); background: var(--surface-2); font-size: .6rem; }
 
 .vehicle-share-overlay { position: fixed; z-index: 101; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(9, 24, 29, .72); backdrop-filter: blur(8px); }
 .vehicle-share-dialog { width: min(540px, 100%); overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: 15px; background: var(--surface); box-shadow: 0 24px 80px rgba(0, 0, 0, .34); }
@@ -3145,6 +3148,7 @@ h2 {
 
   .vehicle-upload-field { grid-template-columns: 36px minmax(0, 1fr); }
   .vehicle-upload-field em { grid-column: 2; width: fit-content; }
+  .vehicle-stored-documents { grid-template-columns: 1fr; }
   .vehicle-card-actions { flex-wrap: wrap; }
   .vehicle-share-dialog > footer { align-items: stretch; flex-direction: column; }
 
