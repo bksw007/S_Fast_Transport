@@ -31,6 +31,13 @@ export default function PublicVehiclePage() {
     );
   }, [params.token]);
 
+  useEffect(() => {
+    if (!vehicle?.plate) return;
+    const previousTitle = document.title;
+    document.title = `ข้อมูลรถ ${vehicle.plate}`;
+    return () => { document.title = previousTitle; };
+  }, [vehicle?.plate]);
+
   if (loading) return <VehicleState title="กำลังโหลดข้อมูลรถ" description="ระบบกำลังตรวจสอบลิงก์สำหรับคุณ" />;
   if (error || !vehicle) return <VehicleState title="ไม่สามารถเปิดข้อมูลรถได้" description={error || "ไม่พบข้อมูลรถสำหรับลิงก์นี้"} />;
 

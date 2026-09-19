@@ -66,7 +66,12 @@
 @media print {
   .public-vehicle-shell { padding: 0; background: white; }
   .public-vehicle-header button { display: none; }
-  .public-vehicle-section, .public-vehicle-hero { break-inside: avoid; box-shadow: none; }
+  .public-vehicle-hero { break-inside: avoid; box-shadow: none; }
+  .public-vehicle-section { break-inside: auto; box-shadow: none; }
+  .public-vehicle-section > header { padding: 11px 13px; break-after: avoid; }
+  .public-vehicle-documents { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; padding: 10px; }
+  .public-vehicle-document { break-inside: avoid; }
   .public-vehicle-document-preview { aspect-ratio: 4 / 3; }
+  .public-vehicle-document-meta { padding: 7px 8px; }
   @page { size: A4 portrait; margin: 12mm; }
 }
