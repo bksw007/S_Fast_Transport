@@ -64,14 +64,33 @@
 }
 
 @media print {
+  html, body { background: white; }
   .public-vehicle-shell { padding: 0; background: white; }
+  .public-vehicle-header { margin-bottom: 8px; }
+  .public-vehicle-brand { gap: 8px; }
+  .public-vehicle-brand img { width: 42px; height: 42px; border-radius: 9px; }
+  .public-vehicle-brand strong { font-size: .82rem; }
+  .public-vehicle-brand span { font-size: .62rem; }
   .public-vehicle-header button { display: none; }
-  .public-vehicle-hero { break-inside: avoid; box-shadow: none; }
-  .public-vehicle-section { break-inside: auto; box-shadow: none; }
-  .public-vehicle-section > header { padding: 11px 13px; break-after: avoid; }
-  .public-vehicle-documents { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; padding: 10px; }
+  .public-vehicle-hero { align-items: center; padding: 13px 17px; margin-bottom: 7px; border-radius: 11px; break-inside: avoid; box-shadow: none; }
+  .public-vehicle-hero > div > span { font-size: .55rem; }
+  .public-vehicle-hero h1 { margin: 3px 0 1px; font-size: 1.65rem; }
+  .public-vehicle-hero p { font-size: .7rem; }
+  .public-vehicle-status { padding: 5px 8px; font-size: .62rem; }
+  .public-vehicle-facts { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 6px; margin-bottom: 7px; }
+  .public-vehicle-facts article { grid-template-columns: 18px minmax(0, 1fr); gap: 1px 5px; padding: 8px; border-radius: 8px; }
+  .public-vehicle-facts svg { width: 16px; height: 16px; }
+  .public-vehicle-facts span { font-size: .55rem; }
+  .public-vehicle-facts strong { font-size: .66rem; }
+  .public-vehicle-section { margin-bottom: 7px; break-inside: auto; box-shadow: none; }
+  .public-vehicle-section + .public-vehicle-section { break-before: page; }
+  .public-vehicle-section > header { padding: 8px 10px; break-after: avoid; }
+  .public-vehicle-section > header h2 { font-size: .82rem; }
+  .public-vehicle-documents { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px; padding: 8px; }
   .public-vehicle-document { break-inside: avoid; }
   .public-vehicle-document-preview { aspect-ratio: 4 / 3; }
-  .public-vehicle-document-meta { padding: 7px 8px; }
+  .public-vehicle-document-meta { padding: 5px 7px; }
+  .public-vehicle-document-meta strong { font-size: .68rem; }
+  .public-vehicle-document-meta small { font-size: .55rem; }
   @page { size: A4 portrait; margin: 12mm; }
 }
