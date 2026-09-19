@@ -61,7 +61,7 @@ import {
   type JobStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
-import { auth, ensureLocalAuthPersistence } from "@/lib/firebase";
+import { auth, ensureLocalAuthPersistence } from "@/lib/firebase-auth";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
 import { LocationPicker } from "@/app/components/LocationPicker";
 import { ReportsScreen } from "@/app/components/ReportsScreen";
