@@ -1955,10 +1955,10 @@ function AdminView({
             </div>
 
             <div className="dispatch-general-grid assignment-grid">
-              <DispatchField label="พนักงานขับรถ"><select aria-label="พนักงานขับรถ" required value={draft.driverId} disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError)} onChange={event => {
+              <DispatchField label="พนักงานขับรถ"><div className="driver-field-control"><select aria-label="พนักงานขับรถ" required value={draft.driverId} disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError)} onChange={event => {
                 const driver = driverOptions.find(item => item.id === event.target.value);
                 setDraft(current => ({ ...current, driverId: driver?.id || "", driverName: driver?.name || "", driverPhone: driver?.phone || "" }));
-              }}><option value="">{!driversReady || !profilesReady ? "กำลังโหลดคนขับ…" : "เลือกพนักงานขับรถ"}</option>{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name} · {driver.phone || "ไม่มีเบอร์โทร"}{!driver.eligible ? " (บัญชีแอปยังไม่พร้อม)" : ""}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}{driversReady && profilesReady && !driverError && <small>ข้อมูลจากรถและคนขับ · ต้องเชื่อมบัญชีแอปที่อนุมัติแล้ว</small>}</DispatchField>
+              }}><option value="">{!driversReady || !profilesReady ? "กำลังโหลดคนขับ…" : "เลือกพนักงานขับรถ"}</option>{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}{driversReady && profilesReady && !driverError && <small>ข้อมูลจากรถและคนขับ · ต้องเชื่อมบัญชีแอปที่อนุมัติแล้ว</small>}</div></DispatchField>
               <DispatchField label="เบอร์ติดต่อ"><input aria-label="เบอร์ติดต่อคนขับ" type="tel" value={draft.driverPhone} readOnly placeholder="เติมอัตโนมัติเมื่อเลือกคนขับ" /></DispatchField>
               <DispatchField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={(value) => updateDraft("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="หมายเหตุ" wide><textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติมสำหรับงานนี้" /></DispatchField>

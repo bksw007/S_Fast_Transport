@@ -1286,6 +1286,63 @@ h2 {
   font-size: 1.05rem;
 }
 
+.contact-picker {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.contact-picker-select {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.contact-picker-select > span {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.contact-picker-select select,
+.driver-field-control select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  font-size: .86rem;
+}
+
+.contact-phone-preview {
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.contact-picker > small,
+.driver-field-control > small {
+  color: var(--muted);
+  font-size: .64rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.driver-field-control {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.driver-field-control > small[role="alert"] {
+  color: var(--danger);
+}
+
 .list-manager-combobox {
   position: relative;
   flex: 1;

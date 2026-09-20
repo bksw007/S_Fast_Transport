@@ -40,6 +40,8 @@ const actor = { uid: 'admin', organizationId: 'main' };
   const pickerNodes = nodes(render());
   assert.equal(pickerNodes.find(n => n.type === 'details').props.open, false);
   assert.equal(pickerNodes.filter(n => n.type === 'input').length, 2, 'only name and phone remain in expanded section');
+  const contactOption = pickerNodes.find(n => n.type === 'option' && n.props.value === 'saved');
+  assert.equal(React.Children.toArray(contactOption.props.children).join(''), `Contact · ${draft.phone}`, 'contact option shows only name and phone');
   let editorSlots = [], cursor = 0, stopped = 0;
   const effects = [];
   const editor = { exports: {}, require: name => {
