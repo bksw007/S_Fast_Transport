@@ -29,6 +29,7 @@ import {
 import { ListManagerComboBox } from "./ListManagerComboBox";
 import {
   createDriver,
+  createDriverShareLink,
   createSubcontractOrganization,
   createVehicle,
   createVehicleShareLink,
@@ -296,7 +297,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
   const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null);
   const [documentLoading, setDocumentLoading] = useState("");
   const [documentPreview, setDocumentPreview] = useState<{ label: string; fileName: string; path: string; url: string; source: "driver" | "vehicle" } | null>(null);
-  const [vehicleShare, setVehicleShare] = useState<{ plate: string; url: string } | null>(null);
+  const [resourceShare, setResourceShare] = useState<{ kind: "vehicle" | "driver"; title: string; url: string } | null>(null);
 
   useEffect(() => {
     if (!mainAdmin) return;
@@ -487,7 +488,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
     try {
       const token = await createVehicleShareLink(item, actor);
       const url = `${window.location.origin}/vehicle/${token}`;
-      setVehicleShare({ plate: item.plate, url });
+      setResourceShare({ kind: "vehicle", title: item.plate, url });
       setMessage("สร้างลิงก์ข้อมูลรถแล้ว");
     } catch (error) {
       setMessage(toMessage(error));
@@ -496,13 +497,48 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
     }
   }
 
-  async function copyVehicleShareLink() {
-    if (!vehicleShare) return;
+  async function shareDriver(item: TransportDriver, profile: UserProfile | undefined, vehicle: TransportVehicle | undefined) {
+    if (busy) return;
+    const name = profile?.fullName || item.name;
+    setBusy(`share-${item.id}`);
+    setMessage(`กำลังสร้างลิงก์ข้อมูลคนขับ ${name}...`);
     try {
-      await navigator.clipboard.writeText(vehicleShare.url);
-      setMessage("คัดลอกลิงก์ข้อมูลรถแล้ว");
+      const token = await createDriverShareLink(item, profile, vehicle, actor);
+      const url = `${window.location.origin}/driver/${token}`;
+      setResourceShare({ kind: "driver", title: name, url });
+      setMessage("สร้างลิงก์ข้อมูลคนขับแล้ว");
+    } catch (error) {
+      setMessage(toMessage(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function copyResourceShareLink() {
+    if (!resourceShare) return;
+    try {
+      await navigator.clipboard.writeText(resourceShare.url);
+      setMessage(`คัดลอกลิงก์ข้อมูล${resourceShare.kind === "vehicle" ? "รถ" : "คนขับ"}แล้ว`);
     } catch {
       setMessage("คัดลอกอัตโนมัติไม่สำเร็จ กรุณาเลือกลิงก์แล้วคัดลอก");
+    }
+  }
+
+  async function openDriverPdf(item: TransportDriver, profile: UserProfile | undefined, vehicle: TransportVehicle | undefined) {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) { setMessage("เบราว์เซอร์บล็อกหน้าต่าง PDF กรุณาอนุญาตป๊อปอัปแล้วลองใหม่"); return; }
+    printWindow.opener = null;
+    printWindow.document.write("<!doctype html><html lang=\"th\"><body style=\"font-family:sans-serif;padding:32px\">กำลังจัดทำเอกสารคนขับ...</body></html>");
+    setBusy(`pdf-${item.id}`);
+    try {
+      const token = await createDriverShareLink(item, profile, vehicle, actor);
+      printWindow.location.replace(`${window.location.origin}/driver/${token}?print=1`);
+      setMessage("เปิดเอกสารคนขับแล้ว เลือกเครื่องพิมพ์หรือบันทึกเป็น PDF ได้เลย");
+    } catch (error) {
+      printWindow.close();
+      setMessage(toMessage(error));
+    } finally {
+      setBusy("");
     }
   }
 
@@ -676,7 +712,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
                   <div className="driver-card-details">
                     <dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>
                     {linked && <LinkedDriverDocuments profile={linked} loadingPath={documentLoading} onView={viewDriverDocument} onDownload={downloadDriverDocument} />}
-                    <footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer>
+                    <footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button type="button" disabled={busy === `share-${item.id}`} onClick={() => void shareDriver(item, linked, vehicle)}><Share2 size={15} /> {busy === `share-${item.id}` ? "กำลังสร้าง" : "แชร์เว็บ"}</button><button type="button" disabled={busy === `pdf-${item.id}`} onClick={() => void openDriverPdf(item, linked, vehicle)}><Printer size={15} /> PDF</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer>
                   </div>
                 )}
               </article>
@@ -685,13 +721,13 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
         </div>
       )}
 
-      {vehicleShare && (
-        <div className="vehicle-share-overlay" role="presentation" onClick={() => setVehicleShare(null)}>
-          <section className="vehicle-share-dialog" role="dialog" aria-modal="true" aria-label={`แชร์ข้อมูลรถ ${vehicleShare.plate}`} onClick={(event) => event.stopPropagation()}>
-            <header><div><small>SHARE VEHICLE</small><h2>แชร์ข้อมูลรถ</h2><span>{vehicleShare.plate}</span></div><button type="button" aria-label="ปิดหน้าต่างแชร์" onClick={() => setVehicleShare(null)}><X size={20} /></button></header>
-            <p>ผู้รับเปิดดูข้อมูลรถ รูปภาพ และเอกสารที่แนบไว้ได้โดยไม่ต้องเข้าสู่ระบบ ลิงก์มีวันหมดอายุตามการตั้งค่าบริษัท</p>
-            <label>ลิงก์สำหรับลูกค้า<input readOnly value={vehicleShare.url} onFocus={(event) => event.target.select()} /></label>
-            <footer><button type="button" onClick={() => void copyVehicleShareLink()}><Copy size={16} /> คัดลอกลิงก์</button><a href={vehicleShare.url} target="_blank" rel="noreferrer"><ExternalLink size={16} /> เปิดหน้าเว็บ</a></footer>
+      {resourceShare && (
+        <div className="vehicle-share-overlay" role="presentation" onClick={() => setResourceShare(null)}>
+          <section className="vehicle-share-dialog" role="dialog" aria-modal="true" aria-label={`แชร์ข้อมูล${resourceShare.kind === "vehicle" ? "รถ" : "คนขับ"} ${resourceShare.title}`} onClick={(event) => event.stopPropagation()}>
+            <header><div><small>{resourceShare.kind === "vehicle" ? "SHARE VEHICLE" : "SHARE DRIVER"}</small><h2>แชร์ข้อมูล{resourceShare.kind === "vehicle" ? "รถ" : "คนขับ"}</h2><span>{resourceShare.title}</span></div><button type="button" aria-label="ปิดหน้าต่างแชร์" onClick={() => setResourceShare(null)}><X size={20} /></button></header>
+            <p>ผู้รับเปิดดูข้อมูล{resourceShare.kind === "vehicle" ? "รถ รูปภาพ และเอกสารที่แนบไว้" : "คนขับและเอกสารที่อนุญาต"}ได้โดยไม่ต้องเข้าสู่ระบบ ลิงก์มีวันหมดอายุตามการตั้งค่าบริษัท</p>
+            <label>ลิงก์สำหรับลูกค้า<input readOnly value={resourceShare.url} onFocus={(event) => event.target.select()} /></label>
+            <footer><button type="button" onClick={() => void copyResourceShareLink()}><Copy size={16} /> คัดลอกลิงก์</button><a href={resourceShare.url} target="_blank" rel="noreferrer"><ExternalLink size={16} /> เปิดหน้าเว็บ</a></footer>
           </section>
         </div>
       )}
@@ -717,20 +753,23 @@ function LinkedDriverDocuments({ profile, loadingPath, onView, onDownload }: { p
   const documents = [
     { label: "บัตรประชาชน", path: profile.idCardFrontPath, fileName: profile.idCardFrontFileName },
     { label: "ใบขับขี่", path: profile.driverLicenseFrontPath, fileName: profile.driverLicenseFrontFileName }
-  ];
+  ].filter((document) => document.path);
 
   return (
-    <div className="linked-driver-documents">
-      <span>เอกสารจากโปรไฟล์</span>
-      {documents.map((document) => document.path ? (
-        <div className="linked-driver-document" key={document.label}>
-          <strong>{document.label}</strong>
-          <button type="button" disabled={loadingPath === document.path} onClick={() => void onView(document.path, document.fileName, document.label)}><Eye size={14} /> {loadingPath === document.path ? "กำลังโหลด" : "ดู"}</button>
-          <button type="button" onClick={() => void onDownload(document.path, document.fileName)}><Download size={14} /> ดาวน์โหลด</button>
-        </div>
-      ) : <small key={document.label}>ยังไม่มี{document.label}</small>)}
+    <div className="vehicle-stored-files driver-stored-files">
+      <section><header><FileText size={16} /><strong>เอกสารคนขับ</strong><span>{documents.length}/2</span></header>{documents.length ? <div className="vehicle-stored-documents">{documents.map((document) => <article key={document.label} className="vehicle-stored-document-card"><button type="button" className="vehicle-document-preview" disabled={loadingPath === document.path} onClick={() => void onView(document.path, document.fileName, document.label)}>{/\.pdf$/i.test(document.fileName) ? <FileText size={24} /> : <StoredDriverDocumentImage path={document.path} alt={document.label} />}</button><div><span><strong>{document.label}</strong><small>{document.fileName}</small></span><button type="button" aria-label={`ดู${document.label}`} disabled={loadingPath === document.path} onClick={() => void onView(document.path, document.fileName, document.label)}><Eye size={14} /></button><button type="button" aria-label={`ดาวน์โหลด${document.label}`} onClick={() => void onDownload(document.path, document.fileName)}><Download size={14} /></button></div></article>)}</div> : <small>ยังไม่มีเอกสารคนขับ</small>}</section>
     </div>
   );
+}
+
+function StoredDriverDocumentImage({ path, alt }: { path: string; alt: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let active = true;
+    getPrivateDocumentPreviewURL(path).then((nextURL) => { if (active) setUrl(nextURL); }).catch(() => { if (active) setUrl(""); });
+    return () => { active = false; };
+  }, [path]);
+  return url ? <Image unoptimized src={url} alt={alt} width={240} height={160} /> : <FileImage size={20} />;
 }
 
 function VehicleUploadSection({ title, description, icon, children }: { title: string; description: string; icon: React.ReactNode; children: React.ReactNode }) {

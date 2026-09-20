@@ -78,6 +78,9 @@ export type VehicleUploadSelection = {
 
 export type DriverStatus = "available" | "assigned" | "leave" | "inactive";
 
+export const driverDocumentKinds = ["idCard", "driverLicense"] as const;
+export type DriverDocumentKind = (typeof driverDocumentKinds)[number];
+
 export type TransportDriver = {
   id: string;
   organizationId: string;
@@ -600,3 +603,61 @@ export async function setDriverActive(driver: TransportDriver, active: boolean, 
     updatedAt: serverTimestamp()
   });
 }
+
+async function publicDriverDocuments(profile?: UserProfile) {
+  if (!profile) return [];
+  const documents = [
+    { kind: "idCard" as const, storagePath: profile.idCardFrontPath, fileName: profile.idCardFrontFileName },
+    { kind: "driverLicense" as const, storagePath: profile.driverLicenseFrontPath, fileName: profile.driverLicenseFrontFileName }
+  ];
+  return Promise.all(documents.flatMap((document) => document.storagePath ? [document] : []).map(async (document) => ({
+    kind: document.kind,
+    fileName: document.fileName,
+    contentType: /\.pdf$/i.test(document.fileName || document.storagePath) ? "application/pdf" : "image/jpeg",
+    url: await getDownloadURL(ref(storage, document.storagePath))
+  })));
+}
+
+export async function createDriverShareLink(
+  driver: TransportDriver,
+  profile: UserProfile | undefined,
+  assignedVehicle: TransportVehicle | undefined,
+  actor: UserProfile
+) {
+  assertOrganizationAccess(actor, driver.organizationId);
+  const companySettings = await loadCompanySettings(driver.organizationId);
+  const documents = await publicDriverDocuments(profile);
+  const photoURL = profile?.profilePhotoPath
+    ? await getDownloadURL(ref(storage, profile.profilePhotoPath))
+    : profile?.photoURL ?? "";
+  const token = crypto.randomUUID().replaceAll("-", "");
+  const expiresAt = Timestamp.fromDate(new Date(Date.now() + companySettings.trackingLinkDays * 86_400_000));
+  await setDoc(doc(db, "driver_share_links", token), {
+    organizationId: driver.organizationId,
+    organizationName: companySettings.name || actor.organizationName || "S Fast Transport",
+    enabled: true,
+    expiresAt,
+    name: profile?.fullName || driver.name,
+    phone: profile?.phone || driver.phone,
+    email: profile?.email || driver.email,
+    licenseNumber: profile?.licenseNumber || driver.licenseNumber,
+    licenseType: profile?.licenseType || driver.licenseType,
+    licenseExpiry: profile?.licenseExpiry || driver.licenseExpiry,
+    assignedVehiclePlate: assignedVehicle?.plate ?? "",
+    assignedVehicleType: assignedVehicle?.vehicleType ?? "",
+    statusLabel: driverStatusLabelsForShare[driver.status],
+    photoURL,
+    documents,
+    createdByUid: actor.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  return token;
+}
+
+const driverStatusLabelsForShare: Record<DriverStatus, string> = {
+  available: "พร้อมรับงาน",
+  assigned: "กำลังปฏิบัติงาน",
+  leave: "ลางาน",
+  inactive: "ระงับใช้งาน"
+};
