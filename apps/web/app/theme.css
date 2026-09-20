@@ -156,3 +156,9 @@ button, input, select, textarea { font-family: inherit; }
 .job-contacts small { color: var(--muted); }
 .job-contacts a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border-radius: 10px; background: var(--accent); color: var(--on-accent); text-decoration: none; }
 @media (max-width: 640px) { .job-contacts { grid-template-columns: 1fr; } }
+.contact-picker { gap: 8px; }
+.contact-phone-preview { color: var(--muted); font-size: .82rem; }
+.contact-picker summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 40px; color: var(--muted); cursor: pointer; font-size: .8rem; list-style: none; }
+.contact-picker summary::-webkit-details-marker { display: none; }
+.contact-picker details[open] > summary svg { transform: rotate(180deg); }
+.contact-picker-expanded { display: grid; gap: 12px; padding-top: 8px; }

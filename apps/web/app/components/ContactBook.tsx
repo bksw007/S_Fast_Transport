@@ -1,12 +1,31 @@
 "use client";
 import { useEffect, useState } from "react";
 import { emptyContact, saveContact, setContactActive, subscribeContacts, type ContactDraft, type SavedContact, validateContact } from "@/lib/contact-repository";
-import { canManageOrganizationLists, type UserProfile } from "@/lib/transport-repository";
+import { canManageOrganizationLists, subscribeListOptions, type UserProfile } from "@/lib/transport-repository";
 
-export function ContactEditor({ initial = emptyContact, id, actor, onSave, onCancel }: { initial?: ContactDraft; id?: string; actor: UserProfile; onSave: (contact: SavedContact) => void; onCancel: () => void }) {
+import { subscribeCustomers } from "@/lib/customer-repository";
+import { subscribeSavedLocations } from "@/lib/location-repository";
+
+export function ContactEditor({ initial = emptyContact, id, actor, onSave, onCancel, hideNotes = false }: { hideNotes?: boolean; initial?: ContactDraft; id?: string; actor: UserProfile; onSave: (contact: SavedContact) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const orgId = actor.organizationId ?? "main";
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [companyError, setCompanyError] = useState("");
+  const [locationError, setLocationError] = useState("");
+  const [companiesReady, setCompaniesReady] = useState(false);
+  const [locationsReady, setLocationsReady] = useState(false);
+  useEffect(() => {
+    const receiveCompanies = (names: string[]) => { setCompanies([...new Set(names)]); setCompaniesReady(true); setCompanyError(""); };
+    const failCompanies = () => { setCompanyError("โหลดบริษัท / ลูกค้าไม่สำเร็จ"); setCompaniesReady(true); };
+    const stopCompanies = orgId === "main"
+      ? subscribeCustomers(items => receiveCompanies(items.filter(item => item.active).map(item => item.name)), failCompanies)
+      : subscribeListOptions(orgId, "customer", items => receiveCompanies(items.map(item => item.value)), failCompanies);
+    const stopLocations = subscribeSavedLocations(orgId, items => { setLocations([...new Set(items.filter(item => item.active).map(item => item.name))]); setLocationsReady(true); setLocationError(""); }, () => { setLocationError("โหลดสถานที่ไม่สำเร็จ"); setLocationsReady(true); });
+    return () => { stopCompanies(); stopLocations(); };
+  }, [orgId]);
   async function save() {
     setBusy(true); setError("");
     try { const savedId = await saveContact(draft, id, actor); onSave({ ...validateContact(draft), id: savedId, active: true }); }
@@ -14,7 +33,10 @@ export function ContactEditor({ initial = emptyContact, id, actor, onSave, onCan
     finally { setBusy(false); }
   }
   return <fieldset className="customer-card customer-form" disabled={busy} onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLInputElement) { event.preventDefault(); if (!busy) void save(); } }}><legend>{id ? "แก้ไขผู้ติดต่อในสมุดรายชื่อ" : "เพิ่มผู้ติดต่อในสมุดรายชื่อ"}</legend>
-    {([ ["name", "ชื่อผู้ติดต่อ"], ["phone", "เบอร์โทร"], ["company", "บริษัท / ลูกค้า"], ["location", "สถานที่"], ["notes", "หมายเหตุการติดต่อ"] ] as [keyof ContactDraft, string][]).map(([key, label]) => <label key={key}>{label}<input type={key === "phone" ? "tel" : "text"} value={draft[key]} maxLength={key === "notes" ? 500 : key === "phone" ? 40 : key === "name" ? 160 : 200} onChange={event => setDraft({ ...draft, [key]: event.target.value })} /></label>)}
+    {([ ["name", "ชื่อผู้ติดต่อ"], ["phone", "เบอร์โทร"] ] as [keyof ContactDraft, string][]).map(([key, label]) => <label key={key}>{label}<input type={key === "phone" ? "tel" : "text"} value={draft[key]} maxLength={key === "phone" ? 40 : 160} onChange={event => setDraft({ ...draft, [key]: event.target.value })} /></label>)}
+    <label>บริษัท / ลูกค้า<select value={draft.company} disabled={!companiesReady || Boolean(companyError)} onChange={event => setDraft({ ...draft, company: event.target.value })}><option value="">{!companiesReady ? "กำลังโหลด…" : "เลือกบริษัท / ลูกค้า"}</option>{draft.company && !companies.includes(draft.company) && <option value={draft.company}>{draft.company} (ข้อมูลเดิม)</option>}{companies.map(name => <option key={name} value={name}>{name}</option>)}</select>{companyError && <small role="alert">{companyError}</small>}{companiesReady && !companyError && !companies.length && <small>ยังไม่มีข้อมูลลูกค้าในระบบ</small>}</label>
+    <label>สถานที่<select value={draft.location} disabled={!locationsReady || Boolean(locationError)} onChange={event => setDraft({ ...draft, location: event.target.value })}><option value="">{!locationsReady ? "กำลังโหลด…" : "เลือกสถานที่"}</option>{draft.location && !locations.includes(draft.location) && <option value={draft.location}>{draft.location} (ข้อมูลเดิม)</option>}{locations.map(name => <option key={name} value={name}>{name}</option>)}</select>{locationError && <small role="alert">{locationError}</small>}{locationsReady && !locationError && !locations.length && <small>เพิ่มสถานที่ได้ที่เมนูตั้งค่าพิกัดแผนที่</small>}</label>
+    {!hideNotes && <label>หมายเหตุการติดต่อ<input value={draft.notes} maxLength={500} onChange={event => setDraft({ ...draft, notes: event.target.value })} /></label>}
     {error && <p role="alert" className="customer-error">{error}</p>}<div className="customer-actions"><button type="button" onClick={() => void save()}>{busy ? "กำลังบันทึก…" : "บันทึกในสมุดรายชื่อ"}</button><button type="button" onClick={onCancel}>ยกเลิก</button></div>
   </fieldset>;
 }
