@@ -18,6 +18,7 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
   if (name === '@/lib/transport-repository') return repository;
   if (name === '@/lib/job-detail-repository') return detailRepository;
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
+  if (name === './JobContacts') return () => null;
   if (name === 'next/image') return 'img';
   return require(name);
 }};

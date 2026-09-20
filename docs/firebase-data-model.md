@@ -71,7 +71,7 @@ Hot collection for the active dashboard.
 - `pickupPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
 - `deliveryLocation`, `deliveryDate`, `deliveryTime`, `deliveryContact`
 - `deliveryPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
-- `assignedEmployee`, `driverName`, `driverPhone`, `vehiclePlate`
+- `driverId` (อ้างอิง `drivers`), `driverName`, `driverPhone`, `vehiclePlate`
 - `notes`
 - `assignedDriverUid`
 - `status`
@@ -173,3 +173,9 @@ Do not include driver personal phone numbers, internal notes, costs, or unrelate
 - If the network is unavailable, the mobile app queues up to 500 points locally and uploads them with `source: offline_sync`.
 - Tenant admins see only their organization.
 - Public links expose only one job projection and expire automatically.
+
+
+### สมุดรายชื่อผู้ติดต่อ
+`organizations/{organizationId}/contacts/{contactId}` เก็บ `name`, `phone`, `company`, `location`, `notes`, `active`, `createdAt`, `updatedAt`, `updatedBy` และ `organizationId` ผู้ดูแลจัดการได้ตามสิทธิ์บริษัท พักใช้งานแทนการลบ
+
+ใบงานเก็บสำเนา `pickupContact`, `pickupContactId`, `pickupContactPhone`, `pickupContactNotes` และฟิลด์ `deliveryContact*` ในลักษณะเดียวกัน การแก้สมุดรายชื่อไม่แก้ใบงานย้อนหลัง คนขับอ่านสำเนาจากใบงานที่มีสิทธิ์ดู ไม่ต้องเข้าถึงสมุดรายชื่อทั้งหมด ข้อมูลนี้ไม่รวมในลิงก์ติดตามสาธารณะ

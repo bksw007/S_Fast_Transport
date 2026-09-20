@@ -16,7 +16,11 @@ function nodes(node) { if (!node || typeof node !== 'object') return []; return 
 function menu(mode, role) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount: 3, adminScreen: 'Dashboard', driverScreen: 'งานวันนี้', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; } })); }
 let rendered = menu('admin', 'admin');
 let links = rendered.filter(n => n.type === 'button' && n.props.title);
-assert.equal(links.length, 13); // 12 navigation entries and sign out.
+assert.equal(links.length, shared.exports.adminMenu.length + 1); // Navigation entries and sign out.
+const dataGroup = rendered.find(n => n.type === "section" && n.props?.["aria-label"] === "ข้อมูลและรายงาน");
+assert.ok(nodes(dataGroup).some(n => n.props?.title === "ผู้ติดต่อจุดรับและจุดส่ง"));
+links.find(n => n.props.title === "ผู้ติดต่อจุดรับและจุดส่ง").props.onClick();
+assert.equal(selected, "สมุดรายชื่อ");
 assert.equal(rendered.filter(n => n.props?.['aria-current'] === 'page').length, 1);
 const transportGroup = rendered.find(n => n.type === 'section' && n.props?.['aria-label'] === 'งานขนส่ง');
 assert.ok(nodes(transportGroup).some(n => n.props?.title === 'คลังชื่อ ลิงก์ และพิกัดแผนที่'));

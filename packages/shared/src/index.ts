@@ -51,6 +51,14 @@ export type TransportJob = {
   vehiclePlate: string;
   pickupLocation: string;
   deliveryLocation: string;
+  pickupContact?: string;
+  pickupContactId?: string;
+  pickupContactPhone?: string;
+  pickupContactNotes?: string;
+  deliveryContact?: string;
+  deliveryContactId?: string;
+  deliveryContactPhone?: string;
+  deliveryContactNotes?: string;
   pickupPlace?: JobPlace;
   deliveryPlace?: JobPlace;
   status: JobStatus;
@@ -117,7 +125,8 @@ export const adminMenu = [
   "แจ้งเตือน",
   "User Management",
   "โปรไฟล์",
-  "Settings"
+  "Settings",
+  "สมุดรายชื่อ"
 ] as const;
 
 export const driverMenu = [

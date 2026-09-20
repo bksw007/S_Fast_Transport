@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import ContactBook from "./components/ContactBook";
+import ContactPicker, { type StopContact } from "./components/ContactPicker";
+import JobContacts from "./components/JobContacts";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
+import { subscribeOrganizationUserProfiles } from "@/lib/transport-repository";
 import SettingsScreen, { type AppearanceSettings } from "./components/SettingsScreen";
 import LocationManagementScreen from "./components/LocationManagementScreen";
 import {
@@ -67,7 +71,7 @@ import { LocationPicker } from "@/app/components/LocationPicker";
 import { ReportsScreen } from "@/app/components/ReportsScreen";
 import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
-import { subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
+import { subscribeDrivers, type TransportDriver, subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
 import {
   downloadPrivateDocument,
   driverLicenseTypes,
@@ -131,15 +135,21 @@ function createEmptyJobDraft(): JobDraft {
     driverName: "",
     driverPhone: "",
     vehiclePlate: "",
-    assignedEmployee: "",
+    driverId: "",
     pickupLocation: "",
     pickupDate: today,
     pickupTime: "",
     pickupContact: "",
+    pickupContactId: "",
+    pickupContactPhone: "",
+    pickupContactNotes: "",
     deliveryLocation: "",
     deliveryDate: today,
     deliveryTime: "",
     deliveryContact: "",
+    deliveryContactId: "",
+    deliveryContactPhone: "",
+    deliveryContactNotes: "",
     eta: "",
     notes: ""
   };
@@ -483,6 +493,8 @@ export default function Home() {
             <LocationManagementScreen actor={profile} />
           ) : adminScreen === "ลูกค้า" && isMainAdmin(profile) ? (
             <CustomerManagementScreen actor={profile} jobs={jobs} canWrite={canWrite} />
+          ) : adminScreen === "สมุดรายชื่อ" ? (
+            <ContactBook key={profile.organizationId} actor={profile} />
           ) : adminScreen === "Reports" ? (
             <ReportsScreen jobs={jobs} dataState={jobsState} />
           ) : adminScreen === "User Management" ? (
@@ -528,6 +540,7 @@ const adminMenuDetails = [
   { label: adminMenu[4], description: "รถและผู้ปฏิบัติงาน", icon: Users },
   { label: adminMenu[5], description: "คลังชื่อ ลิงก์ และพิกัดแผนที่", icon: MapPinned },
   { label: adminMenu[6], description: "ลูกค้าและลิงก์ติดตาม", icon: Share2, mainOnly: true },
+  { label: adminMenu[12], description: "ผู้ติดต่อจุดรับและจุดส่ง", icon: Users },
   { label: adminMenu[7], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
   { label: adminMenu[8], description: "เหตุผิดปกติ", icon: ShieldAlert },
   { label: adminMenu[9], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
@@ -568,7 +581,7 @@ function SectionMenu({
     ? [{ title: "งานของฉัน", items }]
     : [
         { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
-        { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "Reports"].includes(item.label)) },
+        { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "สมุดรายชื่อ", "Reports"].includes(item.label)) },
         { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
       ];
   const displayLabels: Record<string, string> = { "Jobs / ใบงาน": "ใบงานขนส่ง", "Live Tracking": "ติดตามรถ", "User Management": "จัดการผู้ใช้งาน", "Settings": "ตั้งค่าระบบ", "Reports": "รายงาน" };
@@ -714,6 +727,8 @@ function AdminMobileScreen({
   if (screen === "ลูกค้า" && isMainAdmin(profile)) {
     return <CustomerManagementScreen actor={profile} jobs={allJobs} canWrite={canWrite} />;
   }
+
+  if (screen === "สมุดรายชื่อ") return <ContactBook key={profile.organizationId} actor={profile} />;
 
   if (screen === "Reports") return <ReportsScreen jobs={allJobs} dataState={jobsState} />;
 
@@ -1413,6 +1428,7 @@ function DriverView({
         <div className="route-block">
           <RoutePoint title="รับสินค้า" value={job.pickupLocation} href={job.pickupPlace?.navigationUrl} />
           <RoutePoint title="ส่งสินค้า" value={job.deliveryLocation} href={job.deliveryPlace?.navigationUrl} />
+          <JobContacts job={job} />
         </div>
         <div className="metric-row">
           <Metric icon={<Clock3 size={18} />} label="ETA" value={job.eta} />
@@ -1512,6 +1528,7 @@ function MapScreen({
         <div className="route-block">
           <RoutePoint title="รับสินค้า" value={selectedJob.pickupLocation} href={selectedJob.pickupPlace?.navigationUrl} />
           <RoutePoint title="ส่งสินค้า" value={selectedJob.deliveryLocation} href={selectedJob.deliveryPlace?.navigationUrl} />
+          <JobContacts job={selectedJob} />
         </div>
       </CompactJobCard>
     </section>
@@ -1843,9 +1860,24 @@ function AdminView({
   compact?: boolean;
 }) {
   const [draft, setDraft] = useState<JobDraft>(createEmptyJobDraft);
+  const [drivers, setDrivers] = useState<TransportDriver[]>([]);
+  const [driverProfiles, setDriverProfiles] = useState<UserProfile[]>([]);
+  const [driverError, setDriverError] = useState("");
+  const [driversReady, setDriversReady] = useState(false);
+  const [profilesReady, setProfilesReady] = useState(false);
   const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
   const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
   const organizationId = profile.organizationId ?? "main";
+
+  useEffect(() => {
+    const stopDrivers = subscribeDrivers(organizationId, items => { setDrivers(items); setDriversReady(true); }, message => setDriverError(message));
+    const stopProfiles = subscribeOrganizationUserProfiles(organizationId, items => { setDriverProfiles(items); setProfilesReady(true); }, message => setDriverError(message));
+    return () => { stopDrivers(); stopProfiles(); };
+  }, [organizationId]);
+  const driverOptions = drivers.filter(driver => driver.organizationId === organizationId && driver.status !== "inactive").map(driver => {
+    const linked = driverProfiles.find(user => user.uid === driver.userUid);
+    return { id: driver.id, name: linked?.fullName || driver.name, phone: linked?.phone || driver.phone, eligible: Boolean(linked && linked.role === "driver" && linked.active && linked.approvalStatus === "approved" && linked.organizationId === organizationId) };
+  });
 
   function updateDraft(field: keyof JobDraft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -1898,7 +1930,8 @@ function AdminView({
                 place={draft.pickupPlace}
                 date={draft.pickupDate}
                 time={draft.pickupTime}
-                contact={draft.pickupContact}
+                contact={{ id: draft.pickupContactId, name: draft.pickupContact, phone: draft.pickupContactPhone, notes: draft.pickupContactNotes }}
+                onContactChange={contact => setDraft(current => ({ ...current, pickupContactId: contact.id, pickupContact: contact.name, pickupContactPhone: contact.phone, pickupContactNotes: contact.notes }))}
                 onChange={updateDraft}
                 fields={{ location: "pickupLocation", date: "pickupDate", time: "pickupTime", contact: "pickupContact" }}
                 organizationId={organizationId}
@@ -1911,7 +1944,8 @@ function AdminView({
                 place={draft.deliveryPlace}
                 date={draft.deliveryDate}
                 time={draft.deliveryTime}
-                contact={draft.deliveryContact}
+                contact={{ id: draft.deliveryContactId, name: draft.deliveryContact, phone: draft.deliveryContactPhone, notes: draft.deliveryContactNotes }}
+                onContactChange={contact => setDraft(current => ({ ...current, deliveryContactId: contact.id, deliveryContact: contact.name, deliveryContactPhone: contact.phone, deliveryContactNotes: contact.notes }))}
                 onChange={updateDraft}
                 fields={{ location: "deliveryLocation", date: "deliveryDate", time: "deliveryTime", contact: "deliveryContact" }}
                 organizationId={organizationId}
@@ -1921,15 +1955,17 @@ function AdminView({
             </div>
 
             <div className="dispatch-general-grid assignment-grid">
-              <DispatchField label="มอบหมายพนักงาน (แอพ)"><ListManagerComboBox field="employee" value={draft.assignedEmployee} onChange={(value) => updateDraft("assignedEmployee", value)} placeholder="ใส่ชื่อให้ตรงกับบัญชีคนขับที่อนุมัติแล้ว" organizationId={organizationId} actor={profile} required /></DispatchField>
-              <DispatchField label="พนักงานขับรถ"><ListManagerComboBox field="driver" value={draft.driverName} onChange={(value) => updateDraft("driverName", value)} placeholder="ค้นหาหรือเพิ่มพนักงานขับรถ" organizationId={organizationId} actor={profile} /></DispatchField>
-              <DispatchField label="เบอร์ติดต่อ"><input type="tel" value={draft.driverPhone} onChange={(event) => updateDraft("driverPhone", event.target.value)} placeholder="080-123-4567" /></DispatchField>
+              <DispatchField label="พนักงานขับรถ"><select aria-label="พนักงานขับรถ" required value={draft.driverId} disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError)} onChange={event => {
+                const driver = driverOptions.find(item => item.id === event.target.value);
+                setDraft(current => ({ ...current, driverId: driver?.id || "", driverName: driver?.name || "", driverPhone: driver?.phone || "" }));
+              }}><option value="">{!driversReady || !profilesReady ? "กำลังโหลดคนขับ…" : "เลือกพนักงานขับรถ"}</option>{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name} · {driver.phone || "ไม่มีเบอร์โทร"}{!driver.eligible ? " (บัญชีแอปยังไม่พร้อม)" : ""}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}{driversReady && profilesReady && !driverError && <small>ข้อมูลจากรถและคนขับ · ต้องเชื่อมบัญชีแอปที่อนุมัติแล้ว</small>}</DispatchField>
+              <DispatchField label="เบอร์ติดต่อ"><input aria-label="เบอร์ติดต่อคนขับ" type="tel" value={draft.driverPhone} readOnly placeholder="เติมอัตโนมัติเมื่อเลือกคนขับ" /></DispatchField>
               <DispatchField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={(value) => updateDraft("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="หมายเหตุ" wide><textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติมสำหรับงานนี้" /></DispatchField>
             </div>
 
             <div className="dispatch-form-actions">
-              <button className="save-job-button" type="submit" disabled={!canWrite}><Save size={17} /> บันทึกงาน</button>
+              <button className="save-job-button" type="submit" disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError) || !driverOptions.some(driver => driver.id === draft.driverId && driver.eligible)}><Save size={17} /> บันทึกงาน</button>
               <button type="button" onClick={() => setDraft(createEmptyJobDraft())}><RotateCcw size={17} /> ล้างข้อมูล</button>
             </div>
           </div>
@@ -1971,6 +2007,7 @@ function DispatchStop({
   date,
   time,
   contact,
+  onContactChange,
   onChange,
   fields,
   organizationId,
@@ -1982,7 +2019,8 @@ function DispatchStop({
   place?: JobPlace;
   date: string;
   time: string;
-  contact: string;
+  contact: StopContact;
+  onContactChange: (contact: StopContact) => void;
   onChange: (field: keyof JobDraft, value: string) => void;
   fields: { location: keyof JobDraft; date: keyof JobDraft; time: keyof JobDraft; contact: keyof JobDraft };
   organizationId: string;
@@ -1995,7 +2033,7 @@ function DispatchStop({
       <DispatchField label="สถานที่"><LocationPicker value={location} place={place} title={title} organizationId={organizationId} onChange={onLocationChange} /></DispatchField>
       <DispatchField label="วันที่"><input type="date" value={date} onChange={(event) => onChange(fields.date, event.target.value)} /></DispatchField>
       <DispatchField label="เวลา"><input type="time" value={time} onChange={(event) => onChange(fields.time, event.target.value)} /></DispatchField>
-      <DispatchField label="ติดต่อ"><ListManagerComboBox field="contact" value={contact} onChange={(value) => onChange(fields.contact, value)} placeholder="ค้นหาหรือเพิ่มผู้ติดต่อ" organizationId={organizationId} actor={actor} /></DispatchField>
+      <DispatchField label="ผู้ติดต่อ"><ContactPicker actor={actor} value={contact} onChange={onContactChange} /></DispatchField>
     </fieldset>
   );
 }

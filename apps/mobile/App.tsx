@@ -499,6 +499,7 @@ function JobPanel({
             <Route icon="radio-button-on" label="จุดรับ" value={job.pickupLocation} />
             <View style={styles.routeLine} />
             <Route icon="location" label="จุดส่ง" value={job.deliveryLocation} />
+            {[["ผู้ติดต่อจุดรับ", job.pickupContact, job.pickupContactPhone, job.pickupContactNotes], ["ผู้ติดต่อจุดส่ง", job.deliveryContact, job.deliveryContactPhone, job.deliveryContactNotes]].map(([label, name, phone, notes]) => <View key={label} style={{ marginTop: 12, gap: 6 }}><Text style={styles.muted}>{label}</Text><Text>{name || "ยังไม่ระบุผู้ติดต่อ"}</Text>{phone && <Pressable accessibilityRole="link" accessibilityLabel={`โทร ${name || label} ${phone}`} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => { void Linking.openURL(`tel:${phone.replace(/[^+\d]/g, "")}`).catch(() => Alert.alert("โทรไม่สำเร็จ", `กรุณาโทร ${phone}`)); }}><Text style={{ color: colors.orange }}>โทร {phone}</Text></Pressable>}{notes && <Text style={styles.muted}>{notes}</Text>}</View>)}
             <View style={styles.metrics}>
               <Metric label="ETA" value={job.eta} />
               <Metric label="ความเร็ว" value={`${job.currentLocation.speed} กม./ชม.`} />

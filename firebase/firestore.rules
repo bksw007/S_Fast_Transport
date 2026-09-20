@@ -220,6 +220,27 @@ service cloud.firestore {
         && canManageListOption(orgId, resource.data);
     }
 
+    function validContact(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 160
+        && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 40
+        && data.company is string && data.company.size() <= 200
+        && data.location is string && data.location.size() <= 200
+        && data.notes is string && data.notes.size() <= 500
+        && data.active is bool;
+    }
+
+    match /organizations/{orgId}/contacts/{contactId} {
+      allow read: if isMainCompanyAdmin() || (isSubcontractAdmin() && orgId == organizationId());
+      allow create: if request.resource.data.organizationId == orgId
+        && validContact(request.resource.data)
+        && canManageListOption(orgId, request.resource.data);
+      allow update: if resource.data.organizationId == orgId
+        && request.resource.data.organizationId == orgId
+        && validContact(request.resource.data)
+        && canManageListOption(orgId, resource.data);
+      allow delete: if false;
+    }
+
     match /organizations/{orgId}/locations/{locationId} {
       allow read: if activeUser() && (isMainAdmin() || orgId == organizationId());
       allow create: if request.resource.data.organizationId == orgId

@@ -194,6 +194,13 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     driverPhone: data.driverPhone ?? "-",
     vehiclePlate: data.vehiclePlate ?? "-",
     pickupLocation: data.pickupLocation ?? "-",
+    pickupContact: String(data.pickupContact ?? ""),
+    pickupContactPhone: String(data.pickupContactPhone ?? ""),
+    pickupContactNotes: String(data.pickupContactNotes ?? ""),
+    deliveryContact: String(data.deliveryContact ?? ""),
+    deliveryContactPhone: String(data.deliveryContactPhone ?? ""),
+    deliveryContactNotes: String(data.deliveryContactNotes ?? ""),
+
     deliveryLocation: data.deliveryLocation ?? "-",
     arrivedDeliveryAt: typeof data.arrivedDeliveryAt === "string" ? data.arrivedDeliveryAt : data.arrivedDeliveryAt?.toDate?.().toISOString(),
     completedAt: typeof data.completedAt === "string" ? data.completedAt : data.completedAt?.toDate?.().toISOString(),

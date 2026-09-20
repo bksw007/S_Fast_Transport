@@ -73,17 +73,23 @@ export type JobDraft = {
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;
-  assignedEmployee: string;
+  driverId: string;
   pickupLocation: string;
   pickupPlace?: JobPlace;
   pickupDate: string;
   pickupTime: string;
   pickupContact: string;
+  pickupContactId: string;
+  pickupContactPhone: string;
+  pickupContactNotes: string;
   deliveryLocation: string;
   deliveryPlace?: JobPlace;
   deliveryDate: string;
   deliveryTime: string;
   deliveryContact: string;
+  deliveryContactId: string;
+  deliveryContactPhone: string;
+  deliveryContactNotes: string;
   eta: string;
   notes: string;
 };
@@ -278,33 +284,34 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
   const workOrder = draft.workOrder.trim() || `WO-${Date.now().toString().slice(-5)}`;
   const organizationId = actor.organizationId ?? "main";
   const companySettings = await loadCompanySettings(organizationId);
-  const assigneeName = (draft.assignedEmployee || draft.driverName).trim();
-  if (!assigneeName) {
-    throw new Error("กรุณาระบุพนักงานขับรถที่มีบัญชีแอป");
+  if (!draft.driverId) throw new Error("กรุณาเลือกพนักงานขับรถจากรถและคนขับ");
+  const driverSnapshot = await getDoc(doc(db, "drivers", draft.driverId));
+  if (!driverSnapshot.exists()) throw new Error("ไม่พบข้อมูลคนขับ กรุณาเลือกใหม่");
+  const driver = driverSnapshot.data();
+  if (driver.organizationId !== organizationId || driver.status === "inactive") throw new Error("คนขับไม่พร้อมใช้งานหรือไม่ได้อยู่ในบริษัทนี้");
+  if (!driver.userUid) throw new Error("คนขับยังไม่เชื่อมบัญชีแอป กรุณาเชื่อมบัญชีในเมนูรถและคนขับก่อน");
+  const userSnapshot = await getDoc(doc(db, "users", driver.userUid));
+  const assignedUser = userSnapshot.data();
+  if (!assignedUser || assignedUser.role !== "driver" || assignedUser.active !== true || assignedUser.approvalStatus !== "approved" || assignedUser.organizationId !== organizationId) {
+    throw new Error("บัญชีแอปของคนขับยังไม่พร้อมรับงาน กรุณาตรวจสอบในเมนูรถและคนขับ");
   }
 
-  const visibleUsers = actor.role === "subcontract_admin"
-    ? await getDocs(query(collection(db, "users"), where("organizationId", "==", organizationId)))
-    : await getDocs(collection(db, "users"));
-  const normalizedAssignee = normalizePersonName(assigneeName);
-  const assignedDriver = visibleUsers.docs.find((userDoc) => {
-    const data = userDoc.data();
-    if (data.role !== "driver" || data.active !== true || data.approvalStatus !== "approved") return false;
-    return [data.displayName, data.fullName, data.accessRequestName]
-      .filter(Boolean)
-      .some((name) => normalizePersonName(String(name)) === normalizedAssignee);
-  });
-  if (!assignedDriver) {
-    throw new Error("ไม่พบบัญชีคนขับที่อนุมัติแล้ว กรุณาใส่ชื่อในช่อง “มอบหมายพนักงาน (แอพ)” ให้ตรงกับชื่อบัญชี");
+  for (const side of ["pickup", "delivery"] as const) {
+    const name = draft[`${side}Contact`] || "";
+    const phone = draft[`${side}ContactPhone`] || "";
+    if ((name || phone) && (!name.trim() || !/^[+\d()\s-]+$/.test(phone) || phone.replace(/\D/g, "").length < 7 || phone.length > 40)) {
+      throw new Error(`กรุณาระบุชื่อและเบอร์โทรผู้ติดต่อ${side === "pickup" ? "จุดรับ" : "จุดส่ง"}ให้ครบถ้วน`);
+    }
   }
-
   const { pickupPlace, deliveryPlace, ...jobFields } = draft;
   await addDoc(collection(db, "today_jobs"), {
     ...jobFields,
     ...(pickupPlace ? { pickupPlace } : {}),
     ...(deliveryPlace ? { deliveryPlace } : {}),
     workOrder,
-    assignedDriverUid: assignedDriver.id,
+    assignedDriverUid: driver.userUid,
+    driverName: assignedUser.fullName || driver.name,
+    driverPhone: assignedUser.phone || driver.phone || "",
     organizationId,
     carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
     status: "assigned",
@@ -316,10 +323,6 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
-}
-
-function normalizePersonName(value: string) {
-  return value.trim().replace(/\s+/g, "").toLocaleLowerCase("th-TH");
 }
 
 function listOptionsCollection(organizationId: string) {
@@ -598,7 +601,17 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     pickupLocation: data.pickupLocation ?? "-",
     deliveryLocation: data.deliveryLocation ?? "-",
     pickupPlace: toJobPlace(data.pickupPlace),
+    pickupContact: String(data.pickupContact ?? ""),
+    pickupContactId: String(data.pickupContactId ?? ""),
+    pickupContactPhone: String(data.pickupContactPhone ?? ""),
+    pickupContactNotes: String(data.pickupContactNotes ?? ""),
+
     deliveryPlace: toJobPlace(data.deliveryPlace),
+    deliveryContact: String(data.deliveryContact ?? ""),
+    deliveryContactId: String(data.deliveryContactId ?? ""),
+    deliveryContactPhone: String(data.deliveryContactPhone ?? ""),
+    deliveryContactNotes: String(data.deliveryContactNotes ?? ""),
+
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: Boolean(data.trackingEnabled),
