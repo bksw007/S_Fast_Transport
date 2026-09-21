@@ -71,6 +71,8 @@ export type TransportJob = {
   organizationId?: string;
   carrierName?: string;
   jobDate?: string;
+  pickupDate?: string;
+  pickupTime?: string;
   deliveryDate?: string;
   deliveryTime?: string;
   arrivedDeliveryAt?: string;

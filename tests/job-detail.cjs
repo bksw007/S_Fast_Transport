@@ -17,13 +17,14 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
   if (name === 'react') return { ...React, useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; }, useEffect: () => {} };
   if (name === '@/lib/transport-repository') return repository;
   if (name === '@/lib/job-detail-repository') return detailRepository;
+  if (name === '@/lib/profile-repository') return { formatPhoneNumber: value => { const digits = String(value).replace(/\D/g, '').slice(0, 10); return digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : value; } };
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
   if (name === './JobContacts') return () => null;
   if (name === 'next/image') return 'img';
   return require(name);
 }};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/app/components/JobDetail.tsx', 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, context);
-const job = { id: 'job-a', workOrder: 'WO-A', status: 'assigned', driverPhone: '012', eta: '15:00', notes: 'Original', currentLocation: { lat: 13, lng: 100, updatedAt: '' } };
+const job = { id: 'job-a', workOrder: 'WO-A', status: 'assigned', driverPhone: '0800693681', jobDate: '2026-09-21', pickupTime: '09:00', eta: '15:00', notes: 'Original', currentLocation: { lat: 13, lng: 100, updatedAt: '' } };
 const actor = { uid: 'admin' };
 let tree;
 function render(canWrite = true) { cursor = 0; tree = context.exports.default({ job, actor, canWrite, map: React.createElement('div', null, 'MAP') }); return tree; }
@@ -33,6 +34,8 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {
   render();
   assert.equal(find(n => n.props?.role === 'tab' && n.props['aria-selected']).props.children, 'รายละเอียดงาน');
+  assert.equal(find(n => n.props?.title === 'ข้อมูลใบงาน').props.fields['วันที่รับงาน'], '2026-09-21. 09:00');
+  assert.equal(find(n => n.props?.title === 'รถและคนขับ').props.fields['เบอร์ติดต่อ'], '080-069-3681');
   for (let i = 0; i < 5; i++) { find(n => n.props?.id === `job-tab-${i}`).props.onClick(); render(); assert.equal(find(n => n.props?.role === 'tabpanel').props['aria-labelledby'], `job-tab-${i}`); }
   find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' Share')).props.onClick(); await flush(); render();
   assert.equal(copied, 'https://example.test/track/job-token');
@@ -52,5 +55,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.match(css, /\.job-detail-modal\[open\][^}]*overflow: hidden/);
   assert.match(css, /\.job-detail-body[^}]*overflow-y: auto/);
   assert.match(css, /\.job-detail-toolbar[^}]*flex: 0 0 auto/);
+  assert.match(css, /\.job-route-stops strong[^}]*display: block/);
+  assert.match(css, /\.job-route-stops a[^}]*margin-top: 8px/);
   console.log('PASS: tabs, Share/QR, settings, upload, permissions and fixed-header scroll structure');
 })().catch(error => { console.error(error); process.exitCode = 1; });

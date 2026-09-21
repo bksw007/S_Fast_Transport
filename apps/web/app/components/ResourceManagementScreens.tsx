@@ -245,7 +245,7 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
             <ResourceField label="ชื่อบริษัท *"><input value={draft.name} required placeholder="ชื่อบริษัทขนส่ง" onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></ResourceField>
             <ResourceField label="เลขประจำตัวผู้เสียภาษี"><input value={draft.taxId} inputMode="numeric" placeholder="13 หลัก" onChange={(event) => setDraft({ ...draft, taxId: event.target.value })} /></ResourceField>
             <ResourceField label="ผู้ติดต่อหลัก"><input value={draft.contactName} placeholder="ชื่อผู้ประสานงาน" onChange={(event) => setDraft({ ...draft, contactName: event.target.value })} /></ResourceField>
-            <ResourceField label="เบอร์ติดต่อ"><input type="tel" value={draft.phone} placeholder="080-000-0000" onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></ResourceField>
+            <ResourceField label="เบอร์ติดต่อ"><input type="tel" inputMode="numeric" maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(draft.phone)} placeholder="080-000-0000" onChange={(event) => setDraft({ ...draft, phone: formatPhoneNumber(event.target.value) })} /></ResourceField>
             <ResourceField label="อีเมล"><input type="email" value={draft.email} placeholder="dispatch@company.com" onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></ResourceField>
             <ResourceField label="URL โลโก้" wide><input type="url" value={draft.logoUrl} placeholder="https://..." onChange={(event) => setDraft({ ...draft, logoUrl: event.target.value })} /></ResourceField>
           </div>
@@ -263,7 +263,7 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
             <dl className="resource-details">
               <div><dt>เลขผู้เสียภาษี</dt><dd>{item.taxId || "—"}</dd></div>
               <div><dt>ผู้ติดต่อ</dt><dd>{item.contactName || "—"}</dd></div>
-              <div><dt>โทร</dt><dd>{item.phone || "—"}</dd></div>
+              <div><dt>โทร</dt><dd>{formatPhoneNumber(item.phone) || "—"}</dd></div>
               <div><dt>อีเมล</dt><dd>{item.email || "—"}</dd></div>
             </dl>
             <footer>
@@ -710,7 +710,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
                 </header>
                 {expanded && (
                   <div className="driver-card-details">
-                    <dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{phone || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>
+                    <dl className="resource-details"><div><dt><Phone size={13} /> โทร</dt><dd>{formatPhoneNumber(phone) || "—"}</dd></div><div><dt><Mail size={13} /> อีเมล</dt><dd>{email || "—"}</dd></div><div><dt>ใบขับขี่</dt><dd>{licenseNumber || "—"}</dd></div><div className={expiryClass(licenseExpiry)}><dt>หมดอายุ</dt><dd>{licenseExpiry || "—"}</dd></div><div><dt>รถประจำ</dt><dd>{vehicle?.plate || "ยังไม่มอบหมาย"}</dd></div></dl>
                     {linked && <LinkedDriverDocuments profile={linked} loadingPath={documentLoading} onView={viewDriverDocument} onDownload={downloadDriverDocument} />}
                     <footer><button onClick={() => editDriver(item)}><Edit3 size={15} /> แก้ไข</button><button type="button" disabled={busy === `share-${item.id}`} onClick={() => void shareDriver(item, linked, vehicle)}><Share2 size={15} /> {busy === `share-${item.id}` ? "กำลังสร้าง" : "แชร์เว็บ"}</button><button type="button" disabled={busy === `pdf-${item.id}`} onClick={() => void openDriverPdf(item, linked, vehicle)}><Printer size={15} /> PDF</button><button className={item.status === "inactive" ? "resource-restore-action" : "resource-danger-action"} disabled={busy === item.id} onClick={() => void toggleDriver(item)}><Power size={15} /> {item.status === "inactive" ? "เปิดใช้" : "ระงับ"}</button></footer>
                   </div>

@@ -1597,20 +1597,6 @@ function ProofScreen({
   );
 }
 
-function formatDriverPhone(phone: string) {
-  let digits = phone.replace(/\D/g, "");
-
-  if (digits.length === 11 && digits.startsWith("66")) {
-    digits = `0${digits.slice(2)}`;
-  }
-
-  if (digits.length === 10) {
-    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-
-  return phone.trim() || "ไม่ระบุเบอร์โทร";
-}
-
 function CompactJobCard({
   eyebrow,
   title,
@@ -1664,7 +1650,7 @@ function JobSummaryCard({
   onSelect: (jobId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const phone = formatDriverPhone(job.driverPhone);
+  const phone = formatPhoneNumber(job.driverPhone) || "ไม่ระบุเบอร์โทร";
   const phoneDigits = job.driverPhone.replace(/\D/g, "");
 
   function toggleDetails() {
@@ -1970,7 +1956,7 @@ function AdminView({
             <div className="dispatch-general-grid assignment-grid">
               <DispatchField label="พนักงานขับรถ"><div className="driver-field-control"><select aria-label="พนักงานขับรถ" required value={draft.driverId} disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError)} onChange={event => {
                 const driver = driverOptions.find(item => item.id === event.target.value);
-                setDraft(current => ({ ...current, driverId: driver?.id || "", driverName: driver?.name || "", driverPhone: driver?.phone || "" }));
+                setDraft(current => ({ ...current, driverId: driver?.id || "", driverName: driver?.name || "", driverPhone: formatPhoneNumber(driver?.phone || "") }));
               }}><option value="">{!driversReady || !profilesReady ? "กำลังโหลดคนขับ…" : "เลือกพนักงานขับรถ"}</option>{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}{driversReady && profilesReady && !driverError && <small>ข้อมูลจากรถและคนขับ · ต้องเชื่อมบัญชีแอปที่อนุมัติแล้ว</small>}</div></DispatchField>
               <DispatchField label="เบอร์ติดต่อ"><input aria-label="เบอร์ติดต่อคนขับ" type="tel" value={draft.driverPhone} readOnly placeholder="เติมอัตโนมัติเมื่อเลือกคนขับ" /></DispatchField>
               <DispatchField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={(value) => updateDraft("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={profile} /></DispatchField>

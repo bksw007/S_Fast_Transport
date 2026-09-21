@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Building2, Link2, Monitor, Save, RotateCcw } from "lucide-react";
 import { canEditCompanySettings, defaultCompanySettings, loadCompanySettings, saveCompanySettings, type CompanySettings } from "@/lib/settings-repository";
 import type { UserProfile } from "@/lib/transport-repository";
+import { formatPhoneNumber } from "@/lib/profile-repository";
 
 export type AppearanceSettings = { theme: "light" | "dark"; fontScale: number; onThemeChange: (theme: "light" | "dark") => void; onFontScaleChange: (scale: number) => void };
 export default function SettingsScreen({ actor, appearance }: { actor: UserProfile; appearance: AppearanceSettings }) {
@@ -46,7 +47,7 @@ export default function SettingsScreen({ actor, appearance }: { actor: UserProfi
         <label>ชื่อบริษัท *<input required maxLength={150} value={draft.name} onChange={e => update("name", e.target.value)} /></label>
         <label>เลขประจำตัวผู้เสียภาษี<input inputMode="numeric" maxLength={13} pattern="[0-9]{13}" value={draft.taxId} onChange={e => update("taxId", e.target.value)} /></label>
         <label>ผู้ติดต่อหลัก<input maxLength={150} value={draft.contactName} onChange={e => update("contactName", e.target.value)} /></label>
-        <label>เบอร์ติดต่อ<input type="tel" maxLength={40} value={draft.phone} onChange={e => update("phone", e.target.value)} /></label>
+        <label>เบอร์ติดต่อ<input type="tel" inputMode="numeric" maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(draft.phone)} onChange={e => update("phone", formatPhoneNumber(e.target.value))} /></label>
         <label>อีเมลบริษัท<input type="email" maxLength={254} value={draft.email} onChange={e => update("email", e.target.value)} /></label>
         <label>ลิงก์โลโก้บริษัท (HTTPS)<input type="url" maxLength={2000} placeholder="https://…" value={draft.logoUrl} onChange={e => update("logoUrl", e.target.value)} /></label>
         <label className="settings-wide">ที่อยู่บริษัท<textarea rows={3} maxLength={1000} value={draft.address} onChange={e => update("address", e.target.value)} /></label>

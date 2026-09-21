@@ -649,6 +649,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     alerts: Array.isArray(data.alerts) ? data.alerts : [],
     organizationId: data.organizationId ?? undefined,
     jobDate: data.jobDate ?? undefined,
+    pickupDate: data.pickupDate ?? undefined,
+    pickupTime: data.pickupTime ?? undefined,
     deliveryDate: data.deliveryDate ?? undefined,
     deliveryTime: data.deliveryTime ?? undefined,
     arrivedDeliveryAt: timestampToIso(data.arrivedDeliveryAt),

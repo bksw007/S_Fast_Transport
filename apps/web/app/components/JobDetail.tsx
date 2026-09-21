@@ -6,6 +6,7 @@ import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, P
 import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { createTrackingShareLink, uploadProof, type UserProfile } from "@/lib/transport-repository";
 import { recordTime, saveJobSettings, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
+import { formatPhoneNumber } from "@/lib/profile-repository";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
 const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH") : "รอบันทึกเวลา";
@@ -73,7 +74,7 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
         <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การตั้งค่า" : "ลิงก์ติดตาม"}</button>
         {panel === "settings" ? <form onSubmit={event => { event.preventDefault(); void perform(async () => { await saveJobSettings(job, settings, actor); setPanel(null); }, "บันทึกการตั้งค่าแล้ว"); }}>
           <h3>ตั้งค่าใบงาน</h3>
-          <label>เบอร์ติดต่อคนขับ<input type="tel" maxLength={40} value={settings.driverPhone} onChange={event => setSettings({ ...settings, driverPhone: event.target.value })} /></label>
+          <label>เบอร์ติดต่อคนขับ<input type="tel" inputMode="numeric" maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(settings.driverPhone)} onChange={event => setSettings({ ...settings, driverPhone: formatPhoneNumber(event.target.value) })} /></label>
           <label>กำหนดถึง (ETA)<input required maxLength={100} value={settings.eta} onChange={event => setSettings({ ...settings, eta: event.target.value })} /></label>
           <label>หมายเหตุ<textarea maxLength={2000} rows={4} value={settings.notes} onChange={event => setSettings({ ...settings, notes: event.target.value })} /></label>
           <button disabled={busy || !canWrite} type="submit">บันทึกการตั้งค่า</button>
@@ -83,8 +84,8 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
         {tab === 0 && <div className="job-detail-overview">
           <JobContacts job={job} /><section className="job-detail-route"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong>{job.pickupPlace && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong>{job.deliveryPlace && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>
           <div className="job-detail-section-grid">
-            <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงาน": job.jobDate }} />
-            <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": job.driverPhone, "ทะเบียนรถ": job.vehiclePlate, "จำนวนรอบ": job.tripCount }} />
+            <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงาน": [job.jobDate, job.pickupTime].filter(Boolean).join(". ") }} />
+            <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "จำนวนรอบ": job.tripCount }} />
             <DetailGroup title="กำหนดการส่ง" icon={<Clock3 size={18} />} fields={{ "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" "), "กำหนดถึง (ETA)": job.eta }} />
             <DetailGroup title="หมายเหตุ" icon={<PackageCheck size={18} />} fields={{ "รายละเอียดเพิ่มเติม": job.notes || "ไม่มีหมายเหตุเพิ่มเติม" }} />
           </div>
