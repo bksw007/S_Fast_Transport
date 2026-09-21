@@ -3,14 +3,17 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const React = require('react');
-let slots = [], cursor = 0, saved, savedDistance, uploaded, links = 0, copied;
+let slots = [], cursor = 0, updated, deleted, savedDistance, uploaded, links = 0, copied, closed = 0;
+const JobEditorStub = () => null;
 const repository = {
   createTrackingShareLink: async () => { links++; return 'job-token'; },
   uploadProof: async (...args) => { uploaded = args; }
 };
 const detailRepository = {
+  canAdministerJob: () => true,
+  deleteJob: async (...args) => { deleted = args; },
   saveJobRouteDistance: async (...args) => { savedDistance = args; },
-  saveJobSettings: async (...args) => { saved = args; },
+  updateJobDetails: async (...args) => { updated = args; },
   recordTime: () => 0,
   subscribeJobRecords: () => () => {}
 };
@@ -25,6 +28,7 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
   if (name === '@/lib/profile-repository') return { formatPhoneNumber: value => { const digits = String(value).replace(/\D/g, '').slice(0, 10); return digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : value; } };
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
   if (name === './JobContacts') return () => null;
+  if (name === './JobEditor') return JobEditorStub;
   if (name === 'next/image') return 'img';
   return require(name);
 }};
@@ -37,7 +41,7 @@ const job = {
 };
 const actor = { uid: 'admin' };
 let tree;
-function render(canWrite = true) { cursor = 0; tree = context.exports.default({ job, actor, canWrite, map: React.createElement('div', null, 'MAP') }); return tree; }
+function render(canWrite = true) { cursor = 0; tree = context.exports.default({ job, actor, canWrite, map: React.createElement('div', null, 'MAP'), onDeleted: () => { closed++; } }); return tree; }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -65,10 +69,15 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' QR')).props.onClick(); for (let i = 0; i < 100 && !slots[5]; i++) await new Promise(resolve => setTimeout(resolve, 10)); render();
   assert.equal(links, 1, 'Share and QR reuse the same link');
   assert.ok(find(n => n.props?.alt?.startsWith('QR')).props.src.startsWith('data:image/png;base64,'));
-  find(n => n.props?.['aria-label'] === 'ตั้งค่าใบงาน').props.onClick(); render();
-  find(n => n.type === 'input' && n.props.type === 'tel').props.onChange({ target: { value: '099' } }); render();
-  find(n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await flush(); render();
-  assert.equal(saved[0].id, 'job-a'); assert.equal(saved[1].driverPhone, '099'); assert.equal(saved[2], actor);
+  find(n => n.props?.['aria-label'] === 'แก้ไขใบงาน').props.onClick(); render();
+  let editor = find(n => n.type === JobEditorStub);
+  assert.equal(editor.props.canDelete, true);
+  await editor.props.onSave({ customer: 'ลูกค้าแก้ไข' }); await flush(); render();
+  assert.equal(updated[0].id, 'job-a'); assert.equal(updated[1].customer, 'ลูกค้าแก้ไข'); assert.equal(updated[2], actor);
+  find(n => n.props?.['aria-label'] === 'แก้ไขใบงาน').props.onClick(); render();
+  editor = find(n => n.type === JobEditorStub);
+  await editor.props.onDelete(); await flush();
+  assert.equal(deleted[0].id, 'job-a'); assert.equal(deleted[1], actor); assert.equal(closed, 1);
   find(n => n.props?.id === 'job-tab-1').props.onClick(); render();
   const file = { name: 'proof.pdf' };
   find(n => n.props?.type === 'file').props.onChange({ target: { files: [file], value: 'proof.pdf' } }); await flush();
@@ -81,5 +90,6 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.match(css, /\.job-route-stops strong[^}]*display: block/);
   assert.match(css, /\.job-route-stops a[^}]*margin-top: 8px/);
   assert.match(css, /\.job-route-heading[^}]*justify-content: space-between/);
-  console.log('PASS: tabs, Share/QR, settings, upload, permissions and fixed-header scroll structure');
+  assert.match(css, /\.job-delete-zone[^}]*border/);
+  console.log('PASS: tabs, Share/QR, job editing/deletion, upload, permissions and fixed-header scroll structure');
 })().catch(error => { console.error(error); process.exitCode = 1; });

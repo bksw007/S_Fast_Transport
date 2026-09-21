@@ -518,6 +518,7 @@ export default function Home() {
             canWrite={canWrite}
             key={selectedJob.id}
             actor={profile}
+            onDeleted={() => { setJobDetailOpen(false); setSelectedJobId(""); }}
             map={<GoogleLiveMap jobs={[selectedJob]} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />}
           />
         </JobDetailModal>

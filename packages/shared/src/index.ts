@@ -74,6 +74,9 @@ export type TransportJob = {
   alerts: string[];
   organizationId?: string;
   carrierName?: string;
+  cargoType?: string;
+  vehicleType?: string;
+  driverId?: string;
   jobDate?: string;
   pickupDate?: string;
   pickupTime?: string;

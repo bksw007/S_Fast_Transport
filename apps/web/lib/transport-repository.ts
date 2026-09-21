@@ -146,6 +146,7 @@ export function subscribeTodayJobs(
     jobsQuery,
     (snapshot) => {
       const jobs = snapshot.docs
+        .filter((jobDoc) => !jobDoc.data().deletedAt)
         .map((jobDoc) => toTransportJob(jobDoc.id, jobDoc.data()))
         .sort((a, b) => b.id.localeCompare(a.id));
       onJobs(jobs);
@@ -653,6 +654,9 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     currentLocation,
     alerts: Array.isArray(data.alerts) ? data.alerts : [],
     organizationId: data.organizationId ?? undefined,
+    cargoType: data.cargoType ?? undefined,
+    vehicleType: data.vehicleType ?? undefined,
+    driverId: data.driverId ?? undefined,
     jobDate: data.jobDate ?? undefined,
     pickupDate: data.pickupDate ?? undefined,
     pickupTime: data.pickupTime ?? undefined,

@@ -5,10 +5,12 @@ import Image from "next/image";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { createTrackingShareLink, uploadProof, type UserProfile } from "@/lib/transport-repository";
-import { recordTime, saveJobRouteDistance, saveJobSettings, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
+import { recordTime, saveJobRouteDistance, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
 import { auth } from "@/lib/firebase-auth";
 import { coordinateFingerprint } from "@/lib/google-routes-distance";
+import JobEditor from "./JobEditor";
+import { canAdministerJob, deleteJob, updateJobDetails } from "@/lib/job-detail-repository";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
 const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH") : "รอบันทึกเวลา";
@@ -109,14 +111,13 @@ function Records({ jobId, kind }: { jobId: string; kind: "proofs" | "events" | "
   </div>;
 }
 
-export default function JobDetail({ job, actor, canWrite, map }: { job: TransportJob; actor: UserProfile; canWrite: boolean; map: React.ReactNode }) {
+export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { job: TransportJob; actor: UserProfile; canWrite: boolean; map: React.ReactNode; onDeleted: () => void }) {
   const [tab, setTab] = useState(0);
   const [panel, setPanel] = useState<"share" | "qr" | "settings" | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [link, setLink] = useState("");
   const [qr, setQr] = useState("");
-  const [settings, setSettings] = useState({ driverPhone: job.driverPhone, eta: job.eta, notes: job.notes || "" });
   const [requestedDistance, setRequestedDistance] = useState<RequestedDistanceState | null>(null);
   const routeFingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
   const cachedDistance = cachedRoadDistanceMeters(job);
@@ -166,7 +167,7 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
       <div className="detail-head"><div className="job-detail-identity"><span className="job-detail-emblem"><Truck size={26} /></span><div><span className="job-detail-eyebrow">ใบงานขนส่ง</span><h2>{job.workOrder}</h2><p>{job.customer}</p></div><span className={`job-detail-status ${job.status === "problem" || job.status === "cancelled" ? "is-alert" : ""}`}>{statusLabels[job.status]}</span></div><div className="detail-actions">
         <button disabled={busy || !canWrite} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
         <button disabled={busy || !canWrite} onClick={() => void share("qr")}><QrCode size={18} /> QR</button>
-        <button aria-label="ตั้งค่าใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite} onClick={() => { setSettings({ driverPhone: job.driverPhone, eta: job.eta, notes: job.notes || "" }); setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>
+        <button aria-label="แก้ไขใบงาน" title="แก้ไขใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite || !canAdministerJob(job, actor)} onClick={() => { setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>
       </div></div>
       <div className="tabs" role="tablist" aria-label="ข้อมูลใบงาน">{tabs.map((label, index) => <button key={label} id={`job-tab-${index}`} role="tab" aria-selected={tab === index} aria-controls="job-tab-content" tabIndex={tab === index ? 0 : -1} className={tab === index ? "selected" : ""} onClick={() => { setTab(index); setPanel(null); }} onKeyDown={event => {
         const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
@@ -176,21 +177,15 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
     <div className="job-detail-body">
       {(busy || message) && <p role="status">{busy ? "กำลังดำเนินการ…" : message}</p>}
       {panel && <aside className="job-action-panel">
-        <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การตั้งค่า" : "ลิงก์ติดตาม"}</button>
-        {panel === "settings" ? <form onSubmit={event => { event.preventDefault(); void perform(async () => { await saveJobSettings(job, settings, actor); setPanel(null); }, "บันทึกการตั้งค่าแล้ว"); }}>
-          <h3>ตั้งค่าใบงาน</h3>
-          <label>เบอร์ติดต่อคนขับ<input type="tel" inputMode="numeric" maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(settings.driverPhone)} onChange={event => setSettings({ ...settings, driverPhone: formatPhoneNumber(event.target.value) })} /></label>
-          <label>กำหนดถึง (ETA)<input required maxLength={100} value={settings.eta} onChange={event => setSettings({ ...settings, eta: event.target.value })} /></label>
-          <label>หมายเหตุ<textarea maxLength={2000} rows={4} value={settings.notes} onChange={event => setSettings({ ...settings, notes: event.target.value })} /></label>
-          <button disabled={busy || !canWrite} type="submit">บันทึกการตั้งค่า</button>
-        </form> : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
+        <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การแก้ไข" : "ลิงก์ติดตาม"}</button>
+        {panel === "settings" ? <JobEditor job={job} actor={actor} busy={busy} canDelete={canAdministerJob(job, actor)} onSave={draft => perform(async () => { await updateJobDetails(job, draft, actor); setPanel(null); }, "บันทึกการแก้ไขใบงานแล้ว")} onDelete={() => perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ลบใบงานแล้ว")} /> : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
       </aside>}
       <div role="tabpanel" id="job-tab-content" aria-labelledby={`job-tab-${tab}`} tabIndex={0}>
         {tab === 0 && <div className="job-detail-overview">
           <JobContacts job={job} /><section className="job-detail-route"><div className="job-route-heading"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3>{routeDistance.source === "loading" ? <span role="status">กำลังคำนวณระยะทาง…</span> : routeDistanceLabel && <span title={routeDistance.source === "road" ? "ระยะทางตามถนนจาก Google Maps บันทึกไว้กับใบงานเพื่อไม่เรียกซ้ำ" : "ค่าประมาณแบบเส้นตรง เนื่องจากยังใช้ Google Maps ไม่ได้"}>{routeDistance.source === "road" ? "ระยะทางตามถนน" : "ระยะทางประมาณ"} <strong>{routeDistanceLabel}</strong></span>}</div><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong>{job.pickupPlace && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong>{job.deliveryPlace && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>
           <div className="job-detail-section-grid">
-            <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงาน": [job.jobDate, job.pickupTime].filter(Boolean).join(". ") }} />
-            <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "จำนวนรอบ": job.tripCount }} />
+            <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงาน": [job.jobDate, job.pickupTime].filter(Boolean).join(". "), "ประเภทสินค้า": job.cargoType }} />
+            <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "ประเภทรถ": job.vehicleType, "จำนวนรอบ": job.tripCount }} />
             <DetailGroup title="กำหนดการส่ง" icon={<Clock3 size={18} />} fields={{ "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" "), "กำหนดถึง (ETA)": job.eta }} />
             <DetailGroup title="หมายเหตุ" icon={<PackageCheck size={18} />} fields={{ "รายละเอียดเพิ่มเติม": job.notes || "ไม่มีหมายเหตุเพิ่มเติม" }} />
           </div>

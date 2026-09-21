@@ -4264,6 +4264,34 @@ textarea:focus {
 .job-action-panel button { padding: 9px 14px; border-radius: 9px; font-size: .8rem; background: var(--surface-2); }
 .job-action-panel button[type="submit"] { background: var(--accent); color: white; }
 .job-action-panel img { margin: 12px auto; border-radius: 12px; border: 1px solid var(--border); }
+.job-action-panel:has(.job-edit-form) { padding: 16px; border-top-width: 1px; }
+.job-edit-form { display: grid; gap: 14px; }
+.job-edit-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 4px 2px 2px; }
+.job-edit-header h3 { margin: 0 0 4px; font-size: 1rem; }
+.job-edit-header p { margin: 0; color: var(--muted); font-size: .74rem; }
+.job-edit-section { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 72%, var(--surface-2)); }
+.job-edit-section h4, .job-edit-section legend { margin: 0 0 14px; padding: 0; color: var(--text); font-size: .82rem; font-weight: 650; }
+.job-edit-section legend { transform: translateY(7px); }
+.job-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.job-edit-grid.compact { margin: 13px 0; }
+.job-edit-field { display: grid; align-content: start; gap: 7px; min-width: 0; color: var(--muted); font-size: .73rem; }
+.job-edit-field.wide { grid-column: 1 / -1; }
+.job-edit-field > div { min-width: 0; }
+.job-edit-field :is(input, select, textarea) { width: 100%; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 9px; font: inherit; }
+.job-edit-field textarea { resize: vertical; }
+.job-edit-field small { display: block; margin-top: 5px; color: var(--danger); line-height: 1.45; }
+.job-edit-stops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.job-edit-form .location-picker, .job-edit-form .contact-picker { gap: 8px; }
+.job-edit-form .contact-picker-select > span { display: none; }
+.job-edit-form .contact-phone-preview { min-height: 38px; font-size: .76rem; }
+.job-edit-actions { display: flex; justify-content: flex-end; }
+.job-edit-form .job-edit-actions .primary { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 9px 16px; color: #fff; background: var(--accent); }
+.job-delete-zone { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 15px 16px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+.job-delete-zone strong { color: var(--danger); font-size: .82rem; }
+.job-delete-zone p { max-width: 620px; margin: 4px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.55; }
+.job-edit-form .danger-outline { display: inline-flex; align-items: center; flex-shrink: 0; gap: 7px; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); background: transparent; }
+.job-delete-confirm { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--danger); font-size: .76rem; }
+.job-edit-form .job-delete-confirm .danger { color: #fff; background: var(--danger); }
 .job-detail-body a { display: inline-flex; padding: 7px 0; color: var(--accent); text-decoration: underline; text-underline-offset: 4px; font-size: .82rem; }
 .job-detail-body > p[role="status"] { padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: .84rem; }
 .job-detail-modal :is(button, a, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -4283,6 +4311,10 @@ textarea:focus {
   .job-route-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
   .job-route-heading > span { padding-left: 27px; }
   .job-route-stops { grid-template-columns: 1fr; gap: 20px; }
+  .job-edit-grid, .job-edit-stops { grid-template-columns: 1fr; }
+  .job-edit-section { padding: 13px; }
+  .job-delete-zone { align-items: stretch; flex-direction: column; }
+  .job-delete-confirm { justify-content: flex-start; }
   .job-detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {

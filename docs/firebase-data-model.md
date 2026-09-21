@@ -74,6 +74,7 @@ Hot collection for the active dashboard.
 - `routeDistanceMeters`, `routeDistanceFingerprint`, `routeDistanceProvider`, `routeDistanceCalculatedAt` (optional Google road-distance cache; valid only while the pickup/delivery fingerprint matches)
 - `driverId` (อ้างอิง `drivers`), `driverName`, `driverPhone`, `vehiclePlate`
 - `notes`
+- `deletedAt`, `deletedByUid`, `deletedByName` (optional soft-delete metadata; deleted jobs are hidden from app subscriptions while evidence remains recoverable)
 - `assignedDriverUid`
 - `status`
 - `pickupLocation`
