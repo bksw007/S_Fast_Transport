@@ -251,6 +251,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /job_counters/{dateKey} {
+      allow read: if isMainAdmin() || isSubcontractAdmin();
+      allow create: if (isMainAdmin() || isSubcontractAdmin())
+        && request.resource.data.keys().hasOnly(["dateKey", "lastSequence", "updatedAt"])
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.lastSequence == 1
+        && request.resource.data.updatedAt == request.time;
+      allow update: if (isMainAdmin() || isSubcontractAdmin())
+        && resource.data.dateKey == dateKey
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.lastSequence == resource.data.lastSequence + 1
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["lastSequence", "updatedAt"]);
+      allow delete: if false;
+    }
+
     match /today_jobs/{jobId} {
       allow read: if activeUser() && canReadJob(resource.data);
       allow create: if isMainAdmin()

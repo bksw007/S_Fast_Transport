@@ -87,6 +87,7 @@ import {
 import {
   createJob,
   ensureAccessProfile,
+  formatJobDateKey,
   getUserProfile,
   hasApprovedAccess,
   isMainAdmin,
@@ -126,7 +127,7 @@ const statusOrder: JobStatus[] = [
 function createEmptyJobDraft(): JobDraft {
   const today = new Date().toISOString().slice(0, 10);
   return {
-    workOrder: `W${Date.now()}`,
+    workOrder: "",
     customer: "",
     jobDate: today,
     cargoType: "",
@@ -301,7 +302,7 @@ export default function Home() {
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
   const canWrite = Boolean(profile && hasApprovedAccess(profile));
 
-  async function runAction(action: (actor: UserProfile) => Promise<void>) {
+  async function runAction<T>(action: (actor: UserProfile) => Promise<T>): Promise<T | undefined> {
     if (!profile) {
       setFirebaseMessage("กรุณาล็อกอินก่อนใช้งานจริง");
       return;
@@ -309,10 +310,12 @@ export default function Home() {
 
     setBusyMessage("กำลังบันทึก...");
     try {
-      await action(profile);
+      const result = await action(profile);
       setFirebaseMessage("บันทึกสำเร็จ");
+      return result;
     } catch (error) {
       setFirebaseMessage(toMessage(error));
+      return undefined;
     } finally {
       setBusyMessage("");
     }
@@ -693,7 +696,7 @@ function AdminMobileScreen({
   selectedJob: TransportJob;
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
-  onCreateJob: (draft: JobDraft) => void;
+  onCreateJob: (draft: JobDraft) => Promise<string | undefined>;
   canWrite: boolean;
   onProfileUpdated: () => Promise<void>;
 }) {
@@ -1855,11 +1858,13 @@ function AdminView({
   activeJobs: TransportJob[];
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
-  onCreateJob: (draft: JobDraft) => void;
+  onCreateJob: (draft: JobDraft) => Promise<string | undefined>;
   canWrite: boolean;
   compact?: boolean;
 }) {
   const [draft, setDraft] = useState<JobDraft>(createEmptyJobDraft);
+  const [formVersion, setFormVersion] = useState(0);
+  const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrder: string } | { kind: "clear" } | null>(null);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
   const [driverProfiles, setDriverProfiles] = useState<UserProfile[]>([]);
   const [driverError, setDriverError] = useState("");
@@ -1883,7 +1888,12 @@ function AdminView({
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
-  function submitJob() {
+  function resetJobForm() {
+    setDraft(createEmptyJobDraft());
+    setFormVersion((current) => current + 1);
+  }
+
+  async function submitJob() {
     const nextDraft = {
       ...draft,
       customer: draft.customer || "ลูกค้าใหม่",
@@ -1894,8 +1904,11 @@ function AdminView({
       deliveryLocation: draft.deliveryLocation || "จุดส่งสินค้า",
       eta: draft.deliveryTime || draft.eta || "วันนี้"
     };
-    onCreateJob(nextDraft);
-    setDraft(createEmptyJobDraft());
+    const workOrder = await onCreateJob(nextDraft);
+    if (workOrder) {
+      resetJobForm();
+      setFormNotice({ kind: "saved", workOrder });
+    }
   }
 
   return (
@@ -1907,15 +1920,15 @@ function AdminView({
         </div>
       </div>
 
-      <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); submitJob(); }}>
+      <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); void submitJob(); }}>
           <header className="dispatch-form-hero">
             <div><span>DISPATCH CENTER</span><h2>ฟอร์มแจ้งงาน</h2><p>สร้างใบแจ้งงานและบันทึกเข้าระบบ</p></div>
             <FilePenLine size={24} />
           </header>
 
-          <div className="dispatch-form-body">
+          <div className="dispatch-form-body" key={formVersion}>
             <div className="dispatch-general-grid">
-              <DispatchField label="เลขที่ใบส่งงาน"><input value={draft.workOrder} onChange={(event) => updateDraft("workOrder", event.target.value)} required /></DispatchField>
+              <DispatchField label="เลขที่ใบแจ้งงาน"><div className="work-order-field"><input value={draft.workOrder} readOnly placeholder={`JN-${formatJobDateKey()}…`} /><small>เช่น JN-{formatJobDateKey()}001 · ระบบกำหนดลำดับถัดไปเมื่อบันทึก</small></div></DispatchField>
               <DispatchField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={(value) => updateDraft("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={profile} required /></DispatchField>
               <DispatchField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" value={draft.jobDate} onChange={(event) => updateDraft("jobDate", event.target.value)} /></DispatchField>
               <DispatchField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={(value) => updateDraft("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={profile} /></DispatchField>
@@ -1966,10 +1979,16 @@ function AdminView({
 
             <div className="dispatch-form-actions">
               <button className="save-job-button" type="submit" disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError) || !driverOptions.some(driver => driver.id === draft.driverId && driver.eligible)}><Save size={17} /> บันทึกงาน</button>
-              <button type="button" onClick={() => setDraft(createEmptyJobDraft())}><RotateCcw size={17} /> ล้างข้อมูล</button>
+              <button type="button" onClick={() => setFormNotice({ kind: "clear" })}><RotateCcw size={17} /> ล้างข้อมูล</button>
             </div>
           </div>
       </form>
+
+      {formNotice && <DispatchFormNotice
+        notice={formNotice}
+        onClose={() => setFormNotice(null)}
+        onConfirmClear={() => { resetJobForm(); setFormNotice(null); }}
+      />}
 
       <div className="stat-strip">
         <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.length}`} />
@@ -1988,6 +2007,55 @@ function AdminView({
         ))}
       </div>
     </section>
+  );
+}
+
+function DispatchFormNotice({
+  notice,
+  onClose,
+  onConfirmClear
+}: {
+  notice: { kind: "saved"; workOrder: string } | { kind: "clear" };
+  onClose: () => void;
+  onConfirmClear: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const isClear = notice.kind === "clear";
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className={`dispatch-notice-modal ${isClear ? "warning" : "success"}`}
+      aria-labelledby="dispatch-notice-title"
+      aria-describedby="dispatch-notice-description"
+      onCancel={onClose}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="dispatch-notice-card">
+        <span className="dispatch-notice-icon" aria-hidden="true">
+          {isClear ? <AlertTriangle size={25} /> : <CheckCircle2 size={25} />}
+        </span>
+        <div className="dispatch-notice-copy">
+          <h2 id="dispatch-notice-title">{isClear ? "ล้างข้อมูลในฟอร์ม?" : "บันทึกใบแจ้งงานสำเร็จ"}</h2>
+          <p id="dispatch-notice-description">{isClear
+            ? "ข้อมูลที่กรอกไว้ในฟอร์มนี้จะถูกล้างทั้งหมด"
+            : <>สร้างเลขที่ใบแจ้งงาน <strong>{notice.workOrder}</strong> เรียบร้อยแล้ว</>}
+          </p>
+        </div>
+        <div className="dispatch-notice-actions">
+          {isClear ? <>
+            <button type="button" autoFocus onClick={onClose}>ยกเลิก</button>
+            <button type="button" className="danger" onClick={onConfirmClear}>ล้างข้อมูล</button>
+          </> : <button type="button" className="primary" autoFocus onClick={onClose}>ตกลง</button>}
+        </div>
+      </div>
+    </dialog>
   );
 }
 

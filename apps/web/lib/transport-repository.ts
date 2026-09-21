@@ -119,6 +119,17 @@ const defaultLocation = {
   updatedAt: new Date().toISOString()
 };
 
+export function formatJobDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}${value("month")}${value("day")}`;
+}
+
 export function subscribeTodayJobs(
   profile: UserProfile,
   onJobs: (jobs: TransportJob[]) => void,
@@ -281,7 +292,7 @@ export async function submitAccessRequest(
 
 export async function createJob(draft: JobDraft, actor: UserProfile) {
   const now = new Date().toISOString();
-  const workOrder = draft.workOrder.trim() || `WO-${Date.now().toString().slice(-5)}`;
+  const dateKey = formatJobDateKey(new Date(now));
   const organizationId = actor.organizationId ?? "main";
   const companySettings = await loadCompanySettings(organizationId);
   if (!draft.driverId) throw new Error("กรุณาเลือกพนักงานขับรถจากรถและคนขับ");
@@ -304,25 +315,42 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     }
   }
   const { pickupPlace, deliveryPlace, ...jobFields } = draft;
-  await addDoc(collection(db, "today_jobs"), {
-    ...jobFields,
-    ...(pickupPlace ? { pickupPlace } : {}),
-    ...(deliveryPlace ? { deliveryPlace } : {}),
-    workOrder,
-    assignedDriverUid: driver.userUid,
-    driverName: assignedUser.fullName || driver.name,
-    driverPhone: assignedUser.phone || driver.phone || "",
-    organizationId,
-    carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
-    status: "assigned",
-    trackingStatus: "not_started",
-    trackingEnabled: false,
-    lastUpdatedMinutes: 0,
-    currentLocation: { ...defaultLocation, updatedAt: now },
-    alerts: [],
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+  const jobRef = doc(collection(db, "today_jobs"));
+  const counterRef = doc(db, "job_counters", dateKey);
+  const workOrder = await runTransaction(db, async (transaction) => {
+    const counterSnapshot = await transaction.get(counterRef);
+    const currentSequence = counterSnapshot.exists() && Number.isInteger(counterSnapshot.data().lastSequence)
+      ? counterSnapshot.data().lastSequence
+      : 0;
+    const nextSequence = currentSequence + 1;
+    const nextWorkOrder = `JN-${dateKey}${String(nextSequence).padStart(3, "0")}`;
+    transaction.set(counterRef, {
+      dateKey,
+      lastSequence: nextSequence,
+      updatedAt: serverTimestamp()
+    });
+    transaction.set(jobRef, {
+      ...jobFields,
+      ...(pickupPlace ? { pickupPlace } : {}),
+      ...(deliveryPlace ? { deliveryPlace } : {}),
+      workOrder: nextWorkOrder,
+      assignedDriverUid: driver.userUid,
+      driverName: assignedUser.fullName || driver.name,
+      driverPhone: assignedUser.phone || driver.phone || "",
+      organizationId,
+      carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
+      status: "assigned",
+      trackingStatus: "not_started",
+      trackingEnabled: false,
+      lastUpdatedMinutes: 0,
+      currentLocation: { ...defaultLocation, updatedAt: now },
+      alerts: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    return nextWorkOrder;
   });
+  return workOrder;
 }
 
 function listOptionsCollection(organizationId: string) {

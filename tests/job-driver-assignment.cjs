@@ -4,9 +4,12 @@ const vm = require('node:vm');
 const ts = require('typescript');
 let records, writes;
 const firestore = {
-  doc: (_, ...parts) => parts.join('/'), collection: (_, name) => name,
+  doc: (...parts) => parts.length === 1 ? `${parts[0]}/auto-job` : parts.slice(1).join('/'), collection: (_, ...parts) => parts.join('/'),
   getDoc: async path => ({ exists: () => Boolean(records[path]), data: () => records[path] }),
-  addDoc: async (path, data) => { writes.push({ path, data }); },
+  runTransaction: async (_db, operation) => operation({
+    get: async path => ({ exists: () => Boolean(records[path]), data: () => records[path] }),
+    set: (path, data) => { writes.push({ path, data }); records[path] = data; }
+  }),
   serverTimestamp: () => 'SERVER_TIME'
 };
 const context = { exports: {}, require: name => {
@@ -26,13 +29,19 @@ function reset() {
   };
 }
 (async () => {
-  reset(); await context.exports.createJob(draft, actor);
-  assert.equal(writes[0].data.assignedDriverUid, 'user-b');
-  assert.equal(writes[0].data.driverId, 'driver-b');
-  assert.equal(writes[0].data.driverName, 'Same name');
-  assert.equal(writes[0].data.driverPhone, '333');
+  assert.equal(context.exports.formatJobDateKey(new Date('2026-09-20T18:00:00.000Z')), '20260921', 'job dates use Bangkok time');
+  reset(); const firstWorkOrder = await context.exports.createJob(draft, actor);
+  const firstJob = writes.find(write => write.path.startsWith('today_jobs/'));
+  assert.match(firstWorkOrder, /^JN-\d{8}001$/);
+  assert.equal(firstJob.data.workOrder, firstWorkOrder);
+  assert.equal(firstJob.data.assignedDriverUid, 'user-b');
+  assert.equal(firstJob.data.driverId, 'driver-b');
+  assert.equal(firstJob.data.driverName, 'Same name');
+  assert.equal(firstJob.data.driverPhone, '333');
+  const secondWorkOrder = await context.exports.createJob(draft, actor);
+  assert.equal(secondWorkOrder, `${firstWorkOrder.slice(0, -3)}002`, 'daily sequence increments atomically');
   reset(); records['users/user-b'].phone = ''; await context.exports.createJob(draft, actor);
-  assert.equal(writes[0].data.driverPhone, '222');
+  assert.equal(writes.find(write => write.path.startsWith('today_jobs/')).data.driverPhone, '222');
   const invalid = [
     () => delete records['drivers/driver-b'],
     () => { records['drivers/driver-b'].status = 'inactive'; },
@@ -48,5 +57,5 @@ function reset() {
     reset(); change(); await assert.rejects(() => context.exports.createJob(draft, actor)); assert.equal(writes.length, 0);
   }
   reset(); await assert.rejects(() => context.exports.createJob({ ...draft, driverId: '' }, actor)); assert.equal(writes.length, 0);
-  console.log('PASS: driver identity, automatic phone, fallback, and invalid assignment protection');
+  console.log('PASS: daily job numbering, driver identity, automatic phone, fallback, and invalid assignment protection');
 })().catch(error => { console.error(error); process.exitCode = 1; });

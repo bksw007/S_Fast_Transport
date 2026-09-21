@@ -1339,6 +1339,24 @@ h2 {
   gap: 4px;
 }
 
+.work-order-field {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.work-order-field > input {
+  color: var(--muted);
+}
+
+.work-order-field > small {
+  color: var(--muted);
+  font-size: .64rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .driver-field-control > small[role="alert"] {
   color: var(--danger);
 }
@@ -1668,6 +1686,114 @@ h2 {
   color: #ffffff;
   background: #07845d;
   box-shadow: 0 10px 24px rgba(7, 132, 93, .2);
+}
+
+.dispatch-notice-modal {
+  width: min(390px, calc(100vw - 28px));
+  margin: auto;
+  padding: 0;
+  overflow: visible;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+}
+
+.dispatch-notice-modal::backdrop {
+  background: rgb(20 27 30 / 54%);
+  backdrop-filter: blur(5px);
+}
+
+.dispatch-notice-modal[open] {
+  animation: dispatch-notice-enter 160ms ease-out;
+}
+
+.dispatch-notice-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 24px 72px rgb(16 30 35 / 28%);
+}
+
+.dispatch-notice-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #087b59;
+  background: color-mix(in srgb, #0a9c70 13%, var(--surface));
+  border-radius: 12px;
+}
+
+.dispatch-notice-modal.warning .dispatch-notice-icon {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+}
+
+.dispatch-notice-copy h2,
+.dispatch-notice-copy p {
+  margin: 0;
+}
+
+.dispatch-notice-copy h2 {
+  font-size: .98rem;
+  line-height: 1.35;
+}
+
+.dispatch-notice-copy p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.6;
+}
+
+.dispatch-notice-copy strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.dispatch-notice-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 5px;
+}
+
+.dispatch-notice-actions button {
+  min-width: 82px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+.dispatch-notice-actions .primary {
+  color: #ffffff;
+  border-color: #087b59;
+  background: #087b59;
+}
+
+.dispatch-notice-actions .danger {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.dispatch-notice-actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@keyframes dispatch-notice-enter {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .action-grid .active {

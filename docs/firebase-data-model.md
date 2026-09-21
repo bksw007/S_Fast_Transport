@@ -84,6 +84,14 @@ Hot collection for the active dashboard.
 - `trackingStatus`
 - `locationAlert.{active,staleSince,lastNotifiedAt,recoveredAt}`: สถานะเตือนเมื่อ GPS ขาดเกิน 20 นาที
 
+### job_counters/{YYYYMMDD}
+
+ตัวนับกลางสำหรับเลขที่ใบแจ้งงานรายวันตามเวลาไทย ระบบอัปเดตตัวนับและสร้าง `today_jobs` ใน transaction เดียวกันเพื่อป้องกันเลขซ้ำ
+
+- `dateKey`: วันที่รูปแบบ `YYYYMMDD`
+- `lastSequence`: ลำดับล่าสุดของวันนั้น
+- `updatedAt`
+
 ### organizations/{organizationId}/locations/{locationId}
 
 คลังสถานที่ของบริษัท ใช้ซ้ำในใบงาน แต่ใบงานจะเก็บ snapshot ของสถานที่เพื่อไม่ให้ข้อมูลย้อนหลังเปลี่ยนตามรายการกลาง
