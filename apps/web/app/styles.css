@@ -1235,9 +1235,14 @@ h2 {
   gap: 11px;
 }
 
+.dispatch-general-grid {
+  align-items: start;
+}
+
 .dispatch-field {
   min-width: 0;
   display: grid;
+  align-content: start;
   gap: 6px;
 }
 
@@ -1253,7 +1258,7 @@ h2 {
 
 .dispatch-field > div {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 7px;
 }
 
