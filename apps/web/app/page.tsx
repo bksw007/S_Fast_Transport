@@ -1732,14 +1732,14 @@ function GoogleLiveMap({
     let cancelled = false;
 
     loadGoogleMaps(googleMapsApiKey)
-      .then(async () => {
+      .then(() => {
         if (cancelled || !mapElementRef.current) {
           return;
         }
 
         const mapsApi = window.google;
-        const { AdvancedMarkerElement } = await mapsApi.maps.importLibrary("marker") as google.maps.MarkerLibrary;
-        if (cancelled || !mapElementRef.current) return;
+        const AdvancedMarkerElement = mapsApi.maps.marker?.AdvancedMarkerElement;
+        if (!AdvancedMarkerElement) throw new Error("โหลดหมุดแผนที่ไม่สำเร็จ กรุณารีเฟรชหน้าอีกครั้ง");
         const center = getMapCenter(validJobs);
 
         if (!mapRef.current) {
@@ -2210,7 +2210,7 @@ function loadGoogleMaps(apiKey: string) {
     script.dataset.googleMaps = "true";
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=marker`;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("โหลด Google Maps ไม่สำเร็จ"));
     document.head.appendChild(script);
