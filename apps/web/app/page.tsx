@@ -1716,7 +1716,7 @@ function GoogleLiveMap({
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const [mapMessage, setMapMessage] = useState("");
 
   const validJobs = useMemo(
@@ -1732,18 +1732,21 @@ function GoogleLiveMap({
     let cancelled = false;
 
     loadGoogleMaps(googleMapsApiKey)
-      .then(() => {
+      .then(async () => {
         if (cancelled || !mapElementRef.current) {
           return;
         }
 
         const mapsApi = window.google;
+        const { AdvancedMarkerElement } = await mapsApi.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+        if (cancelled || !mapElementRef.current) return;
         const center = getMapCenter(validJobs);
 
         if (!mapRef.current) {
           mapRef.current = new mapsApi.maps.Map(mapElementRef.current, {
             center,
             zoom: validJobs.length > 1 ? 10 : 13,
+            mapId: "DEMO_MAP_ID",
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: false,
@@ -1753,28 +1756,18 @@ function GoogleLiveMap({
           mapRef.current.setCenter(center);
         }
 
-        markersRef.current.forEach((marker) => marker.setMap(null));
+        markersRef.current.forEach((marker) => { marker.map = null; });
         markersRef.current = validJobs.map((job) => {
-          const marker = new mapsApi.maps.Marker({
+          const marker = new AdvancedMarkerElement({
             map: mapRef.current,
             position: { lat: job.currentLocation.lat, lng: job.currentLocation.lng },
             title: `${job.workOrder} · ${job.driverName}`,
-            label: {
-              text: job.alerts.length ? "!" : "T",
-              color: "#ffffff",
-              fontWeight: "900"
-            },
-            icon: {
-              path: mapsApi.maps.SymbolPath.CIRCLE,
-              scale: job.id === selectedJobId ? 15 : 12,
-              fillColor: job.alerts.length ? "#8c615b" : "#4c5960",
-              fillOpacity: 1,
-              strokeColor: "#ffffff",
-              strokeWeight: 3
-            }
+            content: createDriverMapMarker(job, job.id === selectedJobId),
+            gmpClickable: true,
+            zIndex: job.id === selectedJobId ? 2 : 1
           });
 
-          marker.addListener("click", () => onSelectJob(job.id));
+          marker.addEventListener("gmp-click", () => onSelectJob(job.id));
           return marker;
         });
 
@@ -2166,6 +2159,36 @@ function getMapCenter(jobs: TransportJob[]) {
   };
 }
 
+function createDriverMapMarker(job: TransportJob, selected: boolean) {
+  const marker = document.createElement("div");
+  marker.className = `map-driver-marker${selected ? " is-selected" : ""}${job.alerts.length ? " has-alert" : ""}`;
+
+  const avatar = document.createElement("span");
+  avatar.className = "map-driver-marker-avatar";
+  if (job.driverPhotoUrl?.startsWith("https://")) {
+    const photo = document.createElement("img");
+    photo.src = job.driverPhotoUrl;
+    photo.alt = "";
+    photo.loading = "eager";
+    photo.referrerPolicy = "no-referrer";
+    avatar.append(photo);
+  } else {
+    const fallback = document.createElement("span");
+    fallback.textContent = job.driverName.trim().charAt(0).toLocaleUpperCase("th-TH") || "T";
+    avatar.append(fallback);
+  }
+  marker.append(avatar);
+
+  if (job.alerts.length) {
+    const alert = document.createElement("span");
+    alert.className = "map-driver-marker-alert";
+    alert.textContent = "!";
+    alert.setAttribute("aria-label", `มีการแจ้งเตือน ${job.alerts.length} รายการ`);
+    marker.append(alert);
+  }
+  return marker;
+}
+
 function loadGoogleMaps(apiKey: string) {
   if (window.google?.maps) {
     return Promise.resolve();
@@ -2187,7 +2210,7 @@ function loadGoogleMaps(apiKey: string) {
     script.dataset.googleMaps = "true";
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async`;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("โหลด Google Maps ไม่สำเร็จ"));
     document.head.appendChild(script);

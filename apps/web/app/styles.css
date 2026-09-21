@@ -3391,6 +3391,95 @@ h2 {
   inset: 0;
 }
 
+.map-driver-marker {
+  position: relative;
+  width: 46px;
+  height: 52px;
+  display: grid;
+  place-items: start center;
+  cursor: pointer;
+  filter: drop-shadow(0 8px 12px rgba(20, 28, 32, 0.28));
+  transition: filter 160ms ease;
+}
+
+.map-driver-marker::after {
+  content: "";
+  position: absolute;
+  top: 35px;
+  width: 12px;
+  height: 12px;
+  border: 3px solid #fff;
+  border-left: 0;
+  border-top: 0;
+  border-radius: 0 0 4px 0;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+
+.map-driver-marker-avatar {
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 900;
+  box-shadow: 0 0 0 2px rgba(76, 89, 96, 0.3);
+  transition: width 160ms ease, height 160ms ease, box-shadow 160ms ease;
+}
+
+.map-driver-marker-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.map-driver-marker.is-selected {
+  width: 54px;
+  height: 60px;
+  filter: drop-shadow(0 10px 16px rgba(20, 28, 32, 0.36));
+}
+
+.map-driver-marker.is-selected::after {
+  top: 41px;
+}
+
+.map-driver-marker.is-selected .map-driver-marker-avatar {
+  width: 50px;
+  height: 50px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
+.map-driver-marker.has-alert::after,
+.map-driver-marker.has-alert .map-driver-marker-avatar {
+  background: var(--warning);
+}
+
+.map-driver-marker-alert {
+  position: absolute;
+  z-index: 2;
+  top: -5px;
+  right: -2px;
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--warning);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
 .map-message {
   position: absolute;
   z-index: 2;

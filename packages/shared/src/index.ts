@@ -85,6 +85,7 @@ export type TransportJob = {
   arrivedDeliveryAt?: string;
   completedAt?: string;
   assignedDriverUid?: string;
+  driverPhotoUrl?: string;
   tripCount?: number;
   notes?: string;
 };

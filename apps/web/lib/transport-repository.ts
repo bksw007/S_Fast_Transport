@@ -130,6 +130,40 @@ export function formatJobDateKey(date = new Date()) {
   return `${value("year")}${value("month")}${value("day")}`;
 }
 
+type CurrentDriverIdentity = { fullName: string; phone: string; photoURL: string };
+
+export function resolveCurrentDriverIdentities(
+  jobs: TransportJob[],
+  identities: ReadonlyMap<string, CurrentDriverIdentity>
+) {
+  return jobs.map((job) => {
+    const identity = job.assignedDriverUid ? identities.get(job.assignedDriverUid) : undefined;
+    if (!identity) return job;
+    return {
+      ...job,
+      driverName: identity.fullName || job.driverName,
+      driverPhone: identity.phone || job.driverPhone,
+      driverPhotoUrl: identity.photoURL || job.driverPhotoUrl
+    };
+  });
+}
+
+export function currentDriverIdentity(data: DocumentData): CurrentDriverIdentity {
+  const title = String(data.title ?? "").trim();
+  const firstName = String(data.firstName ?? "").trim();
+  const lastName = String(data.lastName ?? "").trim();
+  const composedName = [title && firstName ? `${title}${firstName}` : firstName, lastName].filter(Boolean).join(" ");
+  const profilePhotoPath = String(data.profilePhotoPath ?? "").trim();
+  const uploadedPhotoURL = profilePhotoPath ? String(data.photoURL ?? "").trim() : "";
+  const googlePhotoURL = String(data.googlePhotoURL || (!profilePhotoPath ? data.photoURL : "") || "").trim();
+  const photoURL = [uploadedPhotoURL, googlePhotoURL].find((value) => value.startsWith("https://")) ?? "";
+  return {
+    fullName: String(data.fullName || data.accessRequestName || composedName || "").trim(),
+    phone: String(data.phone ?? "").trim(),
+    photoURL
+  };
+}
+
 export function subscribeTodayJobs(
   profile: UserProfile,
   onJobs: (jobs: TransportJob[]) => void,
@@ -141,21 +175,61 @@ export function subscribeTodayJobs(
     : profile.role === "subcontract_admin" && profile.organizationId
       ? query(jobsRef, where("organizationId", "==", profile.organizationId))
       : jobsRef;
+  let currentJobs: TransportJob[] = [];
+  let identities = new Map<string, CurrentDriverIdentity>();
+  let jobsReady = false;
+  let identitiesReady = false;
 
-  return onSnapshot(
+  function emitJobs() {
+    if (!jobsReady || !identitiesReady) return;
+    onJobs(resolveCurrentDriverIdentities(currentJobs, identities));
+  }
+
+  function receiveProfiles(profileDocs: Array<{ id: string; data: () => DocumentData }>) {
+    identities = new Map(profileDocs.map((profileDoc) => [profileDoc.id, currentDriverIdentity(profileDoc.data())]));
+    identitiesReady = true;
+    emitJobs();
+  }
+
+  function useSavedJobIdentity() {
+    identitiesReady = true;
+    emitJobs();
+  }
+
+  const stopProfiles = profile.role === "driver"
+    ? onSnapshot(
+      doc(db, "users", profile.uid),
+      (snapshot) => receiveProfiles(snapshot.exists() ? [{ id: snapshot.id, data: () => snapshot.data() }] : []),
+      useSavedJobIdentity
+    )
+    : onSnapshot(
+      profile.role === "subcontract_admin" && profile.organizationId
+        ? query(collection(db, "users"), where("organizationId", "==", profile.organizationId))
+        : collection(db, "users"),
+      (snapshot) => receiveProfiles(snapshot.docs),
+      useSavedJobIdentity
+    );
+
+  const stopJobs = onSnapshot(
     jobsQuery,
     (snapshot) => {
-      const jobs = snapshot.docs
+      currentJobs = snapshot.docs
         .filter((jobDoc) => !jobDoc.data().deletedAt)
         .map((jobDoc) => toTransportJob(jobDoc.id, jobDoc.data()))
         .sort((a, b) => b.id.localeCompare(a.id));
-      onJobs(jobs);
+      jobsReady = true;
+      emitJobs();
     },
     (error) => {
       onError(error.message);
       onJobs([]);
     }
   );
+
+  return () => {
+    stopProfiles();
+    stopJobs();
+  };
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
