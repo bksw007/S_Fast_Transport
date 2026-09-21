@@ -2,6 +2,7 @@ import { collection, doc, limit, onSnapshot, orderBy, query, runTransaction, ser
 import { db } from "./firebase";
 import { hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
 import type { TransportJob } from "@s-fast-transport/shared";
+import { coordinateFingerprint } from "./google-routes-distance";
 
 export type JobRecord = { id: string; data: DocumentData };
 export type JobSettings = { driverPhone: string; eta: string; notes: string };
@@ -28,5 +29,25 @@ export async function saveJobSettings(job: TransportJob, settings: JobSettings, 
     if (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId)) throw new Error("ไม่มีสิทธิ์แก้ไขงานนี้");
     transaction.update(jobRef, { ...settings, updatedAt: serverTimestamp() });
     transaction.set(eventRef, { jobId: job.id, type: "settings_updated", message: "แก้ไขเบอร์ติดต่อ กำหนดถึง และหมายเหตุ", actorUid: actor.uid, actorName: actor.displayName, organizationId: current.organizationId, timestamp: serverTimestamp() });
+  });
+}
+
+export async function saveJobRouteDistance(job: TransportJob, distanceMeters: number, fingerprint: string, actor: UserProfile) {
+  if (!hasApprovedAccess(actor)) throw new Error("ไม่มีสิทธิ์แก้ไขงาน");
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0 || distanceMeters > 10_000_000) throw new Error("ระยะทางไม่ถูกต้อง");
+  const jobRef = doc(db, "today_jobs", job.id);
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const current = snapshot.data();
+    if (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId)) throw new Error("ไม่มีสิทธิ์แก้ไขงานนี้");
+    if (coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== fingerprint) throw new Error("พิกัดใบงานมีการเปลี่ยนแปลง");
+    transaction.update(jobRef, {
+      routeDistanceMeters: Math.round(distanceMeters),
+      routeDistanceFingerprint: fingerprint,
+      routeDistanceProvider: "google_routes",
+      routeDistanceCalculatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
   });
 }

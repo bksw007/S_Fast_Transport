@@ -5,13 +5,92 @@ import Image from "next/image";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { createTrackingShareLink, uploadProof, type UserProfile } from "@/lib/transport-repository";
-import { recordTime, saveJobSettings, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
+import { recordTime, saveJobRouteDistance, saveJobSettings, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
+import { auth } from "@/lib/firebase-auth";
+import { coordinateFingerprint } from "@/lib/google-routes-distance";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
 const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH") : "รอบันทึกเวลา";
 const mapUrl = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 const validPoint = (lat: unknown, lng: unknown) => typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat !== 0 || lng !== 0);
+
+export function approximateDistanceKm(from?: { lat: number; lng: number }, to?: { lat: number; lng: number }) {
+  if (!from || !to || !validPoint(from.lat, from.lng) || !validPoint(to.lat, to.lng)) return null;
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const latitudeDelta = radians(to.lat - from.lat);
+  const longitudeDelta = radians(to.lng - from.lng);
+  const startLatitude = radians(from.lat);
+  const endLatitude = radians(to.lat);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+  const normalized = Math.min(1, Math.max(0, haversine));
+  return 6371 * 2 * Math.atan2(Math.sqrt(normalized), Math.sqrt(1 - normalized));
+}
+
+function distanceLabel(distanceMeters: number | null) {
+  if (distanceMeters === null) return "";
+  if (distanceMeters < 1000) return `${Math.round(distanceMeters)} ม.`;
+  const distanceKm = distanceMeters / 1000;
+  return `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm).toLocaleString("th-TH")} กม.`;
+}
+
+export function cachedRoadDistanceMeters(job: Pick<TransportJob, "pickupPlace" | "deliveryPlace" | "routeDistanceMeters" | "routeDistanceFingerprint" | "routeDistanceProvider">) {
+  const fingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
+  return fingerprint
+    && job.routeDistanceProvider === "google_routes"
+    && job.routeDistanceFingerprint === fingerprint
+    && typeof job.routeDistanceMeters === "number"
+    && Number.isFinite(job.routeDistanceMeters)
+    && job.routeDistanceMeters > 0
+      ? job.routeDistanceMeters
+      : null;
+}
+
+type DistanceState = { meters: number | null; source: "road" | "approximate" | "loading" | "none" };
+type RequestedDistanceState = DistanceState & { fingerprint: string };
+const pendingDistanceRequests = new Map<string, Promise<number>>();
+const sessionDistanceResults = new Map<string, number | null>();
+
+function approximateDistanceState(job: TransportJob): DistanceState {
+  const kilometers = approximateDistanceKm(job.pickupPlace, job.deliveryPlace);
+  return kilometers === null ? { meters: null, source: "none" } : { meters: kilometers * 1000, source: "approximate" };
+}
+
+async function requestRoadDistance(job: TransportJob) {
+  const fingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
+  if (!fingerprint || !job.pickupPlace || !job.deliveryPlace) throw new Error("ไม่มีพิกัดสำหรับคำนวณระยะทาง");
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("กรุณาเข้าสู่ระบบอีกครั้ง");
+  const requestKey = `${job.id}:${fingerprint}`;
+  if (sessionDistanceResults.has(requestKey)) {
+    const saved = sessionDistanceResults.get(requestKey);
+    if (typeof saved === "number") return saved;
+    throw new Error("Google Maps ไม่พร้อมใช้งานในขณะนี้");
+  }
+  const existing = pendingDistanceRequests.get(requestKey);
+  if (existing) return existing;
+  const pending = (async () => {
+    const response = await fetch("/api/maps/distance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await currentUser.getIdToken()}` },
+      body: JSON.stringify({ jobId: job.id, origin: job.pickupPlace, destination: job.deliveryPlace })
+    });
+    const payload = await response.json() as { distanceMeters?: unknown; error?: string };
+    const distanceMeters = Number(payload.distanceMeters);
+    if (!response.ok || !Number.isFinite(distanceMeters) || distanceMeters <= 0) throw new Error(payload.error || "คำนวณระยะทางไม่สำเร็จ");
+    return Math.round(distanceMeters);
+  })().then(distanceMeters => {
+    sessionDistanceResults.set(requestKey, distanceMeters);
+    return distanceMeters;
+  }, error => {
+    sessionDistanceResults.set(requestKey, null);
+    throw error;
+  });
+  pendingDistanceRequests.set(requestKey, pending);
+  void pending.then(() => pendingDistanceRequests.delete(requestKey), () => pendingDistanceRequests.delete(requestKey));
+  return pending;
+}
 
 function Records({ jobId, kind }: { jobId: string; kind: "proofs" | "events" | "locations" }) {
   const [rows, setRows] = useState<JobRecord[]>([]);
@@ -38,6 +117,32 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
   const [link, setLink] = useState("");
   const [qr, setQr] = useState("");
   const [settings, setSettings] = useState({ driverPhone: job.driverPhone, eta: job.eta, notes: job.notes || "" });
+  const [requestedDistance, setRequestedDistance] = useState<RequestedDistanceState | null>(null);
+  const routeFingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
+  const cachedDistance = cachedRoadDistanceMeters(job);
+  const routeDistance: DistanceState = cachedDistance !== null
+    ? { meters: cachedDistance, source: "road" }
+    : requestedDistance?.fingerprint === routeFingerprint
+      ? requestedDistance
+      : routeFingerprint
+        ? { meters: null, source: "loading" }
+        : { meters: null, source: "none" };
+
+  useEffect(() => {
+    const cached = cachedRoadDistanceMeters(job);
+    const fingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
+    if (cached !== null || !fingerprint) return;
+    let active = true;
+    void requestRoadDistance(job).then(distanceMeters => {
+      if (active) setRequestedDistance({ fingerprint, meters: distanceMeters, source: "road" });
+      if (canWrite) void saveJobRouteDistance(job, distanceMeters, fingerprint, actor).catch(() => undefined);
+    }).catch(() => {
+      if (active) setRequestedDistance({ fingerprint, ...approximateDistanceState(job) });
+    });
+    return () => { active = false; };
+  }, [actor, canWrite, job, job.deliveryPlace, job.pickupPlace]);
+
+  const routeDistanceLabel = distanceLabel(routeDistance.meters);
 
   async function perform(action: () => Promise<void>, success: string) {
     setBusy(true); setMessage("");
@@ -82,7 +187,7 @@ export default function JobDetail({ job, actor, canWrite, map }: { job: Transpor
       </aside>}
       <div role="tabpanel" id="job-tab-content" aria-labelledby={`job-tab-${tab}`} tabIndex={0}>
         {tab === 0 && <div className="job-detail-overview">
-          <JobContacts job={job} /><section className="job-detail-route"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong>{job.pickupPlace && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong>{job.deliveryPlace && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>
+          <JobContacts job={job} /><section className="job-detail-route"><div className="job-route-heading"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3>{routeDistance.source === "loading" ? <span role="status">กำลังคำนวณระยะทาง…</span> : routeDistanceLabel && <span title={routeDistance.source === "road" ? "ระยะทางตามถนนจาก Google Maps บันทึกไว้กับใบงานเพื่อไม่เรียกซ้ำ" : "ค่าประมาณแบบเส้นตรง เนื่องจากยังใช้ Google Maps ไม่ได้"}>{routeDistance.source === "road" ? "ระยะทางตามถนน" : "ระยะทางประมาณ"} <strong>{routeDistanceLabel}</strong></span>}</div><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong>{job.pickupPlace && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong>{job.deliveryPlace && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>
           <div className="job-detail-section-grid">
             <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงาน": [job.jobDate, job.pickupTime].filter(Boolean).join(". ") }} />
             <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "จำนวนรอบ": job.tripCount }} />

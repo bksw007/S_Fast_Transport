@@ -640,6 +640,11 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     deliveryContactPhone: String(data.deliveryContactPhone ?? ""),
     deliveryContactNotes: String(data.deliveryContactNotes ?? ""),
 
+    routeDistanceMeters: Number(data.routeDistanceMeters) > 0 ? Number(data.routeDistanceMeters) : undefined,
+    routeDistanceFingerprint: typeof data.routeDistanceFingerprint === "string" ? data.routeDistanceFingerprint : undefined,
+    routeDistanceProvider: data.routeDistanceProvider === "google_routes" ? "google_routes" : undefined,
+    routeDistanceCalculatedAt: timestampToIso(data.routeDistanceCalculatedAt),
+
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: Boolean(data.trackingEnabled),

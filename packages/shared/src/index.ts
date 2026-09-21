@@ -61,6 +61,10 @@ export type TransportJob = {
   deliveryContactNotes?: string;
   pickupPlace?: JobPlace;
   deliveryPlace?: JobPlace;
+  routeDistanceMeters?: number;
+  routeDistanceFingerprint?: string;
+  routeDistanceProvider?: "google_routes";
+  routeDistanceCalculatedAt?: string;
   status: JobStatus;
   trackingStatus: TrackingStatus;
   trackingEnabled: boolean;

@@ -30,6 +30,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+GOOGLE_MAPS_ROUTES_API_KEY=
 NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY=
 ```
 
@@ -37,7 +38,20 @@ Enable these Google Maps APIs for the key:
 
 - Maps JavaScript API
 - Geocoding API, if pickup/delivery address lookup is added later
-- Directions API, if route lines/ETA from Google are added later
+- Routes API, for road distance between a job's pickup and delivery points
+
+Keep `GOOGLE_MAPS_ROUTES_API_KEY` server-only and restrict it to the Routes API.
+The job detail modal requests basic `DRIVE` routing with `TRAFFIC_UNAWARE`, asks
+Google only for `distanceMeters`, and saves the successful result on the job.
+Later views reuse that value while the pickup and delivery coordinates remain the
+same. Simultaneous and failed requests are also suppressed within the browser
+session; when Routes is unavailable, the UI falls back to a straight-line estimate.
+
+Google currently includes 10,000 monthly Compute Routes Essentials requests at no
+charge. For cost control, set a Routes API quota in Google Cloud appropriate to the
+operation (for example, 300 requests/day stays near 9,000 requests in a 30-day
+month). Quota exhaustion does not block job details; it only activates the
+straight-line fallback.
 
 The Expo mobile project is currently parked. Its source remains in `apps/mobile`,
 but new driver features are implemented in the PWA under `apps/web`.

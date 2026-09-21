@@ -71,6 +71,7 @@ Hot collection for the active dashboard.
 - `pickupPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
 - `deliveryLocation`, `deliveryDate`, `deliveryTime`, `deliveryContact`
 - `deliveryPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
+- `routeDistanceMeters`, `routeDistanceFingerprint`, `routeDistanceProvider`, `routeDistanceCalculatedAt` (optional Google road-distance cache; valid only while the pickup/delivery fingerprint matches)
 - `driverId` (อ้างอิง `drivers`), `driverName`, `driverPhone`, `vehiclePlate`
 - `notes`
 - `assignedDriverUid`

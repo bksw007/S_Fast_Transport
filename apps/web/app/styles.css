@@ -4232,6 +4232,10 @@ textarea:focus {
 .job-detail-group, .job-detail-route { min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .job-detail-group h3, .job-detail-route h3 { display: flex; align-items: center; gap: 9px; margin: 0 0 18px; font-size: .86rem; font-weight: 600; }
 .job-detail-group h3 svg, .job-detail-route h3 svg { color: var(--accent); }
+.job-route-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.job-route-heading h3 { margin: 0; }
+.job-route-heading > span { flex-shrink: 0; color: var(--muted); font-size: .72rem; }
+.job-route-heading > span strong { color: var(--text); font-size: .8rem; font-weight: 650; }
 .job-detail-fields { gap: 18px 14px; }
 .job-detail-fields div { padding: 0; border: 0; border-radius: 0; }
 .job-detail-fields dt { font-size: .72rem; color: var(--muted); }
@@ -4276,6 +4280,8 @@ textarea:focus {
   .job-detail-body { padding: 16px; }
   .job-detail-section-grid { grid-template-columns: 1fr; gap: 12px; }
   .job-detail-group, .job-detail-route { padding: 16px; }
+  .job-route-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .job-route-heading > span { padding-left: 27px; }
   .job-route-stops { grid-template-columns: 1fr; gap: 20px; }
   .job-detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
