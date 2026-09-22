@@ -34,7 +34,7 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
 }};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/app/components/JobDetail.tsx', 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, context);
 const job = {
-  id: 'job-a', workOrder: 'WO-A', status: 'assigned', driverPhone: '0800693681', jobDate: '2026-09-21', pickupTime: '09:00', eta: '15:00', notes: 'Original',
+  id: 'job-a', workOrder: 'WO-A', status: 'assigned', driverPhone: '0800693681', jobDate: '2026-09-20', pickupDate: '2026-09-21', pickupTime: '09:00', eta: '15:00', notes: 'Original',
   pickupPlace: { lat: 13.7563, lng: 100.5018 }, deliveryPlace: { lat: 13.65, lng: 100.65 },
   routeDistanceMeters: 24567, routeDistanceFingerprint: '13.756300,100.501800>13.650000,100.650000', routeDistanceProvider: 'google_routes',
   currentLocation: { lat: 13, lng: 100, updatedAt: '' }
@@ -61,6 +61,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   render();
   assert.equal(find(n => n.props?.role === 'tab' && n.props['aria-selected']).props.children, 'รายละเอียดงาน');
   assert.ok(nodes().some(n => n.type === 'span' && n.props?.title?.includes('Google Maps') && React.Children.toArray(n.props.children).includes('ระยะทางตามถนน')));
+  assert.equal(find(n => n.props?.title === 'ข้อมูลใบงาน').props.fields['วันที่รับงานจากผู้ว่าจ้าง'], '2026-09-20');
   assert.equal(find(n => n.props?.title === 'ข้อมูลใบงาน').props.fields['วันที่รับงาน'], '2026-09-21. 09:00');
   assert.equal(find(n => n.props?.title === 'รถและคนขับ').props.fields['เบอร์ติดต่อ'], '080-069-3681');
   for (let i = 0; i < 5; i++) { find(n => n.props?.id === `job-tab-${i}`).props.onClick(); render(); assert.equal(find(n => n.props?.role === 'tabpanel').props['aria-labelledby'], `job-tab-${i}`); }

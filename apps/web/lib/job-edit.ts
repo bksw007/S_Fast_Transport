@@ -96,7 +96,7 @@ export function validateJobEditDraft(draft: JobEditDraft): ValidatedJobEdit {
   const deliveryContact = contact(draft.deliveryContact, draft.deliveryContactPhone, "จุดส่ง");
   return {
     customer: clean(draft.customer, "บริษัทผู้ว่าจ้าง", 200, true),
-    jobDate: date(draft.jobDate, "วันที่รับงาน", true),
+    jobDate: date(draft.jobDate, "วันที่รับงานจากผู้ว่าจ้าง", true),
     cargoType: clean(draft.cargoType, "ประเภทสินค้า", 160),
     vehicleType: clean(draft.vehicleType, "ประเภทรถ", 160),
     tripCount,

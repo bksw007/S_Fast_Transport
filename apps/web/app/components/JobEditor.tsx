@@ -72,7 +72,7 @@ export default function JobEditor({
       <h4>ข้อมูลทั่วไป</h4>
       <div className="job-edit-grid">
         <EditField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={value => update("customer", value)} placeholder="ค้นหาบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={actor} required /></EditField>
-        <EditField label="วันที่รับงาน"><input type="date" required value={draft.jobDate} onChange={event => update("jobDate", event.target.value)} /></EditField>
+        <EditField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" required value={draft.jobDate} onChange={event => update("jobDate", event.target.value)} /></EditField>
         <EditField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={value => update("cargoType", value)} placeholder="ค้นหาประเภทสินค้า" organizationId={organizationId} actor={actor} /></EditField>
         <EditField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={value => update("vehicleType", value)} placeholder="ค้นหาประเภทรถ" organizationId={organizationId} actor={actor} /></EditField>
         <EditField label="จำนวนรอบ"><input type="number" min="1" max="999" required value={draft.tripCount} onChange={event => update("tripCount", event.target.value)} /></EditField>

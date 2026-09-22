@@ -47,6 +47,7 @@ function find(predicate) { const item = nodes().find(predicate); assert.ok(item,
 (async () => {
   render();
   assert.ok(nodes().some(node => node.type === 'h3' && node.props.children === 'แก้ไขรายละเอียดใบงาน'));
+  assert.ok(nodes().some(node => node.props?.label === 'วันที่รับงานจากผู้ว่าจ้าง'));
   assert.equal(nodes().filter(node => node.type?.displayName === 'location-picker').length, 2);
   assert.equal(nodes().filter(node => node.type?.displayName === 'contact-picker').length, 2);
   find(node => node.type === 'form').props.onSubmit({ preventDefault() {} });
