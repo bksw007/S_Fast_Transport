@@ -3728,16 +3728,35 @@ h2 {
   white-space: nowrap;
 }
 
-.job-customer-line {
+.job-summary-facts {
   display: grid;
-  gap: 3px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 11px;
   padding-top: 11px;
   border-top: 1px dashed var(--border);
 }
 
-.job-customer-line small { color: var(--muted); font-size: .66rem; }
-.job-customer-line strong { font-size: .82rem; }
+.job-summary-facts > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.job-summary-facts small { color: var(--muted); font-size: .64rem; }
+.job-summary-facts strong { overflow-wrap: anywhere; font-size: .78rem; line-height: 1.4; }
+
+.job-summary-facts .job-cargo-type {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  color: var(--accent);
+}
+
+.job-cargo-type > span { min-width: 0; display: grid; gap: 3px; }
+.job-cargo-type strong { color: var(--text); }
 
 .job-distance {
   display: flex;

@@ -25,7 +25,7 @@ const context = {
   ],
   MapPin: () => null, ArrowRight: () => null, ChevronUp: () => null, ChevronDown: () => null,
   UserRound: () => null, Phone: () => null, Truck: () => null, CircleDot: () => null,
-  Navigation: () => null, CalendarClock: () => null, Route: () => null, PackageCheck: () => null, MapPinned: () => null,
+  Navigation: () => null, CalendarClock: () => null, Route: () => null, Package: () => null, PackageCheck: () => null, MapPinned: () => null,
   AlertTriangle: () => null, TriangleAlert: () => null, Clock3: () => null
 };
 vm.runInNewContext(ts.transpileModule(code, {
@@ -41,7 +41,7 @@ function job(status) {
     id: 'job-1', workOrder: 'JN-1', status, pickupLocation: 'FMT', deliveryLocation: 'Freezone', alerts: [],
     driverPhone: '0929489777', driverName: 'คนขับ', vehiclePlate: '72-2211', customer: 'ลูกค้า', eta: '10:00', lastUpdatedMinutes: 1,
     pickupDate: '2026-09-23', pickupTime: '09:30', deliveryDate: '2026-09-23', deliveryTime: '13:00', routeDistanceMeters: 64500,
-    pickupContact: 'คุณรับ', pickupContactPhone: '0811111111', deliveryContact: 'คุณส่ง', deliveryContactPhone: '0822222222'
+    cargoType: 'ชิ้นส่วนรถยนต์', pickupContact: 'คุณรับ', pickupContactPhone: '0811111111', deliveryContact: 'คุณส่ง', deliveryContactPhone: '0822222222'
   };
 }
 
@@ -73,6 +73,8 @@ assert.ok(nodes(routeLine).some(node => node.props?.children === 'FMT'));
 assert.ok(nodes(routeLine).some(node => node.props?.children === 'Freezone'));
 assert.equal(renderedNodes.filter(node => String(node.props?.className || '').includes('job-stop-card')).length, 2);
 assert.ok(renderedNodes.some(node => node.props?.children === 'คุณรับ'));
+assert.ok(renderedNodes.some(node => node.props?.children === 'ประเภทสินค้า'));
+assert.ok(renderedNodes.some(node => node.props?.children === 'ชิ้นส่วนรถยนต์'));
 assert.ok(!renderedNodes.some(node => node.props?.children === 'คุณส่ง'), 'future delivery contact stays hidden before departure');
 assert.ok(!renderedNodes.some(node => node.props?.children === 'ETA'));
 assert.ok(!renderedNodes.some(node => node.props?.children === 'อัปเดตล่าสุด'));

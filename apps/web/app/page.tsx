@@ -30,6 +30,7 @@ import {
   ListChecks,
   LogOut,
   Navigation,
+  Package,
   MapPin,
   MapPinned,
   Menu,
@@ -1785,7 +1786,10 @@ function JobSummaryCard({
             </div>
             <span className="vehicle-plate"><Truck size={17} /> {job.vehiclePlate || "ไม่ระบุทะเบียน"}</span>
           </div>
-          <div className="job-customer-line"><small>ลูกค้า</small><strong>{job.customer}</strong></div>
+          <div className="job-summary-facts">
+            <div><small>ลูกค้า</small><strong>{job.customer}</strong></div>
+            <div className="job-cargo-type"><Package size={18} /><span><small>ประเภทสินค้า</small><strong>{job.cargoType || "ไม่ระบุประเภทสินค้า"}</strong></span></div>
+          </div>
           <div className="job-distance"><Navigation size={17} /><strong>{routeDistanceLabel(job.routeDistanceMeters)}</strong></div>
           {job.status === "problem" && (
             <div className="job-issue-banner">
