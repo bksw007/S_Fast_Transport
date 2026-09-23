@@ -186,7 +186,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
           <div className="job-detail-section-grid">
             <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงานจากผู้ว่าจ้าง": job.jobDate, "ประเภทสินค้า": job.cargoType }} />
             <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "ประเภทรถ": job.vehicleType, "จำนวนรอบ": job.tripCount }} />
-            <DetailGroup title="กำหนดการรับ-ส่งสินค้า" icon={<Clock3 size={18} />} fields={{ "กำหนดรับ": [job.pickupDate, job.pickupTime].filter(Boolean).join(" "), "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" "), "กำหนดถึง (ETA)": job.eta }} />
+            <DetailGroup title="กำหนดการรับ-ส่งสินค้า" icon={<Clock3 size={18} />} fields={{ "กำหนดรับ": [job.pickupDate, job.pickupTime].filter(Boolean).join(" "), "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" ") }} />
             <DetailGroup title="หมายเหตุ" icon={<PackageCheck size={18} />} fields={{ "รายละเอียดเพิ่มเติม": job.notes || "ไม่มีหมายเหตุเพิ่มเติม" }} />
           </div>
         </div>}

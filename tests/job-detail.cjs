@@ -64,6 +64,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(find(n => n.props?.title === 'ข้อมูลใบงาน').props.fields['วันที่รับงานจากผู้ว่าจ้าง'], '2026-09-20');
   assert.equal(find(n => n.props?.title === 'ข้อมูลใบงาน').props.fields['วันที่รับงาน'], undefined);
   assert.equal(find(n => n.props?.title === 'กำหนดการรับ-ส่งสินค้า').props.fields['กำหนดรับ'], '2026-09-21 09:00');
+  assert.equal(find(n => n.props?.title === 'กำหนดการรับ-ส่งสินค้า').props.fields['กำหนดถึง (ETA)'], undefined);
   assert.equal(find(n => n.props?.title === 'รถและคนขับ').props.fields['เบอร์ติดต่อ'], '080-069-3681');
   for (let i = 0; i < 5; i++) { find(n => n.props?.id === `job-tab-${i}`).props.onClick(); render(); assert.equal(find(n => n.props?.role === 'tabpanel').props['aria-labelledby'], `job-tab-${i}`); }
   find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' Share')).props.onClick(); await flush(); render();
