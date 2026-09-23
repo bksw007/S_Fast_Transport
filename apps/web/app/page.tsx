@@ -17,6 +17,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  Car,
   Camera,
   CheckCircle2,
   ChevronDown,
@@ -28,11 +29,13 @@ import {
   Gauge,
   ListChecks,
   LogOut,
+  Navigation,
   MapPin,
   MapPinned,
   Menu,
   Moon,
   Phone,
+  PhoneOff,
   Power,
   RotateCcw,
   Save,
@@ -92,6 +95,7 @@ import {
   getUserProfile,
   hasApprovedAccess,
   isMainAdmin,
+  reportDriverIssue,
   submitAccessRequest,
   subscribePendingAccessRequestCount,
   subscribeTodayJobs,
@@ -100,6 +104,7 @@ import {
   updateUserAccess,
   uploadProof,
   type JobDraft,
+  type DriverIssueType,
   type UserAccessUpdate,
   type UserProfile
 } from "@/lib/transport-repository";
@@ -141,6 +146,35 @@ export function nextDriverAction(job: Pick<TransportJob, "status" | "issuePrevio
   const status = job.status === "problem" && job.issuePreviousStatus ? job.issuePreviousStatus : job.status;
   const actionId = driverNextActionByStatus[status];
   return driverActions.find(action => action.id === actionId) ?? null;
+}
+
+export function activeDriverStop(job: Pick<TransportJob, "status" | "issuePreviousStatus">): "pickup" | "delivery" | null {
+  const status = job.status === "problem" && job.issuePreviousStatus ? job.issuePreviousStatus : job.status;
+  if (["assigned", "accepted", "to_pickup", "arrived_pickup", "loading"].includes(status)) return "pickup";
+  if (["to_delivery", "arrived_delivery", "unloading", "ready_to_close", "completed"].includes(status)) return "delivery";
+  return null;
+}
+
+const thaiShortMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+export function formatStopSchedule(date?: string, time?: string) {
+  const match = date?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dateLabel = match
+    ? `${Number(match[3])} ${thaiShortMonths[Number(match[2]) - 1]} ${Number(match[1]) + 543}`
+    : "";
+  const timeLabel = time ? `${time} น.` : "";
+  return [dateLabel, timeLabel].filter(Boolean).join(" · ") || "ยังไม่ระบุวันและเวลา";
+}
+
+export function routeDistanceLabel(distanceMeters?: number) {
+  if (!distanceMeters || !Number.isFinite(distanceMeters) || distanceMeters <= 0) return "ยังไม่มีข้อมูลระยะทาง";
+  const kilometers = distanceMeters / 1000;
+  return `ระยะทางประมาณ ${kilometers >= 100 ? Math.round(kilometers) : kilometers.toFixed(1)} กม.`;
+}
+
+export function stopNavigationUrl(location: string, place?: JobPlace) {
+  if (place?.navigationUrl?.startsWith("https://")) return place.navigationUrl;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
 }
 
 function createEmptyJobDraft(): JobDraft {
@@ -220,6 +254,7 @@ export default function Home() {
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
   const [pendingAccessCount, setPendingAccessCount] = useState(0);
   const [trackingMessage, setTrackingMessage] = useState("พร้อมขอตำแหน่งเมื่อกดเริ่มแชร์");
+  const [issueJob, setIssueJob] = useState<TransportJob | null>(null);
 
   useEffect(() => {
     preparePwaInstallPromptCapture();
@@ -374,6 +409,21 @@ export default function Home() {
     }
   }
 
+  async function handleDriverIssue(job: TransportJob, issueType: DriverIssueType, note: string) {
+    if (!profile) return false;
+    setBusyMessage("กำลังส่งรายงานปัญหา...");
+    try {
+      await reportDriverIssue(job, issueType, note, profile);
+      setFirebaseMessage("ส่งรายงานปัญหาให้ผู้ดูแลแล้ว");
+      return true;
+    } catch (error) {
+      setFirebaseMessage(toMessage(error));
+      return false;
+    } finally {
+      setBusyMessage("");
+    }
+  }
+
   async function refreshCurrentProfile() {
     if (!user) return;
     const nextProfile = await getUserProfile(user.uid);
@@ -467,6 +517,7 @@ export default function Home() {
               trackingMessage={trackingMessage}
               onSelectJob={setSelectedJobId}
               onAction={handleDriverAction}
+              onReportIssue={setIssueJob}
               onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
               onProfileUpdated={refreshCurrentProfile}
             />
@@ -543,6 +594,14 @@ export default function Home() {
             map={<GoogleLiveMap jobs={[selectedJob]} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />}
           />
         </JobDetailModal>
+      )}
+      {mode === "driver" && issueJob && (
+        <DriverIssueDialog
+          key={issueJob.id}
+          job={issueJob}
+          onClose={() => setIssueJob(null)}
+          onSubmit={handleDriverIssue}
+        />
       )}
     </main>
   );
@@ -653,6 +712,7 @@ function DriverMobileScreen({
   trackingMessage,
   onSelectJob,
   onAction,
+  onReportIssue,
   onUpload,
   onProfileUpdated
 }: {
@@ -665,6 +725,7 @@ function DriverMobileScreen({
   trackingMessage: string;
   onSelectJob: (jobId: string) => void;
   onAction: (status: JobStatus, job?: TransportJob) => void;
+  onReportIssue: (job: TransportJob) => void;
   onUpload: (file: File) => void;
   onProfileUpdated: () => Promise<void>;
 }) {
@@ -677,7 +738,7 @@ function DriverMobileScreen({
   }
 
   if (screen === "งานวันนี้") {
-    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onAction={onAction} />;
+    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onAction={onAction} onReportIssue={onReportIssue} />;
   }
 
   if (screen === "แผนที่งานของฉัน") {
@@ -1493,13 +1554,15 @@ function TodayJobs({
   selectedJobId,
   canWrite,
   onSelectJob,
-  onAction
+  onAction,
+  onReportIssue
 }: {
   jobs: TransportJob[];
   selectedJobId: string;
   canWrite: boolean;
   onSelectJob: (jobId: string) => void;
   onAction: (status: JobStatus, job?: TransportJob) => void;
+  onReportIssue: (job: TransportJob) => void;
 }) {
   return (
     <section className="screen">
@@ -1520,6 +1583,7 @@ function TodayJobs({
             canWrite={canWrite}
             onSelect={onSelectJob}
             onAction={onAction}
+            onReportIssue={onReportIssue}
           />
         ))}
       </div>
@@ -1673,18 +1737,21 @@ function JobSummaryCard({
   selected,
   canWrite,
   onSelect,
-  onAction
+  onAction,
+  onReportIssue
 }: {
   job: TransportJob;
   selected: boolean;
   canWrite?: boolean;
   onSelect: (jobId: string) => void;
   onAction?: (status: JobStatus, job?: TransportJob) => void;
+  onReportIssue?: (job: TransportJob) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const phone = formatPhoneNumber(job.driverPhone) || "ไม่ระบุเบอร์โทร";
-  const phoneDigits = job.driverPhone.replace(/\D/g, "");
   const nextAction = nextDriverAction(job);
+  const activeStop = activeDriverStop(job);
+  const pickupPhone = formatPhoneNumber(job.pickupContactPhone || "");
+  const deliveryPhone = formatPhoneNumber(job.deliveryContactPhone || "");
 
   function toggleDetails() {
     onSelect(job.id);
@@ -1695,18 +1762,18 @@ function JobSummaryCard({
     <article className={`job-summary-card ${selected ? "selected-job" : ""} ${expanded ? "expanded" : ""}`}>
       <button className="job-summary-toggle" type="button" aria-expanded={expanded} onClick={toggleDetails}>
         <span className="job-summary-toggle-icon"><MapPin size={19} /></span>
-        <span className="job-summary-toggle-copy">
+        <span className="job-summary-topline">
           <small>ใบงาน {job.workOrder}</small>
-          <strong>
-            <span>{job.pickupLocation}</span>
-            <ArrowRight size={16} aria-hidden="true" />
-            <span>{job.deliveryLocation}</span>
-          </strong>
+          <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
         </span>
-        <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
         <span className="job-summary-toggle-chevron" aria-hidden="true">
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </span>
+        <strong className="job-summary-route">
+          <span>{job.pickupLocation}</span>
+          <ArrowRight size={16} aria-hidden="true" />
+          <span>{job.deliveryLocation}</span>
+        </strong>
       </button>
 
       {expanded && (
@@ -1716,21 +1783,55 @@ function JobSummaryCard({
               <UserRound size={18} />
               <span><small>คนขับ</small><strong>{job.driverName || "ยังไม่ระบุคนขับ"}</strong></span>
             </div>
-            {phoneDigits ? (
-              <a className="job-phone" href={`tel:${phoneDigits}`} aria-label={`โทรหาคนขับ ${phone}`}>
-                <Phone size={17} /> {phone}
-              </a>
-            ) : (
-              <span className="job-phone"><Phone size={17} /> {phone}</span>
-            )}
             <span className="vehicle-plate"><Truck size={17} /> {job.vehiclePlate || "ไม่ระบุทะเบียน"}</span>
           </div>
-          <div className="job-summary-details">
-            <div><small>ลูกค้า</small><strong>{job.customer}</strong></div>
-            <div><small>ETA</small><strong>{job.eta}</strong></div>
-            <div><small>อัปเดตล่าสุด</small><strong>{job.lastUpdatedMinutes} นาทีที่แล้ว</strong></div>
-            <div><small>การแจ้งเตือน</small><strong>{job.alerts.length ? `${job.alerts.length} รายการ` : "ไม่มี"}</strong></div>
+          <div className="job-customer-line"><small>ลูกค้า</small><strong>{job.customer}</strong></div>
+          <div className="job-distance"><Navigation size={17} /><strong>{routeDistanceLabel(job.routeDistanceMeters)}</strong></div>
+          {job.status === "problem" && (
+            <div className="job-issue-banner">
+              <AlertTriangle size={18} />
+              <span><strong>รายงานปัญหาแล้ว</strong><small>{job.lastIssue?.note || "ผู้ดูแลได้รับแจ้งแล้ว คุณยังทำขั้นตอนเดิมต่อได้"}</small></span>
+            </div>
+          )}
+          <div className="job-stop-list">
+            <article className={`job-stop-card pickup ${activeStop === "pickup" ? "current" : ""}`}>
+              <header><span><MapPin size={18} /> จุดรับสินค้า</span>{activeStop === "pickup" && <b>จุดปัจจุบัน</b>}</header>
+              <h3>{job.pickupLocation}</h3>
+              <p><Clock3 size={16} /> {formatStopSchedule(job.pickupDate, job.pickupTime)}</p>
+              <a className="job-map-action" href={stopNavigationUrl(job.pickupLocation, job.pickupPlace)} target="_blank" rel="noreferrer">
+                <Navigation size={18} /> เปิดแผนที่นำทาง
+              </a>
+              {activeStop === "pickup" && (
+                <div className="job-stop-contact">
+                  <small>ผู้ติดต่อจุดรับ</small>
+                  <strong>{job.pickupContact || "ยังไม่ระบุผู้ติดต่อ"}</strong>
+                  {pickupPhone && <a href={`tel:${job.pickupContactPhone?.replace(/\D/g, "")}`}><Phone size={17} /> โทร {pickupPhone}</a>}
+                  {job.pickupContactNotes && <p>{job.pickupContactNotes}</p>}
+                </div>
+              )}
+            </article>
+            <article className={`job-stop-card delivery ${activeStop === "delivery" ? "current" : ""}`}>
+              <header><span><MapPinned size={18} /> จุดส่งสินค้า</span>{activeStop === "delivery" && <b>จุดปัจจุบัน</b>}</header>
+              <h3>{job.deliveryLocation}</h3>
+              <p><Clock3 size={16} /> {formatStopSchedule(job.deliveryDate, job.deliveryTime)}</p>
+              <a className="job-map-action" href={stopNavigationUrl(job.deliveryLocation, job.deliveryPlace)} target="_blank" rel="noreferrer">
+                <Navigation size={18} /> เปิดแผนที่นำทาง
+              </a>
+              {activeStop === "delivery" && (
+                <div className="job-stop-contact">
+                  <small>ผู้ติดต่อจุดส่ง</small>
+                  <strong>{job.deliveryContact || "ยังไม่ระบุผู้ติดต่อ"}</strong>
+                  {deliveryPhone && <a href={`tel:${job.deliveryContactPhone?.replace(/\D/g, "")}`}><Phone size={17} /> โทร {deliveryPhone}</a>}
+                  {job.deliveryContactNotes && <p>{job.deliveryContactNotes}</p>}
+                </div>
+              )}
+            </article>
           </div>
+          {onReportIssue && activeStop && (
+            <button className="job-report-issue" type="button" disabled={!canWrite} onClick={() => onReportIssue(job)}>
+              <AlertTriangle size={19} /> แจ้งปัญหา
+            </button>
+          )}
           {nextAction && onAction && (
             <div className="job-next-step">
               <div>
@@ -1752,6 +1853,81 @@ function JobSummaryCard({
         </div>
       )}
     </article>
+  );
+}
+
+const driverIssueOptions: Array<{ id: DriverIssueType; label: string; description: string; icon: typeof AlertTriangle }> = [
+  { id: "accident", label: "อุบัติเหตุ", description: "รถหรือบุคคลเกิดอุบัติเหตุ", icon: AlertTriangle },
+  { id: "traffic", label: "จราจรติดขัด", description: "คาดว่าจะถึงล่าช้ากว่ากำหนด", icon: Car },
+  { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", description: "โทรหรือประสานผู้รับ–ส่งไม่ได้", icon: PhoneOff }
+];
+
+function DriverIssueDialog({
+  job,
+  onClose,
+  onSubmit
+}: {
+  job: TransportJob;
+  onClose: () => void;
+  onSubmit: (job: TransportJob, issueType: DriverIssueType, note: string) => Promise<boolean>;
+}) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const [issueType, setIssueType] = useState<DriverIssueType | null>(null);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!issueType || submitting) return;
+    setSubmitting(true);
+    const saved = await onSubmit(job, issueType, note);
+    setSubmitting(false);
+    if (saved) onClose();
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="driver-issue-dialog"
+      aria-labelledby="driver-issue-title"
+      onCancel={(event) => { event.preventDefault(); if (!submitting) onClose(); }}
+      onClick={(event) => { if (event.target === event.currentTarget && !submitting) onClose(); }}
+    >
+      <form className="driver-issue-sheet" onSubmit={submit}>
+        <span className="driver-issue-handle" aria-hidden="true" />
+        <header>
+          <div><small>ใบงาน {job.workOrder}</small><h2 id="driver-issue-title">แจ้งปัญหา</h2><p>เลือกเหตุการณ์ที่กำลังพบ ผู้ดูแลจะเห็นทันที</p></div>
+          <button type="button" aria-label="ปิดหน้าต่างแจ้งปัญหา" disabled={submitting} onClick={onClose}><X size={21} /></button>
+        </header>
+        <div className="driver-issue-options">
+          {driverIssueOptions.map(option => {
+            const Icon = option.icon;
+            const selected = issueType === option.id;
+            return (
+              <button key={option.id} type="button" className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => setIssueType(option.id)}>
+                <Icon size={25} />
+                <strong>{option.label}</strong>
+                <small>{option.description}</small>
+              </button>
+            );
+          })}
+        </div>
+        <label className="driver-issue-note">
+          <span>รายละเอียดเพิ่มเติม <small>(ไม่บังคับ)</small></span>
+          <textarea value={note} maxLength={500} rows={4} placeholder="เช่น รถติดหน้าด่าน คาดว่าจะช้า 30 นาที" onChange={event => setNote(event.target.value)} />
+        </label>
+        <div className="driver-issue-actions">
+          <button type="button" disabled={submitting} onClick={onClose}>ยกเลิก</button>
+          <button type="submit" disabled={!issueType || submitting}>{submitting ? "กำลังส่ง..." : "ส่งรายงานปัญหา"}</button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 

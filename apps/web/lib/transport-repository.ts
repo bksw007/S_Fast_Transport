@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   getDoc,
@@ -27,6 +28,13 @@ import { statusLabels, type JobPlace, type JobStatus, type TransportJob } from "
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
 export type OrganizationType = "main" | "subcontract";
 export type ApprovalStatus = "pending" | "approved" | "suspended";
+export type DriverIssueType = "accident" | "traffic" | "contact_failed";
+
+const driverIssueLabels: Record<DriverIssueType, string> = {
+  accident: "อุบัติเหตุ",
+  traffic: "จราจรติดขัด",
+  contact_failed: "ติดต่อลูกค้าไม่ได้"
+};
 
 export type UserProfile = {
   uid: string;
@@ -572,6 +580,7 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
       trackingEnabled,
       trackingStatus: toTrackingStatus(status),
       currentLocation: { ...job.currentLocation, updatedAt: new Date().toISOString() },
+      ...(existing.status === "problem" ? { issuePreviousStatus: deleteField(), lastIssue: deleteField() } : {}),
       updatedAt: serverTimestamp()
     });
   });
@@ -590,6 +599,48 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
   });
 
   await syncActiveShareLinks(job, status);
+}
+
+export async function reportDriverIssue(
+  job: TransportJob,
+  issueType: DriverIssueType,
+  note: string,
+  actor: UserProfile
+) {
+  const cleanNote = note.trim().slice(0, 500);
+  const jobRef = doc(db, "today_jobs", job.id);
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const existing = snapshot.data();
+    const previousStatus = existing.status === "problem"
+      ? existing.issuePreviousStatus ?? "assigned"
+      : existing.status;
+    const message = `${driverIssueLabels[issueType]}${cleanNote ? `: ${cleanNote}` : ""}`;
+    const alerts = Array.isArray(existing.alerts) ? [...existing.alerts, message].slice(-20) : [message];
+    const lastIssue = { type: issueType, note: cleanNote, reportedAt: new Date().toISOString() };
+
+    transaction.update(jobRef, {
+      status: "problem",
+      issuePreviousStatus: previousStatus,
+      lastIssue,
+      alerts,
+      updatedAt: serverTimestamp()
+    });
+    transaction.set(eventRef, {
+      jobId: job.id,
+      type: "driver_issue",
+      message,
+      actorUid: actor.uid,
+      actorName: actor.displayName,
+      organizationId: job.organizationId ?? actor.organizationId ?? "main",
+      lat: job.currentLocation.lat,
+      lng: job.currentLocation.lng,
+      timestamp: serverTimestamp(),
+      metadata: { issueType, note: cleanNote, previousStatus, source: "driver_web" }
+    });
+  });
 }
 
 export async function uploadProof(job: TransportJob, file: File, actor: UserProfile) {
@@ -738,6 +789,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     deliveryTime: data.deliveryTime ?? undefined,
     arrivedDeliveryAt: timestampToIso(data.arrivedDeliveryAt),
     completedAt: timestampToIso(data.completedAt),
+    issuePreviousStatus: data.issuePreviousStatus ?? undefined,
+    lastIssue: data.lastIssue ?? undefined,
     assignedDriverUid: data.assignedDriverUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,
     notes: data.notes ?? "",

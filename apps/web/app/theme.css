@@ -109,7 +109,7 @@
   color: #c56f00;
   background: #fff3d6;
 }
-.driver-shell .job-summary-toggle-copy > small { color: #c56f00; }
+.driver-shell .job-summary-topline > small { color: #c56f00; }
 .driver-shell .job-summary-toggle .status {
   color: #0d2b45;
   background: #e7eef3;
