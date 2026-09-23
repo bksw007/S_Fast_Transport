@@ -18,6 +18,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "ใช้ตำแหน่งเฉพาะระหว่างงานขนส่งเพื่อให้ Admin และลูกค้าติดตามสถานะใบงานได้",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ใช้ตำแหน่งเบื้องหลังเฉพาะระหว่างงานที่คนขับเริ่มแชร์ตำแหน่ง",
+        "NSCameraUsageDescription": "ใช้กล้องเพื่อถ่ายรูปเช็คอินที่จุดรับและจุดส่งสินค้า",
+        "NSPhotoLibraryUsageDescription": "ใช้รูปจากคลังภาพเพื่อแนบหลักฐานเช็คอินที่จุดรับและจุดส่งสินค้า",
         "UIBackgroundModes": [
           "location"
         ]
@@ -45,6 +47,13 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true,
           "locationAlwaysAndWhenInUsePermission": "ใช้ตำแหน่งเบื้องหลังเฉพาะระหว่างงานขนส่งที่คนขับกดเริ่มแชร์ตำแหน่ง"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "อนุญาตให้เลือกรูปเพื่อแนบหลักฐานเช็คอิน",
+          "cameraPermission": "อนุญาตให้ใช้กล้องเพื่อถ่ายรูปเช็คอิน"
         }
       ],
       "expo-notifications",

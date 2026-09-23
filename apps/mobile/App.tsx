@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Google from "expo-auth-session/providers/google";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as WebBrowser from "expo-web-browser";
 import {
@@ -13,7 +15,6 @@ import {
   type User
 } from "firebase/auth";
 import {
-  driverActions,
   statusLabels,
   type JobStatus,
   type TransportJob
@@ -26,12 +27,16 @@ import {
   stopJobTracking,
   type TrackingSession
 } from "./src/location-tracking";
+import { currentDriverStep, driverProgress, driverSteps } from "./src/driver-workflow";
 import {
   ensureMobileProfile,
   getMobileProfile,
   rollbackTrackingStart,
+  reportDriverIssue,
   subscribeDriverJobs,
   updateDriverJobStatus,
+  uploadDriverCheckInPhoto,
+  type DriverIssueType,
   type MobileProfile
 } from "./src/transport-repository";
 
@@ -64,6 +69,10 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [jobExpanded, setJobExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
+  const [checkInPhoto, setCheckInPhoto] = useState<{ jobId: string; stage: "pickup" | "delivery"; uri: string } | null>(null);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueType, setIssueType] = useState<DriverIssueType | null>(null);
+  const [issueNote, setIssueNote] = useState("");
   const [locationPermission, setLocationPermission] = useState({
     servicesEnabled: false,
     foreground: "undetermined",
@@ -169,6 +178,13 @@ export default function App() {
     [jobs]
   );
 
+  useEffect(() => {
+    setCheckInPhoto(null);
+    setIssueOpen(false);
+    setIssueType(null);
+    setIssueNote("");
+  }, [selectedJobId]);
+
   async function refreshLocationPermission() {
     const [servicesEnabled, foreground, background] = await Promise.all([
       Location.hasServicesEnabledAsync(),
@@ -193,11 +209,20 @@ export default function App() {
 
     setBusy(true);
     try {
+      const step = currentDriverStep(selectedJob);
+      if (!step || step.nextStatus !== status) throw new Error("ขั้นตอนนี้ยังไม่พร้อมดำเนินการ");
+      if (step.photoStage) {
+        if (!checkInPhoto || checkInPhoto.jobId !== selectedJob.id || checkInPhoto.stage !== step.photoStage) {
+          throw new Error("กรุณาถ่ายรูปหรือเลือกรูปเช็คอินก่อน");
+        }
+        await uploadDriverCheckInPhoto(selectedJob, profile, step.photoStage, checkInPhoto.uri);
+      }
       if (isComplete) {
         await stopJobTracking();
         await updateDriverJobStatus(selectedJob, status, profile);
         setActiveSession(null);
         setMessage("จบงานและหยุดแชร์ตำแหน่งแล้ว");
+        setCheckInPhoto(null);
         return;
       }
 
@@ -215,6 +240,7 @@ export default function App() {
       } else {
         setMessage(`อัปเดตเป็น “${statusLabels[status]}” แล้ว`);
       }
+      setCheckInPhoto(null);
     } catch (error) {
       if (isStart && !activeSession && !selectedJob.trackingEnabled) {
         try {
@@ -226,6 +252,48 @@ export default function App() {
       }
       setMessage(toMessage(error));
       Alert.alert("ดำเนินการไม่สำเร็จ", toMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pickCheckInPhoto(source: "camera" | "library", stage: "pickup" | "delivery") {
+    if (!selectedJob) return;
+    const permission = source === "camera"
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("ต้องอนุญาตการเข้าถึง", source === "camera" ? "กรุณาอนุญาตกล้องเพื่อถ่ายรูปเช็คอิน" : "กรุณาอนุญาตคลังภาพเพื่อเลือกรูปเช็คอิน");
+      return;
+    }
+
+    const result = source === "camera"
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.65, allowsEditing: false })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.65, allowsMultipleSelection: false });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setBusy(true);
+    try {
+      const uri = await prepareCheckInPhoto(asset);
+      setCheckInPhoto({ jobId: selectedJob.id, stage, uri });
+    } catch (error) {
+      Alert.alert("เตรียมรูปไม่สำเร็จ", toMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitIssue() {
+    if (!selectedJob || !profile || !issueType) return;
+    setBusy(true);
+    try {
+      await reportDriverIssue(selectedJob, profile, issueType, issueNote);
+      setMessage("ส่งรายงานปัญหาให้แอดมินแล้ว");
+      setIssueOpen(false);
+      setIssueType(null);
+      setIssueNote("");
+    } catch (error) {
+      Alert.alert("ส่งรายงานไม่สำเร็จ", toMessage(error));
     } finally {
       setBusy(false);
     }
@@ -298,8 +366,11 @@ export default function App() {
                     expanded={jobExpanded}
                     busy={busy}
                     activeSession={activeSession}
+                    checkInPhoto={checkInPhoto}
                     onToggle={() => setJobExpanded((value) => !value)}
                     onAction={(status) => void handleDriverAction(status)}
+                    onPickPhoto={(source, stage) => void pickCheckInPhoto(source, stage)}
+                    onReportIssue={() => setIssueOpen(true)}
                   />
                 ) : (
                   <EmptyJobs onOpenJobs={() => setActiveTab("jobs")} />
@@ -413,6 +484,16 @@ export default function App() {
           </ScrollView>
 
           <BottomNavigation active={activeTab} onChange={setActiveTab} jobCount={activeJobs.length} />
+          <IssueReportModal
+            visible={issueOpen}
+            selected={issueType}
+            note={issueNote}
+            busy={busy}
+            onSelect={setIssueType}
+            onNoteChange={setIssueNote}
+            onClose={() => !busy && setIssueOpen(false)}
+            onSubmit={() => void submitIssue()}
+          />
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -470,16 +551,28 @@ function JobPanel({
   expanded,
   busy,
   activeSession,
+  checkInPhoto,
   onToggle,
-  onAction
+  onAction,
+  onPickPhoto,
+  onReportIssue
 }: {
   job: TransportJob;
   expanded: boolean;
   busy: boolean;
   activeSession: TrackingSession | null;
+  checkInPhoto: { jobId: string; stage: "pickup" | "delivery"; uri: string } | null;
   onToggle: () => void;
   onAction: (status: JobStatus) => void;
+  onPickPhoto: (source: "camera" | "library", stage: "pickup" | "delivery") => void;
+  onReportIssue: () => void;
 }) {
+  const step = currentDriverStep(job);
+  const completedStepCount = driverProgress(job);
+  const selectedPhoto = step?.photoStage && checkInPhoto?.jobId === job.id && checkInPhoto.stage === step.photoStage
+    ? checkInPhoto
+    : null;
+  const actionDisabled = busy || (step?.id === "start_tracking" && Boolean(activeSession));
   return (
     <>
       <View style={styles.card}>
@@ -508,27 +601,165 @@ function JobPanel({
           </View>
         )}
       </View>
-      <View style={styles.actionGrid}>
-        {driverActions.map((action) => {
-          const disabled = busy || (action.id === "start_tracking" && Boolean(activeSession));
-          return (
+
+      {job.status === "problem" && (
+        <View style={styles.issueBanner}>
+          <Ionicons name="warning" size={21} color={colors.danger} />
+          <View style={styles.grow}>
+            <Text style={styles.issueBannerTitle}>รายงานปัญหาแล้ว</Text>
+            <Text style={styles.issueBannerText}>{job.lastIssue?.note || "แอดมินได้รับการแจ้งเตือนแล้ว คุณยังทำขั้นตอนเดิมต่อได้"}</Text>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.workflowCard}>
+        <View style={styles.workflowHeader}>
+          <View>
+            <Text style={styles.workflowKicker}>ขั้นตอนปัจจุบัน</Text>
+            <Text style={styles.workflowCount}>{step ? `${completedStepCount + 1} จาก ${driverSteps.length}` : "เสร็จสิ้น"}</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.round((completedStepCount / driverSteps.length) * 100)}%` }]} />
+          </View>
+        </View>
+
+        {step ? (
+          <View style={styles.currentStep}>
+            <View style={styles.currentStepIcon}>
+              <Ionicons name={step.icon} size={27} color="#ffffff" />
+            </View>
+            <Text style={styles.currentStepTitle}>{step.label}</Text>
+            <Text style={styles.currentStepDescription}>{step.description}</Text>
+
+            {step.photoStage && (
+              <View style={styles.photoArea}>
+                {selectedPhoto ? (
+                  <View style={styles.photoPreviewWrap}>
+                    <Image source={{ uri: selectedPhoto.uri }} style={styles.photoPreview} />
+                    <View style={styles.photoReadyBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color="#ffffff" />
+                      <Text style={styles.photoReadyText}>พร้อมแนบ</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.photoPlaceholder}>
+                    <Ionicons name="camera-outline" size={31} color={colors.orange} />
+                    <Text style={styles.photoPlaceholderTitle}>ต้องมีรูปก่อนเช็คอิน</Text>
+                    <Text style={styles.photoPlaceholderText}>ถ่ายให้เห็นสถานที่หรือสินค้าชัดเจน</Text>
+                  </View>
+                )}
+                <View style={styles.photoActions}>
+                  <Pressable disabled={busy} style={styles.photoButtonPrimary} onPress={() => onPickPhoto("camera", step.photoStage!)}>
+                    <Ionicons name="camera" size={19} color="#ffffff" />
+                    <Text style={styles.photoButtonPrimaryText}>ถ่ายรูป</Text>
+                  </Pressable>
+                  <Pressable disabled={busy} style={styles.photoButtonSecondary} onPress={() => onPickPhoto("library", step.photoStage!)}>
+                    <Ionicons name="images-outline" size={19} color={colors.accent} />
+                    <Text style={styles.photoButtonSecondaryText}>เลือกจากเครื่อง</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
             <Pressable
-              key={action.id}
-              disabled={disabled}
-              style={[styles.actionButton, disabled && styles.disabled, action.id === "start_tracking" && styles.startButton, action.id === "completed" && styles.completeButton]}
-              onPress={() => onAction(action.nextStatus)}
+              disabled={actionDisabled || Boolean(step.photoStage && !selectedPhoto)}
+              style={[styles.nextStepButton, (actionDisabled || Boolean(step.photoStage && !selectedPhoto)) && styles.disabled]}
+              onPress={() => onAction(step.nextStatus)}
             >
-              <Ionicons
-                name={action.id === "start_tracking" ? "navigate" : action.id === "completed" ? "checkmark-circle" : "radio-button-on"}
-                size={19}
-                color={["start_tracking", "completed"].includes(action.id) ? "#ffffff" : colors.accent}
-              />
-              <Text style={[styles.actionText, ["start_tracking", "completed"].includes(action.id) && styles.completeText]}>{action.label}</Text>
+              {busy ? <ActivityIndicator color="#ffffff" /> : <Ionicons name={step.icon} size={21} color="#ffffff" />}
+              <Text style={styles.nextStepButtonText}>{busy ? "กำลังบันทึก..." : step.label}</Text>
+              {!busy && <Ionicons name="arrow-forward" size={20} color="#ffffff" />}
             </Pressable>
-          );
-        })}
+          </View>
+        ) : (
+          <View style={styles.finishedStep}>
+            <Ionicons name="checkmark-done-circle" size={38} color={colors.success} />
+            <Text style={styles.finishedStepTitle}>{job.status === "cancelled" ? "งานนี้ถูกยกเลิก" : "งานนี้เสร็จเรียบร้อย"}</Text>
+          </View>
+        )}
       </View>
+
+      {step && (
+        <Pressable disabled={busy} style={styles.reportIssueButton} onPress={onReportIssue}>
+          <Ionicons name="warning-outline" size={21} color={colors.danger} />
+          <Text style={styles.reportIssueText}>รายงานปัญหา</Text>
+          <Ionicons name="chevron-forward" size={19} color={colors.danger} />
+        </Pressable>
+      )}
     </>
+  );
+}
+
+const issueChoices: Array<{ id: DriverIssueType; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { id: "accident", label: "อุบัติเหตุ", icon: "warning" },
+  { id: "traffic", label: "จราจรติดขัด", icon: "car" },
+  { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", icon: "call" }
+];
+
+function IssueReportModal({
+  visible,
+  selected,
+  note,
+  busy,
+  onSelect,
+  onNoteChange,
+  onClose,
+  onSubmit
+}: {
+  visible: boolean;
+  selected: DriverIssueType | null;
+  note: string;
+  busy: boolean;
+  onSelect: (value: DriverIssueType) => void;
+  onNoteChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <SafeAreaView style={styles.issueSheet} edges={["bottom"]}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeading}>
+            <View style={styles.sheetWarningIcon}><Ionicons name="warning" size={23} color={colors.danger} /></View>
+            <View style={styles.grow}>
+              <Text style={styles.sheetTitle}>รายงานปัญหา</Text>
+              <Text style={styles.sheetSubtitle}>เลือกเหตุการณ์ที่เกิดขึ้น</Text>
+            </View>
+            <Pressable accessibilityLabel="ปิด" style={styles.sheetClose} onPress={onClose}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+          </View>
+          <View style={styles.issueChoiceRow}>
+            {issueChoices.map((choice) => (
+              <Pressable key={choice.id} style={[styles.issueChoice, selected === choice.id && styles.issueChoiceSelected]} onPress={() => onSelect(choice.id)}>
+                <View style={[styles.issueChoiceIcon, selected === choice.id && styles.issueChoiceIconSelected]}>
+                  <Ionicons name={choice.icon} size={25} color={selected === choice.id ? "#ffffff" : colors.danger} />
+                </View>
+                <Text style={[styles.issueChoiceLabel, selected === choice.id && styles.issueChoiceLabelSelected]}>{choice.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.noteLabel}>รายละเอียดเพิ่มเติม (ไม่บังคับ)</Text>
+          <TextInput
+            value={note}
+            onChangeText={onNoteChange}
+            placeholder="เช่น รถติดหน้าด่าน คาดว่าจะช้า 30 นาที"
+            placeholderTextColor="#91a0ad"
+            multiline
+            maxLength={500}
+            style={styles.issueNoteInput}
+            textAlignVertical="top"
+          />
+          <View style={styles.issueSubmitRow}>
+            <Pressable disabled={busy} style={styles.cancelIssueButton} onPress={onClose}><Text style={styles.cancelIssueText}>ยกเลิก</Text></Pressable>
+            <Pressable disabled={!selected || busy} style={[styles.submitIssueButton, (!selected || busy) && styles.disabled]} onPress={onSubmit}>
+              {busy && <ActivityIndicator color="#ffffff" />}
+              <Text style={styles.submitIssueText}>{busy ? "กำลังส่ง..." : "ส่งรายงาน"}</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    </Modal>
   );
 }
 
@@ -645,6 +876,27 @@ function toMessage(error: unknown) {
   return error instanceof Error ? error.message : "เกิดข้อผิดพลาด กรุณาลองใหม่";
 }
 
+async function prepareCheckInPhoto(asset: ImagePicker.ImagePickerAsset) {
+  const attempts = [
+    { width: 1440, quality: 0.58 },
+    { width: 1200, quality: 0.5 },
+    { width: 960, quality: 0.42 },
+    { width: 800, quality: 0.34 }
+  ];
+
+  for (const attempt of attempts) {
+    const actions = asset.width > attempt.width ? [{ resize: { width: attempt.width } }] : [];
+    const result = await ImageManipulator.manipulateAsync(asset.uri, actions, {
+      compress: attempt.quality,
+      format: ImageManipulator.SaveFormat.JPEG
+    });
+    const blob = await (await fetch(result.uri)).blob();
+    if (blob.size > 0 && blob.size <= 1024 * 1024) return result.uri;
+  }
+
+  throw new Error("ไม่สามารถลดขนาดรูปให้ต่ำกว่า 1 MB ได้ กรุณาถ่ายรูปใหม่");
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   appShell: { flex: 1 },
@@ -700,6 +952,60 @@ const styles = StyleSheet.create({
   completeButton: { backgroundColor: colors.success, borderColor: colors.success },
   actionText: { color: colors.text, flex: 1, fontWeight: "700", fontSize: 13 },
   completeText: { color: "#ffffff" },
+  issueBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 13, borderRadius: 15, backgroundColor: "#fff2f0", borderWidth: 1, borderColor: "#efcbc7" },
+  issueBannerTitle: { color: colors.danger, fontSize: 13, fontWeight: "800" },
+  issueBannerText: { color: "#7d514c", fontSize: 12, lineHeight: 18, marginTop: 2 },
+  workflowCard: { overflow: "hidden", borderRadius: 21, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, elevation: 3 },
+  workflowHeader: { gap: 10, paddingHorizontal: 17, paddingTop: 15, paddingBottom: 13, backgroundColor: colors.accent },
+  workflowKicker: { color: "#a9bdcc", fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+  workflowCount: { color: "#ffffff", fontSize: 15, fontWeight: "800", marginTop: 2 },
+  progressTrack: { height: 5, overflow: "hidden", borderRadius: 3, backgroundColor: "#38556c" },
+  progressFill: { height: "100%", borderRadius: 3, backgroundColor: colors.orange },
+  currentStep: { alignItems: "center", padding: 18, gap: 8 },
+  currentStepIcon: { width: 54, height: 54, marginTop: 2, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.orange, shadowColor: colors.orange, shadowOpacity: 0.25, shadowRadius: 9, elevation: 4 },
+  currentStepTitle: { color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center", marginTop: 3 },
+  currentStepDescription: { maxWidth: 320, color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: "center" },
+  photoArea: { alignSelf: "stretch", gap: 10, marginTop: 8 },
+  photoPlaceholder: { minHeight: 130, alignItems: "center", justifyContent: "center", gap: 5, padding: 14, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", borderColor: "#e6bd77", backgroundColor: "#fffaf0" },
+  photoPlaceholderTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  photoPlaceholderText: { color: colors.muted, fontSize: 11, textAlign: "center" },
+  photoPreviewWrap: { height: 190, overflow: "hidden", borderRadius: 16, backgroundColor: colors.surface2 },
+  photoPreview: { width: "100%", height: "100%" },
+  photoReadyBadge: { position: "absolute", left: 10, bottom: 10, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.success },
+  photoReadyText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  photoActions: { flexDirection: "row", gap: 9 },
+  photoButtonPrimary: { flex: 1, minHeight: 47, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: colors.orange },
+  photoButtonPrimaryText: { color: "#ffffff", fontSize: 12, fontWeight: "800" },
+  photoButtonSecondary: { flex: 1, minHeight: 47, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: colors.surface2 },
+  photoButtonSecondaryText: { color: colors.accent, fontSize: 12, fontWeight: "800" },
+  nextStepButton: { alignSelf: "stretch", minHeight: 57, marginTop: 8, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, borderRadius: 15, backgroundColor: colors.success },
+  nextStepButtonText: { flex: 1, color: "#ffffff", fontSize: 15, fontWeight: "800", textAlign: "center" },
+  finishedStep: { alignItems: "center", gap: 8, padding: 24 },
+  finishedStepTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  reportIssueButton: { minHeight: 53, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 9, borderRadius: 15, backgroundColor: "#fff7f6", borderWidth: 1, borderColor: "#edcbc8" },
+  reportIssueText: { flex: 1, color: colors.danger, fontSize: 14, fontWeight: "800" },
+  modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(5, 18, 30, 0.58)" },
+  issueSheet: { paddingHorizontal: 17, paddingTop: 9, paddingBottom: 12, borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: colors.surface },
+  sheetHandle: { alignSelf: "center", width: 43, height: 4, marginBottom: 15, borderRadius: 3, backgroundColor: colors.border },
+  sheetHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
+  sheetWarningIcon: { width: 43, height: 43, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ee" },
+  sheetTitle: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  sheetSubtitle: { color: colors.muted, fontSize: 12, marginTop: 1 },
+  sheetClose: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 },
+  issueChoiceRow: { flexDirection: "row", gap: 8, marginTop: 17 },
+  issueChoice: { flex: 1, minHeight: 106, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+  issueChoiceSelected: { borderColor: colors.danger, backgroundColor: "#fff3f1" },
+  issueChoiceIcon: { width: 45, height: 45, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#ffe4e1" },
+  issueChoiceIconSelected: { backgroundColor: colors.danger },
+  issueChoiceLabel: { color: colors.text, fontSize: 11, lineHeight: 15, fontWeight: "700", textAlign: "center" },
+  issueChoiceLabelSelected: { color: colors.danger, fontWeight: "800" },
+  noteLabel: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: 17, marginBottom: 7 },
+  issueNoteInput: { minHeight: 92, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, fontSize: 13, lineHeight: 19 },
+  issueSubmitRow: { flexDirection: "row", gap: 9, marginTop: 14 },
+  cancelIssueButton: { flex: 1, minHeight: 51, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.surface2 },
+  cancelIssueText: { color: colors.accent, fontSize: 14, fontWeight: "800" },
+  submitIssueButton: { flex: 1.5, minHeight: 51, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, backgroundColor: colors.danger },
+  submitIssueText: { color: "#ffffff", fontSize: 14, fontWeight: "800" },
   disabled: { opacity: 0.45 },
   statusCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   statusIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },

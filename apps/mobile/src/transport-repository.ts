@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -13,13 +14,22 @@ import {
   type DocumentData,
   type Unsubscribe
 } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
   statusLabels,
   type JobStatus,
   type TrackingStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
-import { db } from "./firebase";
+import { db, storage } from "./firebase";
+
+export type DriverIssueType = "accident" | "traffic" | "contact_failed";
+
+const issueLabels: Record<DriverIssueType, string> = {
+  accident: "อุบัติเหตุ",
+  traffic: "จราจรติดขัด",
+  contact_failed: "ติดต่อลูกค้าไม่ได้"
+};
 
 export type MobileProfile = {
   uid: string;
@@ -132,6 +142,11 @@ export async function updateDriverJobStatus(
     updatedAt: serverTimestamp()
   };
 
+  if (job.status === "problem") {
+    patch.issuePreviousStatus = deleteField();
+    patch.lastIssue = deleteField();
+  }
+
   if (trackingEnabled && !job.trackingEnabled) patch.trackingStartedAt = serverTimestamp();
   if (!trackingEnabled) patch.trackingEndedAt = serverTimestamp();
 
@@ -156,6 +171,101 @@ export async function updateDriverJobStatus(
     lng: job.currentLocation.lng,
     timestamp: serverTimestamp(),
     metadata: { status, recordedAt: now, source: "driver_mobile" }
+  });
+}
+
+export async function uploadDriverCheckInPhoto(
+  job: TransportJob,
+  profile: MobileProfile,
+  stage: "pickup" | "delivery",
+  uri: string
+) {
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error("ไม่สามารถอ่านรูปที่เลือกได้");
+  const blob = await response.blob();
+  if (!blob.size || blob.size > 1024 * 1024) throw new Error("รูปหลังบีบอัดต้องมีขนาดไม่เกิน 1 MB");
+  const contentType = blob.type || "image/jpeg";
+  if (!/^image\/(jpeg|png|webp)$/.test(contentType)) throw new Error("รองรับเฉพาะรูป JPG, PNG หรือ WEBP");
+
+  const fileName = `${Date.now()}-${stage}-check-in.jpg`;
+  const objectPath = `proof_of_delivery/${job.id}/${profile.uid}/${fileName}`;
+  const result = await uploadBytes(ref(storage, objectPath), blob, { contentType });
+  const downloadUrl = await getDownloadURL(result.ref);
+  const stageLabel = stage === "pickup" ? "จุดรับ" : "จุดส่ง";
+
+  await addDoc(collection(db, "proof_of_delivery"), {
+    jobId: job.id,
+    uploadedByUid: profile.uid,
+    uploadedByName: profile.displayName,
+    organizationId: job.organizationId ?? profile.organizationId ?? "main",
+    fileName,
+    storagePath: objectPath,
+    downloadUrl,
+    contentType,
+    size: blob.size,
+    checkInStage: stage,
+    createdAt: serverTimestamp()
+  });
+
+  await addDoc(collection(db, "job_events"), {
+    jobId: job.id,
+    organizationId: job.organizationId ?? profile.organizationId ?? "main",
+    type: "check_in_photo",
+    message: `แนบรูปเช็คอิน${stageLabel}`,
+    actorUid: profile.uid,
+    actorName: profile.displayName,
+    lat: job.currentLocation.lat,
+    lng: job.currentLocation.lng,
+    timestamp: serverTimestamp(),
+    metadata: { stage, storagePath: objectPath, downloadUrl, source: "driver_mobile" }
+  });
+
+  return downloadUrl;
+}
+
+export async function reportDriverIssue(
+  job: TransportJob,
+  profile: MobileProfile,
+  issueType: DriverIssueType,
+  note: string
+) {
+  const cleanNote = note.trim().slice(0, 500);
+  const jobRef = doc(db, "today_jobs", job.id);
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const current = snapshot.data();
+    const previousStatus = current.status === "problem"
+      ? current.issuePreviousStatus ?? "assigned"
+      : current.status;
+    const issue = {
+      type: issueType,
+      note: cleanNote,
+      reportedAt: new Date().toISOString()
+    };
+    const message = `${issueLabels[issueType]}${cleanNote ? `: ${cleanNote}` : ""}`;
+    const alerts = Array.isArray(current.alerts) ? [...current.alerts, message].slice(-20) : [message];
+
+    transaction.update(jobRef, {
+      status: "problem",
+      issuePreviousStatus: previousStatus,
+      lastIssue: issue,
+      alerts,
+      updatedAt: serverTimestamp()
+    });
+    transaction.set(eventRef, {
+      jobId: job.id,
+      organizationId: job.organizationId ?? profile.organizationId ?? "main",
+      type: "driver_issue",
+      message,
+      actorUid: profile.uid,
+      actorName: profile.displayName,
+      lat: job.currentLocation.lat,
+      lng: job.currentLocation.lng,
+      timestamp: serverTimestamp(),
+      metadata: { issueType, note: cleanNote, previousStatus, source: "driver_mobile" }
+    });
   });
 }
 
@@ -204,6 +314,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     deliveryLocation: data.deliveryLocation ?? "-",
     arrivedDeliveryAt: typeof data.arrivedDeliveryAt === "string" ? data.arrivedDeliveryAt : data.arrivedDeliveryAt?.toDate?.().toISOString(),
     completedAt: typeof data.completedAt === "string" ? data.completedAt : data.completedAt?.toDate?.().toISOString(),
+    issuePreviousStatus: data.issuePreviousStatus,
+    lastIssue: data.lastIssue,
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: data.trackingEnabled === true,
