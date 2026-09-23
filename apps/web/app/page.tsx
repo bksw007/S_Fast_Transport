@@ -7,6 +7,7 @@ import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
+import PwaInstallButton, { preparePwaInstallPromptCapture } from "./components/PwaInstallButton";
 import { subscribeOrganizationUserProfiles } from "@/lib/transport-repository";
 import SettingsScreen, { type AppearanceSettings } from "./components/SettingsScreen";
 import LocationManagementScreen from "./components/LocationManagementScreen";
@@ -124,6 +125,24 @@ const statusOrder: JobStatus[] = [
   "completed"
 ];
 
+const driverNextActionByStatus: Partial<Record<JobStatus, (typeof driverActions)[number]["id"]>> = {
+  assigned: "start_tracking",
+  accepted: "arrived_pickup",
+  to_pickup: "arrived_pickup",
+  arrived_pickup: "loading",
+  loading: "to_delivery",
+  to_delivery: "arrived_delivery",
+  arrived_delivery: "unloading",
+  unloading: "unloading",
+  ready_to_close: "completed"
+};
+
+export function nextDriverAction(job: Pick<TransportJob, "status" | "issuePreviousStatus">) {
+  const status = job.status === "problem" && job.issuePreviousStatus ? job.issuePreviousStatus : job.status;
+  const actionId = driverNextActionByStatus[status];
+  return driverActions.find(action => action.id === actionId) ?? null;
+}
+
 function createEmptyJobDraft(): JobDraft {
   const today = new Date().toISOString().slice(0, 10);
   return {
@@ -203,6 +222,7 @@ export default function Home() {
   const [trackingMessage, setTrackingMessage] = useState("พร้อมขอตำแหน่งเมื่อกดเริ่มแชร์");
 
   useEffect(() => {
+    preparePwaInstallPromptCapture();
     void registerPwaServiceWorker().catch(() => undefined);
   }, []);
 
@@ -321,7 +341,7 @@ export default function Home() {
     }
   }
 
-  async function handleDriverAction(status: JobStatus) {
+  async function handleDriverAction(status: JobStatus, targetJob = selectedJob) {
     if (!profile) return;
     setBusyMessage(status === "accepted" ? "กำลังขอสิทธิ์และเริ่ม GPS..." : "กำลังบันทึก...");
     try {
@@ -334,12 +354,12 @@ export default function Home() {
           pushMessage = "เปิดแจ้งเตือนไม่สำเร็จ แต่ยังแชร์ตำแหน่งขณะเปิดแอปได้";
         }
         const initialPosition = await requestTrackingPosition();
-        await updateJobStatus(selectedJob, status, profile);
-        await startPwaJobTracking(selectedJob, profile, initialPosition);
+        await updateJobStatus(targetJob, status, profile);
+        await startPwaJobTracking(targetJob, profile, initialPosition);
         setTrackingMessage(`กำลังแชร์ตำแหน่ง · ${pushMessage}`);
         setFirebaseMessage("เริ่มแชร์ตำแหน่งสำหรับใบงานนี้แล้ว");
       } else {
-        await updateJobStatus(selectedJob, status, profile);
+        await updateJobStatus(targetJob, status, profile);
         if (["completed", "cancelled"].includes(status)) {
           stopPwaJobTracking();
           setTrackingMessage("หยุดแชร์ตำแหน่งแล้ว");
@@ -387,6 +407,7 @@ export default function Home() {
             </div>
           </div>
           <div className="top-actions">
+            <PwaInstallButton />
             {mode === "admin" && isMainAdmin(profile) && (
               <button
                 className="notification-action"
@@ -643,7 +664,7 @@ function DriverMobileScreen({
   canWrite: boolean;
   trackingMessage: string;
   onSelectJob: (jobId: string) => void;
-  onAction: (status: JobStatus) => void;
+  onAction: (status: JobStatus, job?: TransportJob) => void;
   onUpload: (file: File) => void;
   onProfileUpdated: () => Promise<void>;
 }) {
@@ -656,7 +677,7 @@ function DriverMobileScreen({
   }
 
   if (screen === "งานวันนี้") {
-    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onAction={onAction} />;
   }
 
   if (screen === "แผนที่งานของฉัน") {
@@ -1470,11 +1491,15 @@ function DriverView({
 function TodayJobs({
   jobs,
   selectedJobId,
-  onSelectJob
+  canWrite,
+  onSelectJob,
+  onAction
 }: {
   jobs: TransportJob[];
   selectedJobId: string;
+  canWrite: boolean;
   onSelectJob: (jobId: string) => void;
+  onAction: (status: JobStatus, job?: TransportJob) => void;
 }) {
   return (
     <section className="screen">
@@ -1492,7 +1517,9 @@ function TodayJobs({
             key={job.id}
             job={job}
             selected={job.id === selectedJobId}
+            canWrite={canWrite}
             onSelect={onSelectJob}
+            onAction={onAction}
           />
         ))}
       </div>
@@ -1644,15 +1671,20 @@ function CompactJobCard({
 function JobSummaryCard({
   job,
   selected,
-  onSelect
+  canWrite,
+  onSelect,
+  onAction
 }: {
   job: TransportJob;
   selected: boolean;
+  canWrite?: boolean;
   onSelect: (jobId: string) => void;
+  onAction?: (status: JobStatus, job?: TransportJob) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const phone = formatPhoneNumber(job.driverPhone) || "ไม่ระบุเบอร์โทร";
   const phoneDigits = job.driverPhone.replace(/\D/g, "");
+  const nextAction = nextDriverAction(job);
 
   function toggleDetails() {
     onSelect(job.id);
@@ -1699,6 +1731,24 @@ function JobSummaryCard({
             <div><small>อัปเดตล่าสุด</small><strong>{job.lastUpdatedMinutes} นาทีที่แล้ว</strong></div>
             <div><small>การแจ้งเตือน</small><strong>{job.alerts.length ? `${job.alerts.length} รายการ` : "ไม่มี"}</strong></div>
           </div>
+          {nextAction && onAction && (
+            <div className="job-next-step">
+              <div>
+                <small>ขั้นตอนถัดไป</small>
+                <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทาง" : nextAction.label}</strong>
+              </div>
+              <button
+                className="job-next-action"
+                type="button"
+                disabled={!canWrite}
+                onClick={() => onAction(nextAction.nextStatus, job)}
+              >
+                <CircleDot size={19} />
+                {nextAction.id === "start_tracking" ? "รับงาน" : nextAction.label}
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </article>

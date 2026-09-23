@@ -7,8 +7,8 @@
   "display": "standalone",
   "description": "รับงานขนส่ง อัปเดตสถานะ และแชร์ตำแหน่งกับศูนย์ควบคุม",
   "categories": ["business", "navigation", "productivity"],
-  "background_color": "#f7faf9",
-  "theme_color": "#0f8f8c",
+  "background_color": "#f3f6f8",
+  "theme_color": "#0d2b45",
   "icons": [
     {
       "src": "/icons/icon-192.png",

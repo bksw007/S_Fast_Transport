@@ -43,6 +43,115 @@
   --border: var(--ui-border);
   --accent: var(--ui-accent);
 }
+.app-shell.driver-shell {
+  --ui-surface: #ffffff;
+  --ui-surface-soft: #e9eff3;
+  --ui-ink: #102235;
+  --ui-muted: #657789;
+  --ui-border: #d5dfe7;
+  --ui-accent: #0d2b45;
+  --on-accent: #ffffff;
+  --success: #17745b;
+  --warning: #f59e0b;
+  --danger: #b5473f;
+  --success-soft: #e3f3ee;
+  --warning-soft: #fff3d6;
+  --danger-soft: #fff0ee;
+  background: linear-gradient(180deg, #0d2b45 0 118px, #f3f6f8 118px 100%);
+}
+.app-shell.driver-shell[data-theme="dark"] {
+  --ui-surface: #132535;
+  --ui-surface-soft: #1d3548;
+  --ui-ink: #f4f7f9;
+  --ui-muted: #b4c2cc;
+  --ui-border: #365064;
+  --ui-accent: #f5a623;
+  --on-accent: #102235;
+  --success: #72c6a7;
+  --warning: #f5b94f;
+  --danger: #f39a92;
+  --success-soft: #193d34;
+  --warning-soft: #47381c;
+  --danger-soft: #442b2a;
+  background: #091925;
+}
+.driver-shell .phone-frame { background: #f3f6f8; }
+.driver-shell[data-theme="dark"] .phone-frame { background: #0d2030; }
+.driver-shell .topbar {
+  color: #ffffff;
+  background: #0d2b45;
+  border-bottom: 3px solid #f59e0b;
+}
+.driver-shell .brand span { color: #b9c8d5; }
+.driver-shell .top-actions button {
+  color: #ffffff;
+  background: #1a405e;
+  border-color: #41627b;
+}
+.driver-shell .top-actions .install-action {
+  color: #102235;
+  background: #f5a623;
+  border-color: #f5a623;
+  box-shadow: 0 6px 16px rgb(245 166 35 / 25%);
+}
+.install-action span { display: none; }
+.driver-shell .job-summary-card {
+  border-color: #cfdae3;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgb(13 43 69 / 8%);
+}
+.driver-shell[data-theme="dark"] .job-summary-card { background: var(--surface); border-color: var(--border); }
+.driver-shell .job-summary-card.selected-job {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b, 0 12px 30px rgb(13 43 69 / 12%);
+}
+.driver-shell .job-summary-toggle-icon {
+  color: #c56f00;
+  background: #fff3d6;
+}
+.driver-shell .job-summary-toggle-copy > small { color: #c56f00; }
+.driver-shell .job-summary-toggle .status {
+  color: #0d2b45;
+  background: #e7eef3;
+}
+.driver-shell .job-summary-expanded { background: linear-gradient(180deg, #ffffff, #f8fafb); }
+.driver-shell[data-theme="dark"] .job-summary-expanded { background: var(--surface); }
+.driver-shell .job-next-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #efcf98;
+  border-radius: 13px;
+  background: #fff8ea;
+}
+.driver-shell .job-next-step > div { min-width: 0; display: grid; gap: 2px; }
+.driver-shell .job-next-step small { color: #9a5d00; font-size: .66rem; font-weight: 800; letter-spacing: .05em; }
+.driver-shell .job-next-step strong { color: #102235; font-size: .86rem; }
+.driver-shell .job-next-action {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 11px;
+  color: #ffffff;
+  background: #e88b12;
+  box-shadow: 0 8px 18px rgb(232 139 18 / 24%);
+  font-size: .78rem;
+  font-weight: 850;
+}
+.driver-shell .job-next-action svg:last-child { margin-left: auto; }
+.driver-shell .job-next-action:hover { background: #d77b08; transform: translateY(-1px); }
+.driver-shell[data-theme="dark"] .job-next-step { border-color: #6c5428; background: #3c311d; }
+.driver-shell[data-theme="dark"] .job-next-step strong { color: var(--text); }
+@media (max-width: 520px) {
+  .driver-shell .job-next-step { grid-template-columns: 1fr; }
+  .driver-shell .job-next-action { width: 100%; }
+}
 .app-shell[data-theme="dark"] { --muted: var(--ui-muted); --danger: #f2a29b; --warning: #deb58e; }
 button, input, select, textarea { font-family: inherit; }
 :where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent, var(--ui-accent)); outline-offset: 3px; }
