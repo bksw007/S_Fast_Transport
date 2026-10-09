@@ -17,18 +17,25 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
   statusLabels,
+  type DriverIssueType,
   type JobStatus,
+  type StopProof,
   type TrackingStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
 import { db, storage } from "./firebase";
 
-export type DriverIssueType = "accident" | "traffic" | "contact_failed";
+export type { DriverIssueType } from "@s-fast-transport/shared";
 
 const issueLabels: Record<DriverIssueType, string> = {
   accident: "อุบัติเหตุ",
   traffic: "จราจรติดขัด",
-  contact_failed: "ติดต่อลูกค้าไม่ได้"
+  heavy_rain: "ฝนตกหนัก",
+  vehicle_breakdown: "รถเสีย",
+  road_closed: "ถนนปิดหรือเส้นทางใช้ไม่ได้",
+  contact_failed: "ติดต่อลูกค้าไม่ได้",
+  loading_delay: "รอรับหรือส่งสินค้านาน",
+  other: "ปัญหาอื่น ๆ"
 };
 
 export type MobileProfile = {
@@ -131,7 +138,8 @@ export function subscribeDriverJobs(
 export async function updateDriverJobStatus(
   job: TransportJob,
   status: JobStatus,
-  profile: MobileProfile
+  profile: MobileProfile,
+  proof?: StopProof
 ) {
   const now = new Date().toISOString();
   const trackingEnabled = !["completed", "cancelled"].includes(status);
@@ -144,7 +152,6 @@ export async function updateDriverJobStatus(
 
   if (job.status === "problem") {
     patch.issuePreviousStatus = deleteField();
-    patch.lastIssue = deleteField();
   }
 
   if (trackingEnabled && !job.trackingEnabled) patch.trackingStartedAt = serverTimestamp();
@@ -154,8 +161,19 @@ export async function updateDriverJobStatus(
   await runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(jobRef);
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const current = snapshot.data();
+    const effectiveStatus = current.status === "problem" ? current.issuePreviousStatus : current.status;
+    const stage = status === "to_delivery" ? "pickup" : status === "ready_to_close" ? "delivery" : null;
+    if (stage) {
+      const saved = proof ?? current[`${stage}Proof`];
+      if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 2 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 2 รูปและลายเซ็นก่อนดำเนินการต่อ");
+      if (stage === "pickup" && !["arrived_pickup", "loading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดรับ");
+      if (stage === "delivery" && !["arrived_delivery", "unloading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดส่ง");
+    }
+    if (status === "completed" && !current.deliveryProof) throw new Error("กรุณายืนยันหลักฐานที่จุดส่งก่อนจบงาน");
     transaction.update(jobRef, {
       ...patch,
+      ...(stage && proof ? { [`${stage}Proof`]: proof } : {}),
       ...(status === "arrived_delivery" && !snapshot.data().arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "completed" && !snapshot.data().completedAt ? { completedAt: serverTimestamp() } : {})
     });
@@ -174,53 +192,29 @@ export async function updateDriverJobStatus(
   });
 }
 
-export async function uploadDriverCheckInPhoto(
-  job: TransportJob,
-  profile: MobileProfile,
-  stage: "pickup" | "delivery",
-  uri: string
-) {
-  const response = await fetch(uri);
-  if (!response.ok) throw new Error("ไม่สามารถอ่านรูปที่เลือกได้");
-  const blob = await response.blob();
-  if (!blob.size || blob.size > 1024 * 1024) throw new Error("รูปหลังบีบอัดต้องมีขนาดไม่เกิน 1 MB");
-  const contentType = blob.type || "image/jpeg";
-  if (!/^image\/(jpeg|png|webp)$/.test(contentType)) throw new Error("รองรับเฉพาะรูป JPG, PNG หรือ WEBP");
-
-  const fileName = `${Date.now()}-${stage}-check-in.jpg`;
-  const objectPath = `proof_of_delivery/${job.id}/${profile.uid}/${fileName}`;
-  const result = await uploadBytes(ref(storage, objectPath), blob, { contentType });
+export async function uploadDriverStopProof(job: TransportJob, profile: MobileProfile, stage: "pickup" | "delivery", uris: string[], signaturePaths: string[], signerName: string): Promise<StopProof> {
+  if (uris.length < 2 || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("ต้องมีรูปอย่างน้อย 2 รูป ชื่อผู้เซ็น และลายเซ็น");
+  if (signaturePaths.some(path => !/^[ML0-9 .-]+$/.test(path))) throw new Error("ลายเซ็นไม่ถูกต้อง");
+  const photoPaths: string[] = [];
+  for (const [index, uri] of uris.entries()) {
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error("อ่านรูปสินค้าไม่สำเร็จ");
+    const blob = await response.blob();
+    if (!blob.size || blob.size > 1024 * 1024) throw new Error("รูปหลังบีบอัดต้องไม่เกิน 1 MB");
+    const path = `proof_of_delivery/${job.id}/${profile.uid}/${Date.now()}-${stage}-${index}.jpg`;
+    const result = await uploadBytes(ref(storage, path), blob, { contentType: "image/jpeg" });
+    const downloadUrl = await getDownloadURL(result.ref);
+    await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? profile.organizationId ?? "main", uploadedByUid: profile.uid, uploadedByName: profile.displayName, fileName: `${stage}-photo-${index + 1}.jpg`, storagePath: path, downloadUrl, contentType: "image/jpeg", size: blob.size, proofStage: stage, proofKind: "photo", createdAt: serverTimestamp() });
+    photoPaths.push(path);
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="280" viewBox="0 0 300 140"><rect width="300" height="140" fill="white"/>${signaturePaths.map(path => `<path d="${path}" fill="none" stroke="#102235" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`).join("")}</svg>`;
+  const signature = Uint8Array.from(svg, character => character.charCodeAt(0));
+  if (signature.byteLength > 1024 * 1024) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
+  const signaturePath = `proof_of_delivery/${job.id}/${profile.uid}/${Date.now()}-${stage}-signature.svg`;
+  const result = await uploadBytes(ref(storage, signaturePath), signature, { contentType: "image/svg+xml" });
   const downloadUrl = await getDownloadURL(result.ref);
-  const stageLabel = stage === "pickup" ? "จุดรับ" : "จุดส่ง";
-
-  await addDoc(collection(db, "proof_of_delivery"), {
-    jobId: job.id,
-    uploadedByUid: profile.uid,
-    uploadedByName: profile.displayName,
-    organizationId: job.organizationId ?? profile.organizationId ?? "main",
-    fileName,
-    storagePath: objectPath,
-    downloadUrl,
-    contentType,
-    size: blob.size,
-    checkInStage: stage,
-    createdAt: serverTimestamp()
-  });
-
-  await addDoc(collection(db, "job_events"), {
-    jobId: job.id,
-    organizationId: job.organizationId ?? profile.organizationId ?? "main",
-    type: "check_in_photo",
-    message: `แนบรูปเช็คอิน${stageLabel}`,
-    actorUid: profile.uid,
-    actorName: profile.displayName,
-    lat: job.currentLocation.lat,
-    lng: job.currentLocation.lng,
-    timestamp: serverTimestamp(),
-    metadata: { stage, storagePath: objectPath, downloadUrl, source: "driver_mobile" }
-  });
-
-  return downloadUrl;
+  await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? profile.organizationId ?? "main", uploadedByUid: profile.uid, uploadedByName: profile.displayName, fileName: `${stage}-signature.svg`, storagePath: signaturePath, downloadUrl, contentType: "image/svg+xml", size: signature.byteLength, proofStage: stage, proofKind: "signature", signerName: signerName.trim(), createdAt: serverTimestamp() });
+  return { photoPaths, signaturePath, signerName: signerName.trim(), signedAt: new Date().toISOString() };
 }
 
 export async function reportDriverIssue(
@@ -230,6 +224,7 @@ export async function reportDriverIssue(
   note: string
 ) {
   const cleanNote = note.trim().slice(0, 500);
+  if (issueType === "other" && !cleanNote) throw new Error("กรุณาระบุรายละเอียดของปัญหาอื่น ๆ");
   const jobRef = doc(db, "today_jobs", job.id);
   const eventRef = doc(collection(db, "job_events"));
   await runTransaction(db, async (transaction) => {
@@ -316,6 +311,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     completedAt: typeof data.completedAt === "string" ? data.completedAt : data.completedAt?.toDate?.().toISOString(),
     issuePreviousStatus: data.issuePreviousStatus,
     lastIssue: data.lastIssue,
+    pickupProof: data.pickupProof,
+    deliveryProof: data.deliveryProof,
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",
     trackingEnabled: data.trackingEnabled === true,

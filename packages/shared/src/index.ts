@@ -86,15 +86,23 @@ export type TransportJob = {
   completedAt?: string;
   issuePreviousStatus?: JobStatus;
   lastIssue?: {
-    type: "accident" | "traffic" | "contact_failed";
+    type: DriverIssueType;
     note?: string;
     reportedAt?: string;
+    resolvedAt?: string;
+    resolvedBy?: string;
+    resolutionNote?: string;
   };
+  pickupProof?: StopProof;
+  deliveryProof?: StopProof;
   assignedDriverUid?: string;
   driverPhotoUrl?: string;
   tripCount?: number;
   notes?: string;
 };
+
+export type DriverIssueType = "accident" | "traffic" | "heavy_rain" | "vehicle_breakdown" | "road_closed" | "contact_failed" | "loading_delay" | "other";
+export type StopProof = { photoPaths: string[]; signaturePath: string; signerName: string; signedAt: string };
 
 export type TimelineEvent = {
   id: string;

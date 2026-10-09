@@ -11,11 +11,10 @@ export type DriverStep = {
 
 export const driverSteps: readonly DriverStep[] = [
   { id: "start_tracking", label: "เริ่มเดินทางไปรับสินค้า", description: "เปิดแชร์ตำแหน่งและเริ่มงานนี้", nextStatus: "accepted", icon: "navigate" },
-  { id: "arrived_pickup", label: "เช็คอินที่จุดรับ", description: "ถ่ายรูปยืนยันเมื่อถึงจุดรับสินค้า", nextStatus: "arrived_pickup", icon: "camera", photoStage: "pickup" },
-  { id: "loading", label: "เริ่มขนสินค้า", description: "ยืนยันหลังตรวจรับและพร้อมขึ้นสินค้า", nextStatus: "loading", icon: "cube" },
-  { id: "to_delivery", label: "ออกจากจุดรับ", description: "ยืนยันเมื่อขึ้นสินค้าเสร็จและกำลังไปจุดส่ง", nextStatus: "to_delivery", icon: "navigate" },
-  { id: "arrived_delivery", label: "เช็คอินที่จุดส่ง", description: "ถ่ายรูปยืนยันเมื่อถึงจุดส่งสินค้า", nextStatus: "arrived_delivery", icon: "camera", photoStage: "delivery" },
-  { id: "ready_to_close", label: "ยืนยันส่งสินค้าแล้ว", description: "ตรวจสอบว่าส่งมอบสินค้าเรียบร้อย", nextStatus: "ready_to_close", icon: "checkmark-circle" },
+  { id: "arrived_pickup", label: "ถึงจุดรับสินค้า", description: "เมื่อถึงจุดรับ ให้กดยืนยัน แล้วถ่ายรูปสินค้าและขอลายเซ็น", nextStatus: "arrived_pickup", icon: "location" },
+  { id: "to_delivery", label: "ยืนยันรับสินค้าและไปจุดส่ง", description: "ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้ผู้ส่งเซ็นชื่อ", nextStatus: "to_delivery", icon: "camera", photoStage: "pickup" },
+  { id: "arrived_delivery", label: "ถึงจุดส่งสินค้า", description: "เมื่อถึงจุดส่ง ให้กดยืนยัน แล้วถ่ายรูปสินค้าและขอลายเซ็น", nextStatus: "arrived_delivery", icon: "location" },
+  { id: "ready_to_close", label: "ยืนยันส่งสินค้า", description: "ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้ผู้รับเซ็นชื่อ", nextStatus: "ready_to_close", icon: "camera", photoStage: "delivery" },
   { id: "completed", label: "จบงาน", description: "ปิดงานและหยุดแชร์ตำแหน่ง", nextStatus: "completed", icon: "checkmark-circle" }
 ] as const;
 
@@ -24,11 +23,11 @@ const stepIndexByStatus: Partial<Record<JobStatus, number>> = {
   accepted: 1,
   to_pickup: 1,
   arrived_pickup: 2,
-  loading: 3,
-  to_delivery: 4,
-  arrived_delivery: 5,
-  unloading: 5,
-  ready_to_close: 6
+  loading: 2,
+  to_delivery: 3,
+  arrived_delivery: 4,
+  unloading: 4,
+  ready_to_close: 5
 };
 
 export function effectiveDriverStatus(job: Pick<TransportJob, "status" | "issuePreviousStatus">): JobStatus {

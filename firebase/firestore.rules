@@ -283,15 +283,29 @@ service cloud.firestore {
           isAssignedDriver(jobId)
           && request.resource.data.assignedDriverUid == resource.data.assignedDriverUid
           && request.resource.data.organizationId == resource.data.organizationId
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
             "currentLocation", "trackingStatus", "updatedAt", "arrivedDeliveryAt", "completedAt",
-            "issuePreviousStatus", "lastIssue", "alerts"
+            "issuePreviousStatus", "lastIssue", "alerts", "pickupProof", "deliveryProof"
           ])
           && (
             !request.resource.data.diff(resource.data).changedKeys().hasAny(["currentLocation"])
             || validCurrentLocation(request.resource.data.currentLocation)
           )
+          && (!(request.resource.data.status == "to_delivery" && resource.data.status != "to_delivery") || (
+            request.resource.data.pickupProof is map
+            && request.resource.data.pickupProof.photoPaths is list
+            && request.resource.data.pickupProof.photoPaths.size() >= 2
+            && request.resource.data.pickupProof.signaturePath is string
+            && request.resource.data.pickupProof.signerName is string
+          ))
+          && (!(request.resource.data.status == "ready_to_close" && resource.data.status != "ready_to_close") || (
+            request.resource.data.deliveryProof is map
+            && request.resource.data.deliveryProof.photoPaths is list
+            && request.resource.data.deliveryProof.photoPaths.size() >= 2
+            && request.resource.data.deliveryProof.signaturePath is string
+            && request.resource.data.deliveryProof.signerName is string
+          ))
         );
     }
 

@@ -23,17 +23,22 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { loadCompanySettings } from "./settings-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
-import { statusLabels, type JobPlace, type JobStatus, type TransportJob } from "@s-fast-transport/shared";
+import { statusLabels, type DriverIssueType, type JobPlace, type JobStatus, type StopProof, type TransportJob } from "@s-fast-transport/shared";
 
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
 export type OrganizationType = "main" | "subcontract";
 export type ApprovalStatus = "pending" | "approved" | "suspended";
-export type DriverIssueType = "accident" | "traffic" | "contact_failed";
+export type { DriverIssueType } from "@s-fast-transport/shared";
 
 const driverIssueLabels: Record<DriverIssueType, string> = {
   accident: "อุบัติเหตุ",
   traffic: "จราจรติดขัด",
-  contact_failed: "ติดต่อลูกค้าไม่ได้"
+  heavy_rain: "ฝนตกหนัก",
+  vehicle_breakdown: "รถเสีย",
+  road_closed: "ถนนปิดหรือเส้นทางใช้ไม่ได้",
+  contact_failed: "ติดต่อลูกค้าไม่ได้",
+  loading_delay: "รอรับหรือส่งสินค้านาน",
+  other: "ปัญหาอื่น ๆ"
 };
 
 export type UserProfile = {
@@ -565,7 +570,7 @@ export async function deleteListOption(
   await deleteDoc(doc(listOptionsCollection(organizationId), item.id));
 }
 
-export async function updateJobStatus(job: TransportJob, status: JobStatus, actor: UserProfile) {
+export async function updateJobStatus(job: TransportJob, status: JobStatus, actor: UserProfile, proof?: StopProof) {
   const trackingEnabled = status !== "completed" && status !== "cancelled";
 
   const jobRef = doc(db, "today_jobs", job.id);
@@ -573,14 +578,24 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
     const snapshot = await transaction.get(jobRef);
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const existing = snapshot.data();
+    const effectiveStatus = existing.status === "problem" ? existing.issuePreviousStatus : existing.status;
+    const stage = status === "to_delivery" ? "pickup" : status === "ready_to_close" ? "delivery" : null;
+    if (stage) {
+      const saved = proof ?? existing[`${stage}Proof`];
+      if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 2 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 2 รูปและลายเซ็นก่อนดำเนินการต่อ");
+      if (stage === "pickup" && !["arrived_pickup", "loading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดรับ");
+      if (stage === "delivery" && !["arrived_delivery", "unloading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดส่ง");
+    }
+    if (status === "completed" && !existing.deliveryProof) throw new Error("กรุณายืนยันหลักฐานที่จุดส่งก่อนจบงาน");
     transaction.update(jobRef, {
       status,
+      ...(stage && proof ? { [`${stage}Proof`]: proof } : {}),
       ...(status === "arrived_delivery" && !existing.arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "completed" && !existing.completedAt ? { completedAt: serverTimestamp() } : {}),
       trackingEnabled,
       trackingStatus: toTrackingStatus(status),
       currentLocation: { ...job.currentLocation, updatedAt: new Date().toISOString() },
-      ...(existing.status === "problem" ? { issuePreviousStatus: deleteField(), lastIssue: deleteField() } : {}),
+      ...(existing.status === "problem" ? { issuePreviousStatus: deleteField() } : {}),
       updatedAt: serverTimestamp()
     });
   });
@@ -601,6 +616,27 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
   await syncActiveShareLinks(job, status);
 }
 
+export async function uploadStopProof(job: TransportJob, stage: "pickup" | "delivery", photos: File[], signature: Blob, signerName: string, actor: UserProfile): Promise<StopProof> {
+  if (photos.length < 2 || !signerName.trim() || !signature.size) throw new Error("ต้องมีรูปอย่างน้อย 2 รูป ชื่อผู้เซ็น และลายเซ็น");
+  const photoPaths: string[] = [];
+  for (const [index, file] of photos.entries()) {
+    if (!isImageFile(file) || file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("รูปสินค้าไม่ถูกต้องหรือมีขนาดเกินกำหนด");
+    const compressed = await compressImageForUpload(file);
+    const extension = compressed.type === "image/png" ? "png" : compressed.type === "image/webp" ? "webp" : "jpg";
+    const path = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${stage}-${index}.${extension}`;
+    const result = await uploadBytes(ref(storage, path), compressed, { contentType: compressed.type });
+    const downloadUrl = await getDownloadURL(result.ref);
+    await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? actor.organizationId ?? "main", uploadedByUid: actor.uid, uploadedByName: actor.displayName, fileName: `${stage}-photo-${index + 1}.${extension}`, storagePath: path, downloadUrl, contentType: compressed.type, size: compressed.size, proofStage: stage, proofKind: "photo", createdAt: serverTimestamp() });
+    photoPaths.push(path);
+  }
+  if (signature.size > MAX_STORED_IMAGE_BYTES) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
+  const signaturePath = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${stage}-signature.png`;
+  const result = await uploadBytes(ref(storage, signaturePath), signature, { contentType: "image/png" });
+  const downloadUrl = await getDownloadURL(result.ref);
+  await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? actor.organizationId ?? "main", uploadedByUid: actor.uid, uploadedByName: actor.displayName, fileName: `${stage}-signature.png`, storagePath: signaturePath, downloadUrl, contentType: "image/png", size: signature.size, proofStage: stage, proofKind: "signature", signerName: signerName.trim(), createdAt: serverTimestamp() });
+  return { photoPaths, signaturePath, signerName: signerName.trim(), signedAt: new Date().toISOString() };
+}
+
 export async function reportDriverIssue(
   job: TransportJob,
   issueType: DriverIssueType,
@@ -608,6 +644,7 @@ export async function reportDriverIssue(
   actor: UserProfile
 ) {
   const cleanNote = note.trim().slice(0, 500);
+  if (issueType === "other" && !cleanNote) throw new Error("กรุณาระบุรายละเอียดของปัญหาอื่น ๆ");
   const jobRef = doc(db, "today_jobs", job.id);
   const eventRef = doc(collection(db, "job_events"));
   await runTransaction(db, async transaction => {
@@ -718,15 +755,13 @@ export async function createTrackingShareLink(job: TransportJob, actor: UserProf
 async function syncActiveShareLinks(job: TransportJob, status: JobStatus) {
   const activeLinks = await getDocs(query(
     collection(db, "tracking_share_links"),
-    where("jobId", "==", job.id),
-    where("enabled", "==", true),
-    where("expiresAt", ">", Timestamp.now())
+    where("jobId", "==", job.id)
   ));
 
   if (activeLinks.empty) return;
 
   const batch = writeBatch(db);
-  activeLinks.docs.forEach((linkDoc) => batch.update(linkDoc.ref, {
+  activeLinks.docs.filter(linkDoc => linkDoc.data().enabled === true && (linkDoc.data().expiresAt?.toMillis?.() ?? 0) > Date.now()).forEach((linkDoc) => batch.update(linkDoc.ref, {
     statusLabel: statusLabels[status],
     eta: job.eta,
     lastUpdatedAt: new Date().toISOString(),
@@ -791,6 +826,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     completedAt: timestampToIso(data.completedAt),
     issuePreviousStatus: data.issuePreviousStatus ?? undefined,
     lastIssue: data.lastIssue ?? undefined,
+    pickupProof: data.pickupProof ?? undefined,
+    deliveryProof: data.deliveryProof ?? undefined,
     assignedDriverUid: data.assignedDriverUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,
     notes: data.notes ?? "",

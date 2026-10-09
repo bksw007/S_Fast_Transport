@@ -166,11 +166,9 @@ async function uploadPosition(
 async function syncCustomerTrackingLinks(jobId: string, currentLocation: Record<string, unknown>) {
   const links = await getDocs(query(
     collection(db, "tracking_share_links"),
-    where("jobId", "==", jobId),
-    where("enabled", "==", true),
-    where("expiresAt", ">", Timestamp.now())
+    where("jobId", "==", jobId)
   ));
-  await Promise.all(links.docs.map((link) => updateDoc(link.ref, {
+  await Promise.all(links.docs.filter(link => link.data().enabled === true && (link.data().expiresAt?.toMillis?.() ?? 0) > Date.now()).map((link) => updateDoc(link.ref, {
     currentLocation: { lat: currentLocation.lat, lng: currentLocation.lng },
     lastUpdatedAt: currentLocation.updatedAt,
     updatedAt: serverTimestamp()

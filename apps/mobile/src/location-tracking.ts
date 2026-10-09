@@ -212,14 +212,12 @@ async function uploadPoint(point: StoredPoint) {
 async function syncCustomerLinks(jobId: string, currentLocation: Record<string, unknown>) {
   const links = await getDocs(query(
     collection(db, "tracking_share_links"),
-    where("jobId", "==", jobId),
-    where("enabled", "==", true),
-    where("expiresAt", ">", Timestamp.now())
+    where("jobId", "==", jobId)
   ));
   if (links.empty) return;
 
   const batch = writeBatch(db);
-  links.docs.forEach((link) => batch.update(link.ref, {
+  links.docs.filter(link => link.data().enabled === true && (link.data().expiresAt?.toMillis?.() ?? 0) > Date.now()).forEach((link) => batch.update(link.ref, {
     currentLocation: {
       lat: currentLocation.lat,
       lng: currentLocation.lng

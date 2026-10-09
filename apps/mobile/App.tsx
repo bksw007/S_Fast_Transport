@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
 import * as Google from "expo-auth-session/providers/google";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
@@ -35,7 +36,7 @@ import {
   reportDriverIssue,
   subscribeDriverJobs,
   updateDriverJobStatus,
-  uploadDriverCheckInPhoto,
+  uploadDriverStopProof,
   type DriverIssueType,
   type MobileProfile
 } from "./src/transport-repository";
@@ -69,7 +70,9 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [jobExpanded, setJobExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
-  const [checkInPhoto, setCheckInPhoto] = useState<{ jobId: string; stage: "pickup" | "delivery"; uri: string } | null>(null);
+  const [checkInPhotos, setCheckInPhotos] = useState<{ jobId: string; stage: "pickup" | "delivery"; uris: string[] } | null>(null);
+  const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
+  const [signerName, setSignerName] = useState("");
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueType, setIssueType] = useState<DriverIssueType | null>(null);
   const [issueNote, setIssueNote] = useState("");
@@ -179,7 +182,9 @@ export default function App() {
   );
 
   useEffect(() => {
-    setCheckInPhoto(null);
+    setCheckInPhotos(null);
+    setSignaturePaths([]);
+    setSignerName("");
     setIssueOpen(false);
     setIssueType(null);
     setIssueNote("");
@@ -212,17 +217,21 @@ export default function App() {
       const step = currentDriverStep(selectedJob);
       if (!step || step.nextStatus !== status) throw new Error("ขั้นตอนนี้ยังไม่พร้อมดำเนินการ");
       if (step.photoStage) {
-        if (!checkInPhoto || checkInPhoto.jobId !== selectedJob.id || checkInPhoto.stage !== step.photoStage) {
-          throw new Error("กรุณาถ่ายรูปหรือเลือกรูปเช็คอินก่อน");
-        }
-        await uploadDriverCheckInPhoto(selectedJob, profile, step.photoStage, checkInPhoto.uri);
+        if (!checkInPhotos || checkInPhotos.jobId !== selectedJob.id || checkInPhotos.stage !== step.photoStage || checkInPhotos.uris.length < 2 || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("กรุณาถ่ายรูปสินค้า 2 รูปและขอลายเซ็นก่อน");
+        const proof = await uploadDriverStopProof(selectedJob, profile, step.photoStage, checkInPhotos.uris, signaturePaths, signerName);
+        await updateDriverJobStatus(selectedJob, status, profile, proof);
+        setMessage(step.photoStage === "pickup" ? "บันทึกหลักฐานจุดรับแล้ว เดินทางไปจุดส่งได้" : "บันทึกหลักฐานจุดส่งแล้ว กดจบงานได้");
+        setCheckInPhotos(null);
+        setSignaturePaths([]);
+        setSignerName("");
+        return;
       }
       if (isComplete) {
-        await stopJobTracking();
         await updateDriverJobStatus(selectedJob, status, profile);
+        await stopJobTracking();
         setActiveSession(null);
         setMessage("จบงานและหยุดแชร์ตำแหน่งแล้ว");
-        setCheckInPhoto(null);
+        setCheckInPhotos(null);
         return;
       }
 
@@ -240,7 +249,7 @@ export default function App() {
       } else {
         setMessage(`อัปเดตเป็น “${statusLabels[status]}” แล้ว`);
       }
-      setCheckInPhoto(null);
+      setCheckInPhotos(null);
     } catch (error) {
       if (isStart && !activeSession && !selectedJob.trackingEnabled) {
         try {
@@ -275,7 +284,7 @@ export default function App() {
     setBusy(true);
     try {
       const uri = await prepareCheckInPhoto(asset);
-      setCheckInPhoto({ jobId: selectedJob.id, stage, uri });
+      setCheckInPhotos(current => ({ jobId: selectedJob.id, stage, uris: current?.jobId === selectedJob.id && current.stage === stage ? [...current.uris, uri].slice(0, 6) : [uri] }));
     } catch (error) {
       Alert.alert("เตรียมรูปไม่สำเร็จ", toMessage(error));
     } finally {
@@ -366,7 +375,12 @@ export default function App() {
                     expanded={jobExpanded}
                     busy={busy}
                     activeSession={activeSession}
-                    checkInPhoto={checkInPhoto}
+                    checkInPhotos={checkInPhotos}
+                    signaturePaths={signaturePaths}
+                    signerName={signerName}
+                    onSignatureChange={setSignaturePaths}
+                    onSignerNameChange={setSignerName}
+                    onRemovePhoto={(index) => setCheckInPhotos(current => current ? { ...current, uris: current.uris.filter((_, slot) => slot !== index) } : null)}
                     onToggle={() => setJobExpanded((value) => !value)}
                     onAction={(status) => void handleDriverAction(status)}
                     onPickPhoto={(source, stage) => void pickCheckInPhoto(source, stage)}
@@ -551,7 +565,12 @@ function JobPanel({
   expanded,
   busy,
   activeSession,
-  checkInPhoto,
+  checkInPhotos,
+  signaturePaths,
+  signerName,
+  onSignatureChange,
+  onSignerNameChange,
+  onRemovePhoto,
   onToggle,
   onAction,
   onPickPhoto,
@@ -561,7 +580,12 @@ function JobPanel({
   expanded: boolean;
   busy: boolean;
   activeSession: TrackingSession | null;
-  checkInPhoto: { jobId: string; stage: "pickup" | "delivery"; uri: string } | null;
+  checkInPhotos: { jobId: string; stage: "pickup" | "delivery"; uris: string[] } | null;
+  signaturePaths: string[];
+  signerName: string;
+  onSignatureChange: React.Dispatch<React.SetStateAction<string[]>>;
+  onSignerNameChange: (value: string) => void;
+  onRemovePhoto: (index: number) => void;
   onToggle: () => void;
   onAction: (status: JobStatus) => void;
   onPickPhoto: (source: "camera" | "library", stage: "pickup" | "delivery") => void;
@@ -569,9 +593,10 @@ function JobPanel({
 }) {
   const step = currentDriverStep(job);
   const completedStepCount = driverProgress(job);
-  const selectedPhoto = step?.photoStage && checkInPhoto?.jobId === job.id && checkInPhoto.stage === step.photoStage
-    ? checkInPhoto
-    : null;
+  const selectedPhotos = step?.photoStage && checkInPhotos?.jobId === job.id && checkInPhotos.stage === step.photoStage ? checkInPhotos.uris : [];
+  const hasSignature = signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2);
+  const [signatureWidth, setSignatureWidth] = useState(300);
+  const signaturePoint = (x: number, y: number) => `${Math.round(Math.max(0, Math.min(300, x * 300 / signatureWidth)))} ${Math.round(Math.max(0, Math.min(140, y)))}`;
   const actionDisabled = busy || (step?.id === "start_tracking" && Boolean(activeSession));
   return (
     <>
@@ -612,6 +637,8 @@ function JobPanel({
         </View>
       )}
 
+      {job.lastIssue?.resolutionNote && <View style={styles.issueBanner}><Ionicons name="checkmark-circle" size={21} color={colors.success} /><View style={styles.grow}><Text style={styles.issueBannerTitle}>ผู้ดูแลตอบกลับปัญหาแล้ว</Text><Text style={styles.issueBannerText}>{job.lastIssue.resolutionNote}</Text></View></View>}
+
       <View style={styles.workflowCard}>
         <View style={styles.workflowHeader}>
           <View>
@@ -633,21 +660,11 @@ function JobPanel({
 
             {step.photoStage && (
               <View style={styles.photoArea}>
-                {selectedPhoto ? (
-                  <View style={styles.photoPreviewWrap}>
-                    <Image source={{ uri: selectedPhoto.uri }} style={styles.photoPreview} />
-                    <View style={styles.photoReadyBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color="#ffffff" />
-                      <Text style={styles.photoReadyText}>พร้อมแนบ</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.photoPlaceholder}>
-                    <Ionicons name="camera-outline" size={31} color={colors.orange} />
-                    <Text style={styles.photoPlaceholderTitle}>ต้องมีรูปก่อนเช็คอิน</Text>
-                    <Text style={styles.photoPlaceholderText}>ถ่ายให้เห็นสถานที่หรือสินค้าชัดเจน</Text>
-                  </View>
-                )}
+                <Text style={styles.photoPlaceholderTitle}>รูปสินค้า {selectedPhotos.length}/2 ขั้นต่ำ</Text>
+                <View style={styles.proofPhotoGrid}>{selectedPhotos.map((uri, index) => <View key={`${uri}-${index}`} style={styles.proofPhotoItem}>
+                  <Image source={{ uri }} style={styles.proofPhotoImage} />
+                  <Pressable accessibilityLabel={`ลบรูปที่ ${index + 1}`} onPress={() => onRemovePhoto(index)} style={styles.proofPhotoRemove}><Ionicons name="close-circle" size={25} color={colors.danger} /></Pressable>
+                </View>)}</View>
                 <View style={styles.photoActions}>
                   <Pressable disabled={busy} style={styles.photoButtonPrimary} onPress={() => onPickPhoto("camera", step.photoStage!)}>
                     <Ionicons name="camera" size={19} color="#ffffff" />
@@ -658,12 +675,21 @@ function JobPanel({
                     <Text style={styles.photoButtonSecondaryText}>เลือกจากเครื่อง</Text>
                   </Pressable>
                 </View>
+                <Text style={styles.noteLabel}>ชื่อผู้{step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text>
+                <TextInput value={signerName} onChangeText={onSignerNameChange} maxLength={100} placeholder="กรอกชื่อผู้เซ็น" style={styles.proofSignerInput} />
+                <Text style={styles.noteLabel}>ลายเซ็นผู้{step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text>
+                <View style={styles.proofSignature} onLayout={event => setSignatureWidth(event.nativeEvent.layout.width)} onStartShouldSetResponderCapture={() => true} onMoveShouldSetResponder={() => true}
+                  onResponderGrant={event => { const p = signaturePoint(event.nativeEvent.locationX, event.nativeEvent.locationY); onSignatureChange(current => [...current, `M ${p} L ${p}`]); }}
+                  onResponderMove={event => { const p = signaturePoint(event.nativeEvent.locationX, event.nativeEvent.locationY); onSignatureChange(current => current.map((path, index) => index === current.length - 1 ? `${path} L ${p}` : path)); }}>
+                  <Svg width="100%" height={140} viewBox="0 0 300 140">{signaturePaths.map((path, index) => <Path key={index} d={path} fill="none" stroke={colors.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />)}</Svg>
+                </View>
+                <Pressable onPress={() => onSignatureChange([])}><Text style={styles.proofClear}>ล้างลายเซ็น</Text></Pressable>
               </View>
             )}
 
             <Pressable
-              disabled={actionDisabled || Boolean(step.photoStage && !selectedPhoto)}
-              style={[styles.nextStepButton, (actionDisabled || Boolean(step.photoStage && !selectedPhoto)) && styles.disabled]}
+              disabled={actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))}
+              style={[styles.nextStepButton, (actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))) && styles.disabled]}
               onPress={() => onAction(step.nextStatus)}
             >
               {busy ? <ActivityIndicator color="#ffffff" /> : <Ionicons name={step.icon} size={21} color="#ffffff" />}
@@ -693,7 +719,12 @@ function JobPanel({
 const issueChoices: Array<{ id: DriverIssueType; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { id: "accident", label: "อุบัติเหตุ", icon: "warning" },
   { id: "traffic", label: "จราจรติดขัด", icon: "car" },
-  { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", icon: "call" }
+  { id: "heavy_rain", label: "ฝนตกหนัก", icon: "rainy" },
+  { id: "vehicle_breakdown", label: "รถเสีย", icon: "construct" },
+  { id: "road_closed", label: "เส้นทางปิด", icon: "trail-sign" },
+  { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", icon: "call" },
+  { id: "loading_delay", label: "รอสินค้านาน", icon: "time" },
+  { id: "other", label: "อื่น ๆ", icon: "ellipsis-horizontal-circle" }
 ];
 
 function IssueReportModal({
@@ -729,7 +760,7 @@ function IssueReportModal({
             </View>
             <Pressable accessibilityLabel="ปิด" style={styles.sheetClose} onPress={onClose}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
           </View>
-          <View style={styles.issueChoiceRow}>
+          <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={styles.issueChoiceRow} showsVerticalScrollIndicator={false}>
             {issueChoices.map((choice) => (
               <Pressable key={choice.id} style={[styles.issueChoice, selected === choice.id && styles.issueChoiceSelected]} onPress={() => onSelect(choice.id)}>
                 <View style={[styles.issueChoiceIcon, selected === choice.id && styles.issueChoiceIconSelected]}>
@@ -738,7 +769,7 @@ function IssueReportModal({
                 <Text style={[styles.issueChoiceLabel, selected === choice.id && styles.issueChoiceLabelSelected]}>{choice.label}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
           <Text style={styles.noteLabel}>รายละเอียดเพิ่มเติม (ไม่บังคับ)</Text>
           <TextInput
             value={note}
@@ -752,7 +783,7 @@ function IssueReportModal({
           />
           <View style={styles.issueSubmitRow}>
             <Pressable disabled={busy} style={styles.cancelIssueButton} onPress={onClose}><Text style={styles.cancelIssueText}>ยกเลิก</Text></Pressable>
-            <Pressable disabled={!selected || busy} style={[styles.submitIssueButton, (!selected || busy) && styles.disabled]} onPress={onSubmit}>
+            <Pressable disabled={!selected || busy || (selected === "other" && !note.trim())} style={[styles.submitIssueButton, (!selected || busy || (selected === "other" && !note.trim())) && styles.disabled]} onPress={onSubmit}>
               {busy && <ActivityIndicator color="#ffffff" />}
               <Text style={styles.submitIssueText}>{busy ? "กำลังส่ง..." : "ส่งรายงาน"}</Text>
             </Pressable>
@@ -983,6 +1014,13 @@ const styles = StyleSheet.create({
   finishedStep: { alignItems: "center", gap: 8, padding: 24 },
   finishedStepTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
   reportIssueButton: { minHeight: 53, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 9, borderRadius: 15, backgroundColor: "#fff7f6", borderWidth: 1, borderColor: "#edcbc8" },
+  proofPhotoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  proofPhotoItem: { width: 95, height: 95, position: "relative" },
+  proofPhotoImage: { width: 95, height: 95, borderRadius: 10 },
+  proofPhotoRemove: { position: "absolute", right: -4, top: -4, backgroundColor: "#fff", borderRadius: 20 },
+  proofSignerInput: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: "#fff" },
+  proofSignature: { height: 140, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: "#fff", overflow: "hidden" },
+  proofClear: { color: colors.accent, fontWeight: "800", textAlign: "right" },
   reportIssueText: { flex: 1, color: colors.danger, fontSize: 14, fontWeight: "800" },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(5, 18, 30, 0.58)" },
   issueSheet: { paddingHorizontal: 17, paddingTop: 9, paddingBottom: 12, borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: colors.surface },
@@ -992,8 +1030,8 @@ const styles = StyleSheet.create({
   sheetTitle: { color: colors.text, fontSize: 20, fontWeight: "800" },
   sheetSubtitle: { color: colors.muted, fontSize: 12, marginTop: 1 },
   sheetClose: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 },
-  issueChoiceRow: { flexDirection: "row", gap: 8, marginTop: 17 },
-  issueChoice: { flex: 1, minHeight: 106, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+  issueChoiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 17 },
+  issueChoice: { width: "31%", minHeight: 100, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
   issueChoiceSelected: { borderColor: colors.danger, backgroundColor: "#fff3f1" },
   issueChoiceIcon: { width: 45, height: 45, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#ffe4e1" },
   issueChoiceIconSelected: { backgroundColor: colors.danger },

@@ -58,6 +58,27 @@ export function canAdministerJob(job: Pick<TransportJob, "organizationId">, acto
     && (isMainAdmin(actor) || (actor.role === "subcontract_admin" && actor.organizationId === job.organizationId));
 }
 
+export async function resolveDriverIssue(job: TransportJob, note: string, actor: UserProfile) {
+  if (!canAdministerJob(job, actor)) throw new Error("ไม่มีสิทธิ์จัดการปัญหาของใบงานนี้");
+  const cleanNote = note.trim().slice(0, 500);
+  if (!cleanNote) throw new Error("กรุณาระบุวิธีแก้ไขหรือคำแนะนำให้คนขับ");
+  const jobRef = doc(db, "today_jobs", job.id);
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const current = snapshot.data();
+    assertCurrentJobAccess(current, actor);
+    if (!current.lastIssue || current.lastIssue.resolvedAt) throw new Error("ปัญหานี้ถูกจัดการแล้ว");
+    transaction.update(jobRef, {
+      ...(current.status === "problem" && current.issuePreviousStatus ? { status: current.issuePreviousStatus, issuePreviousStatus: deleteField() } : {}),
+      lastIssue: { ...current.lastIssue, resolvedAt: new Date().toISOString(), resolvedBy: actor.displayName, resolutionNote: cleanNote },
+      updatedAt: serverTimestamp()
+    });
+    transaction.set(eventRef, { jobId: job.id, organizationId: current.organizationId ?? "main", type: "driver_issue_resolved", message: `ผู้ดูแลดำเนินการแล้ว: ${cleanNote}`, actorUid: actor.uid, actorName: actor.displayName, timestamp: serverTimestamp(), metadata: { note: cleanNote, previousStatus: current.issuePreviousStatus ?? current.status } });
+  });
+}
+
 function assertCurrentJobAccess(current: DocumentData, actor: UserProfile) {
   if (!hasApprovedAccess(actor) || (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId))) {
     throw new Error("ไม่มีสิทธิ์จัดการใบงานนี้");

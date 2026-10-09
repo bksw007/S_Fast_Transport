@@ -5,6 +5,8 @@ import Image from "next/image";
 import ContactBook from "./components/ContactBook";
 import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
+import DriverStopProof from "./components/DriverStopProof";
+import { resolveDriverIssue } from "@/lib/job-detail-repository";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
 import PwaInstallButton, { preparePwaInstallPromptCapture } from "./components/PwaInstallButton";
@@ -18,6 +20,11 @@ import {
   Bell,
   Building2,
   Car,
+  CloudRain,
+  Wrench,
+  RouteOff,
+  Timer,
+  CircleHelp,
   Camera,
   CheckCircle2,
   ChevronDown,
@@ -102,6 +109,7 @@ import {
   subscribeTodayJobs,
   subscribeUserProfiles,
   updateJobStatus,
+  uploadStopProof,
   updateUserAccess,
   uploadProof,
   type JobDraft,
@@ -135,11 +143,11 @@ const driverNextActionByStatus: Partial<Record<JobStatus, (typeof driverActions)
   assigned: "start_tracking",
   accepted: "arrived_pickup",
   to_pickup: "arrived_pickup",
-  arrived_pickup: "loading",
-  loading: "to_delivery",
+  arrived_pickup: undefined,
+  loading: undefined,
   to_delivery: "arrived_delivery",
-  arrived_delivery: "unloading",
-  unloading: "unloading",
+  arrived_delivery: undefined,
+  unloading: undefined,
   ready_to_close: "completed"
 };
 
@@ -517,6 +525,7 @@ export default function Home() {
               canWrite={canWrite && jobs.length > 0}
               trackingMessage={trackingMessage}
               onSelectJob={setSelectedJobId}
+              onOpenWorkflow={() => setDriverScreen("กำลังขนส่ง")}
               onAction={handleDriverAction}
               onReportIssue={setIssueJob}
               onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
@@ -561,6 +570,8 @@ export default function Home() {
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
             <AdminDashboard jobs={jobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} />
+          ) : adminScreen === "แจ้งเตือน" ? (
+            <DriverIssuesScreen jobs={jobs} actor={profile} />
           ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
@@ -712,6 +723,7 @@ function DriverMobileScreen({
   canWrite,
   trackingMessage,
   onSelectJob,
+  onOpenWorkflow,
   onAction,
   onReportIssue,
   onUpload,
@@ -725,6 +737,7 @@ function DriverMobileScreen({
   canWrite: boolean;
   trackingMessage: string;
   onSelectJob: (jobId: string) => void;
+  onOpenWorkflow: () => void;
   onAction: (status: JobStatus, job?: TransportJob) => void;
   onReportIssue: (job: TransportJob) => void;
   onUpload: (file: File) => void;
@@ -739,7 +752,7 @@ function DriverMobileScreen({
   }
 
   if (screen === "งานวันนี้") {
-    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onAction={onAction} onReportIssue={onReportIssue} />;
+    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onOpenWorkflow={onOpenWorkflow} onAction={onAction} onReportIssue={onReportIssue} />;
   }
 
   if (screen === "แผนที่งานของฉัน") {
@@ -754,7 +767,7 @@ function DriverMobileScreen({
     return <EmptyState title="ยังไม่มีประวัติงาน" description="งานที่ปิดแล้วจะแสดงในส่วนนี้" />;
   }
 
-  return <DriverView job={selectedJob} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} />;
+  return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} />;
 }
 
 function AdminMobileScreen({
@@ -801,6 +814,8 @@ function AdminMobileScreen({
     );
   }
 
+  if (screen === "แจ้งเตือน") return <DriverIssuesScreen jobs={allJobs} actor={profile} />;
+
   if (screen === "Live Tracking") {
     return activeJobs.length > 0
       ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
@@ -836,6 +851,45 @@ function AdminMobileScreen({
   if (screen === "Settings") return <SettingsScreen key={profile.organizationId} actor={profile} appearance={appearance} />;
 
   return <FeatureOverview screen={screen} />;
+}
+
+function DriverIssuesScreen({ jobs, actor }: { jobs: TransportJob[]; actor: UserProfile }) {
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
+  const issues = jobs.filter(job => job.lastIssue).sort((a, b) => Number(!b.lastIssue?.resolvedAt) - Number(!a.lastIssue?.resolvedAt) || String(b.lastIssue?.reportedAt ?? "").localeCompare(String(a.lastIssue?.reportedAt ?? "")));
+
+  async function resolve(job: TransportJob) {
+    const note = notes[job.id]?.trim() ?? "";
+    if (!note) return;
+    setBusyId(job.id);
+    setMessage("");
+    try {
+      await resolveDriverIssue(job, note, actor);
+      setNotes(current => ({ ...current, [job.id]: "" }));
+      setMessage(`บันทึกการแก้ไขใบงาน ${job.workOrder} แล้ว`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "บันทึกการแก้ไขไม่สำเร็จ");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return <section className="screen driver-issues-screen">
+    <div className="section-title"><div><h1>แจ้งปัญหาจากคนขับ</h1><p>รอดำเนินการ {issues.filter(job => !job.lastIssue?.resolvedAt).length} งาน</p></div></div>
+    {message && <p role="status">{message}</p>}
+    {!issues.length && <p>ยังไม่มีปัญหาที่คนขับแจ้ง</p>}
+    {issues.map(job => {
+      const issue = job.lastIssue!;
+      const label = driverIssueOptions.find(option => option.id === issue.type)?.label ?? "ปัญหาอื่น ๆ";
+      return <article className={`driver-issue-card ${!issue.resolvedAt ? "open" : "resolved"}`} key={job.id}>
+        <div className="driver-issue-card-head">{!issue.resolvedAt ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}<div><strong>{label}</strong><span>ใบงาน {job.workOrder} · {job.driverName}</span></div><b>{!issue.resolvedAt ? "รอดำเนินการ" : "ดำเนินการแล้ว"}</b></div>
+        <p>{issue.note || "ไม่มีรายละเอียดเพิ่มเติม"}</p>
+        <small>แจ้งเมื่อ {issue.reportedAt ? new Date(issue.reportedAt).toLocaleString("th-TH") : "—"}</small>
+        {!issue.resolvedAt ? <div className="driver-issue-resolution"><input value={notes[job.id] ?? ""} maxLength={500} placeholder="วิธีแก้ไขหรือคำแนะนำให้คนขับ" onChange={event => setNotes(current => ({ ...current, [job.id]: event.target.value }))} /><button disabled={busyId === job.id || !notes[job.id]?.trim()} onClick={() => void resolve(job)}>{busyId === job.id ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}</button></div> : issue.resolutionNote && <p><strong>คำตอบผู้ดูแล:</strong> {issue.resolutionNote}</p>}
+      </article>;
+    })}
+  </section>;
 }
 
 type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId">;
@@ -1478,16 +1532,23 @@ function GoogleLogo() {
 
 function DriverView({
   job,
+  profile,
   canWrite,
   trackingMessage,
-  onAction
+  onAction,
+  onReportIssue
 }: {
   job: TransportJob;
+  profile: UserProfile;
   canWrite: boolean;
   trackingMessage: string;
   onAction: (status: JobStatus) => void;
+  onReportIssue: () => void;
 }) {
   const currentStep = Math.max(0, statusOrder.indexOf(job.status));
+  const nextAction = nextDriverAction(job);
+  const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
+  const proofStage = effectiveStatus === "arrived_pickup" || effectiveStatus === "loading" ? "pickup" : effectiveStatus === "arrived_delivery" || effectiveStatus === "unloading" ? "delivery" : null;
 
   return (
     <section className="screen">
@@ -1530,14 +1591,18 @@ function DriverView({
         ))}
       </div>
 
-      <div className="action-grid">
-        {driverActions.map((action) => (
-          <button key={action.id} disabled={!canWrite} onClick={() => onAction(action.nextStatus)}>
-            {action.id === "completed" ? <CheckCircle2 size={20} /> : <CircleDot size={20} />}
-            {action.label}
-          </button>
-        ))}
-      </div>
+      {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
+
+      {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} stage={proofStage} onSubmit={async (photos, signature, signerName) => {
+        const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
+        await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
+      }} /> : nextAction && <div className="driver-current-action">
+        <small>ขั้นตอนที่ต้องทำตอนนี้</small>
+        <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทางไปจุดรับ" : nextAction.label}</strong>
+        <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว กดจบงานเพื่อหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
+        <button disabled={!canWrite} onClick={() => onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
+      </div>}
+      {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาระหว่างทาง</button>}
 
       <article className="privacy-card">
         <Bell size={20} />
@@ -1555,6 +1620,7 @@ function TodayJobs({
   selectedJobId,
   canWrite,
   onSelectJob,
+  onOpenWorkflow,
   onAction,
   onReportIssue
 }: {
@@ -1562,6 +1628,7 @@ function TodayJobs({
   selectedJobId: string;
   canWrite: boolean;
   onSelectJob: (jobId: string) => void;
+  onOpenWorkflow: () => void;
   onAction: (status: JobStatus, job?: TransportJob) => void;
   onReportIssue: (job: TransportJob) => void;
 }) {
@@ -1583,6 +1650,7 @@ function TodayJobs({
             selected={job.id === selectedJobId}
             canWrite={canWrite}
             onSelect={onSelectJob}
+            onOpenWorkflow={onOpenWorkflow}
             onAction={onAction}
             onReportIssue={onReportIssue}
           />
@@ -1738,6 +1806,7 @@ function JobSummaryCard({
   selected,
   canWrite,
   onSelect,
+  onOpenWorkflow,
   onAction,
   onReportIssue
 }: {
@@ -1745,12 +1814,15 @@ function JobSummaryCard({
   selected: boolean;
   canWrite?: boolean;
   onSelect: (jobId: string) => void;
+  onOpenWorkflow?: () => void;
   onAction?: (status: JobStatus, job?: TransportJob) => void;
   onReportIssue?: (job: TransportJob) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nextAction = nextDriverAction(job);
   const activeStop = activeDriverStop(job);
+  const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
+  const needsProof = ["arrived_pickup", "loading", "arrived_delivery", "unloading"].includes(effectiveStatus ?? "");
   const pickupPhone = formatPhoneNumber(job.pickupContactPhone || "");
   const deliveryPhone = formatPhoneNumber(job.deliveryContactPhone || "");
 
@@ -1836,6 +1908,7 @@ function JobSummaryCard({
               <AlertTriangle size={19} /> แจ้งปัญหา
             </button>
           )}
+          {needsProof && onOpenWorkflow && <div className="job-next-step"><div><small>ขั้นตอนที่ต้องทำ</small><strong>ถ่ายรูปสินค้า 2 รูปและขอลายเซ็น</strong></div><button className="job-next-action" type="button" onClick={() => { onSelect(job.id); onOpenWorkflow(); }}><Camera size={19} /> เปิดแบบฟอร์มหลักฐาน <ArrowRight size={18} /></button></div>}
           {nextAction && onAction && (
             <div className="job-next-step">
               <div>
@@ -1863,7 +1936,12 @@ function JobSummaryCard({
 const driverIssueOptions: Array<{ id: DriverIssueType; label: string; description: string; icon: typeof AlertTriangle }> = [
   { id: "accident", label: "อุบัติเหตุ", description: "รถหรือบุคคลเกิดอุบัติเหตุ", icon: AlertTriangle },
   { id: "traffic", label: "จราจรติดขัด", description: "คาดว่าจะถึงล่าช้ากว่ากำหนด", icon: Car },
-  { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", description: "โทรหรือประสานผู้รับ–ส่งไม่ได้", icon: PhoneOff }
+  { id: "heavy_rain", label: "ฝนตกหนัก", description: "เดินทางล่าช้าหรือไม่ปลอดภัย", icon: CloudRain },
+  { id: "vehicle_breakdown", label: "รถเสีย", description: "รถไม่พร้อมเดินทางต่อ", icon: Wrench },
+  { id: "road_closed", label: "เส้นทางปิด", description: "ต้องเปลี่ยนเส้นทาง", icon: RouteOff },
+  { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", description: "โทรหรือประสานผู้รับ–ส่งไม่ได้", icon: PhoneOff },
+  { id: "loading_delay", label: "รอสินค้านาน", description: "รับหรือส่งสินค้าไม่ทันเวลา", icon: Timer },
+  { id: "other", label: "อื่น ๆ", description: "ระบุรายละเอียดเพิ่มเติม", icon: CircleHelp }
 ];
 
 function DriverIssueDialog({
@@ -1888,7 +1966,7 @@ function DriverIssueDialog({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!issueType || submitting) return;
+    if (!issueType || submitting || (issueType === "other" && !note.trim())) return;
     setSubmitting(true);
     const saved = await onSubmit(job, issueType, note);
     setSubmitting(false);
@@ -1928,7 +2006,7 @@ function DriverIssueDialog({
         </label>
         <div className="driver-issue-actions">
           <button type="button" disabled={submitting} onClick={onClose}>ยกเลิก</button>
-          <button type="submit" disabled={!issueType || submitting}>{submitting ? "กำลังส่ง..." : "ส่งรายงานปัญหา"}</button>
+          <button type="submit" disabled={!issueType || submitting || (issueType === "other" && !note.trim())}>{submitting ? "กำลังส่ง..." : "ส่งรายงานปัญหา"}</button>
         </div>
       </form>
     </dialog>

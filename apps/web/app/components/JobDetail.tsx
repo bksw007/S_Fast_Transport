@@ -3,16 +3,17 @@ import JobContacts from "./JobContacts";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
-import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
+import { statusLabels, type DriverIssueType, type TransportJob } from "@s-fast-transport/shared";
 import { createTrackingShareLink, uploadProof, type UserProfile } from "@/lib/transport-repository";
 import { recordTime, saveJobRouteDistance, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
 import { auth } from "@/lib/firebase-auth";
 import { coordinateFingerprint } from "@/lib/google-routes-distance";
 import JobEditor from "./JobEditor";
-import { canAdministerJob, deleteJob, updateJobDetails } from "@/lib/job-detail-repository";
+import { canAdministerJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
+const issueLabels: Record<DriverIssueType, string> = { accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย", road_closed: "เส้นทางปิด", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอสินค้านาน", other: "ปัญหาอื่น ๆ" };
 const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH") : "รอบันทึกเวลา";
 const mapUrl = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 const validPoint = (lat: unknown, lng: unknown) => typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat !== 0 || lng !== 0);
@@ -104,7 +105,7 @@ function Records({ jobId, kind }: { jobId: string; kind: "proofs" | "events" | "
     {kind === "locations" && <p>ตำแหน่งที่บันทึกจริง ล่าสุดไม่เกิน 500 จุด เรียงจากใหม่ไปเก่า</p>}
     {rows.map(({ id, data }) => <article key={id}>
       <time>{dateLabel(recordTime(data))}</time>
-      {kind === "proofs" ? <><strong>{data.fileName || "หลักฐานส่งสินค้า"}</strong><p>อัปโหลดโดย {data.uploadedByName || "—"}</p>{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
+      {kind === "proofs" ? <><strong>{data.proofStage === "pickup" ? "จุดรับสินค้า" : data.proofStage === "delivery" ? "จุดส่งสินค้า" : "หลักฐานทั่วไป"} · {data.proofKind === "signature" ? "ลายเซ็น" : data.proofKind === "photo" ? "รูปสินค้า" : data.fileName || "หลักฐาน"}</strong><p>{data.proofKind === "signature" ? `ผู้เซ็น ${data.signerName || "—"} · ` : ""}อัปโหลดโดย {data.uploadedByName || "—"}</p>{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
         : kind === "events" ? <><strong>{data.message || data.type || "เหตุการณ์"}</strong><p>{data.actorName || "ระบบ"}</p></>
         : <><strong>{Number(data.speed || 0).toFixed(1)} กม./ชม.</strong>{validPoint(data.lat, data.lng) ? <a href={mapUrl(data.lat, data.lng)} target="_blank" rel="noreferrer">{data.lat.toFixed(6)}, {data.lng.toFixed(6)} · เปิดแผนที่</a> : <p>ไม่มีพิกัดที่ใช้งานได้</p>}</>}
     </article>)}
@@ -116,6 +117,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
   const [panel, setPanel] = useState<"share" | "qr" | "settings" | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [resolutionNote, setResolutionNote] = useState("");
   const [link, setLink] = useState("");
   const [qr, setQr] = useState("");
   const [requestedDistance, setRequestedDistance] = useState<RequestedDistanceState | null>(null);
@@ -182,6 +184,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
       </aside>}
       <div role="tabpanel" id="job-tab-content" aria-labelledby={`job-tab-${tab}`} tabIndex={0}>
         {tab === 0 && <div className="job-detail-overview">
+          {job.lastIssue && !job.lastIssue.resolvedAt && <section className="job-issue-resolution"><h3>คนขับแจ้งปัญหา: {issueLabels[job.lastIssue.type] ?? "อื่น ๆ"}</h3>{job.lastIssue.note && <p>{job.lastIssue.note}</p>}<label>วิธีแก้ไขหรือคำแนะนำ<input value={resolutionNote} maxLength={500} placeholder="เช่น ประสานลูกค้าแล้ว ให้เข้าทางประตู 2" onChange={event => setResolutionNote(event.target.value)} /></label><button disabled={busy || !canAdministerJob(job, actor) || !resolutionNote.trim()} onClick={() => void perform(async () => { await resolveDriverIssue(job, resolutionNote, actor); setResolutionNote(""); }, "บันทึกการแก้ไขและแจ้งคนขับแล้ว")}>บันทึกการแก้ไข</button></section>}
           <JobContacts job={job} /><section className="job-detail-route"><div className="job-route-heading"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3>{routeDistance.source === "loading" ? <span role="status">กำลังคำนวณระยะทาง…</span> : routeDistanceLabel && <span title={routeDistance.source === "road" ? "ระยะทางตามถนนจาก Google Maps บันทึกไว้กับใบงานเพื่อไม่เรียกซ้ำ" : "ค่าประมาณแบบเส้นตรง เนื่องจากยังใช้ Google Maps ไม่ได้"}>{routeDistance.source === "road" ? "ระยะทางตามถนน" : "ระยะทางประมาณ"} <strong>{routeDistanceLabel}</strong></span>}</div><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong>{job.pickupPlace && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong>{job.deliveryPlace && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>
           <div className="job-detail-section-grid">
             <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงานจากผู้ว่าจ้าง": job.jobDate, "ประเภทสินค้า": job.cargoType }} />

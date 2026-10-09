@@ -3886,6 +3886,40 @@ h2 {
 .driver-issue-sheet > header > button { width: 39px; height: 39px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; background: var(--surface-2); }
 
 .driver-issue-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.driver-current-action, .driver-stop-proof { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
+.driver-current-action small { color: var(--muted); font-weight: 800; }
+.driver-current-action strong { font-size: 1.18rem; }
+.driver-current-action p, .driver-stop-proof p { margin: 0; color: var(--muted); }
+.driver-current-action button, .driver-proof-submit { min-height: 52px; display: flex; justify-content: center; align-items: center; gap: 9px; border-radius: 12px; color: #fff; background: var(--accent); font-weight: 800; }
+.driver-stop-proof h2 { margin: 0; font-size: 1.16rem; }
+.driver-proof-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.driver-proof-photos label { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 13px; }
+.driver-proof-photos img { width: 100%; height: 110px; object-fit: cover; border-radius: 9px; }
+.driver-proof-photos input { max-width: 100%; font-size: .75rem; }
+.driver-proof-signer { display: grid; gap: 6px; font-weight: 750; }
+.driver-proof-signature { display: grid; gap: 6px; font-weight: 750; }
+.driver-proof-signature canvas { width: 100%; height: 120px; border: 1px solid var(--border); border-radius: 12px; background: #fff; touch-action: none; }
+.driver-proof-clear { justify-self: end; color: var(--accent); font-weight: 750; }
+.driver-proof-error { color: var(--danger) !important; }
+.driver-proof-submit:disabled, .driver-current-action button:disabled { opacity: .5; }
+.job-issue-resolution { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--danger); border-radius: 14px; background: var(--danger-soft); }
+.job-issue-resolution h3, .job-issue-resolution p { margin: 0; }
+.job-issue-resolution label { display: grid; gap: 6px; }
+.job-issue-resolution button { justify-self: start; min-height: 44px; padding: 0 16px; border-radius: 10px; color: #fff; background: var(--danger); font-weight: 800; }
+.job-issue-resolution button:disabled { opacity: .5; }
+.driver-issues-screen { display: grid; align-content: start; gap: 12px; }
+.driver-issue-card { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
+.driver-issue-card.open { border-color: var(--danger); }
+.driver-issue-card-head { display: flex; align-items: center; gap: 10px; }
+.driver-issue-card-head > div { flex: 1; display: grid; gap: 2px; }
+.driver-issue-card-head span, .driver-issue-card small { color: var(--muted); }
+.driver-issue-card-head b { font-size: .72rem; color: var(--danger); }
+.driver-issue-card.resolved .driver-issue-card-head b { color: var(--success); }
+.driver-issue-card p { margin: 0; }
+.driver-issue-resolution { display: grid; gap: 8px; }
+.driver-issue-resolution button { min-height: 44px; padding: 0 14px; border-radius: 10px; color: #fff; background: var(--danger); font-weight: 800; }
+.driver-issue-resolution button:disabled { opacity: .5; }
+@media (max-width: 520px) { .driver-proof-photos { grid-template-columns: 1fr; } }
 .driver-issue-options button { min-height: 112px; display: grid; place-items: center; align-content: center; gap: 5px; padding: 10px 6px; border: 1px solid var(--border); border-radius: 14px; color: var(--muted); background: var(--surface-2); text-align: center; }
 .driver-issue-options button strong { color: var(--text); font-size: .72rem; line-height: 1.35; }
 .driver-issue-options button small { font-size: .58rem; line-height: 1.4; }
