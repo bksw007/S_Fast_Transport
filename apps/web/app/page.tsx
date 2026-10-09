@@ -5,8 +5,9 @@ import Image from "next/image";
 import ContactBook from "./components/ContactBook";
 import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
-import DriverStopProof from "./components/DriverStopProof";
+import DriverStopProof, { clearDriverProofDrafts } from "./components/DriverStopProof";
 import DriverHistory from "./components/DriverHistory";
+import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { resolveDriverIssue } from "@/lib/job-detail-repository";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
@@ -265,6 +266,40 @@ export default function Home() {
   const [pendingAccessCount, setPendingAccessCount] = useState(0);
   const [trackingMessage, setTrackingMessage] = useState("พร้อมขอตำแหน่งเมื่อกดเริ่มแชร์");
   const [issueJob, setIssueJob] = useState<TransportJob | null>(null);
+  const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
+  const seenResolution = useRef(new Map<string, string>());
+  const seenDriverJobs = useRef(new Map<string, JobStatus>());
+  const resolutionReady = useRef(false);
+
+  useEffect(() => {
+    seenResolution.current.clear();
+    seenDriverJobs.current.clear();
+    resolutionReady.current = false;
+  }, [profile?.uid]);
+
+  useEffect(() => {
+    if (!profile || profile.role !== "driver" || jobsState !== "ready") return;
+    const issued = jobs.filter(job => job.lastIssue);
+    const resolved = issued.filter(job => job.lastIssue?.resolvedAt && job.lastIssue.resolutionNote);
+    if (resolutionReady.current) {
+      const changed = resolved.find(job => seenResolution.current.has(job.id) && seenResolution.current.get(job.id) !== job.lastIssue?.resolvedAt);
+      const cancelled = jobs.find(job => seenDriverJobs.current.has(job.id) && seenDriverJobs.current.get(job.id) !== "cancelled" && job.status === "cancelled");
+      const assigned = jobs.find(job => !seenDriverJobs.current.has(job.id) && job.status === "assigned");
+      if (changed) setDriverNotice({ title: "แอดมินตอบกลับแล้ว", detail: `ใบงาน ${changed.workOrder}: ${changed.lastIssue?.resolutionNote}`, tone: "success" });
+      else if (cancelled) setDriverNotice({ title: "งานถูกยกเลิก", detail: `ใบงาน ${cancelled.workOrder} ย้ายไปอยู่ในประวัติงานแล้ว`, tone: "warning" });
+      else if (assigned) setDriverNotice({ title: "ได้รับงานใหม่", detail: `ใบงาน ${assigned.workOrder} · เปิดงานวันนี้เพื่อดูขั้นตอนแรก`, tone: "success" });
+    }
+    seenResolution.current = new Map(issued.map(job => [job.id, job.lastIssue?.resolvedAt ?? ""]));
+    seenDriverJobs.current = new Map(jobs.map(job => [job.id, job.status]));
+    resolutionReady.current = true;
+  }, [jobs, jobsState, profile]);
+
+  useEffect(() => {
+    if (!profile || profile.role !== "driver") return;
+    const offline = () => setDriverNotice({ title: "ไม่มีอินเทอร์เน็ต", detail: "ข้อมูลและรูปที่ยังไม่ส่งจะค้างอยู่บนหน้านี้ กรุณาเชื่อมต่อแล้วกดบันทึกอีกครั้ง", tone: "warning" });
+    window.addEventListener("offline", offline);
+    return () => window.removeEventListener("offline", offline);
+  }, [profile]);
 
   useEffect(() => {
     preparePwaInstallPromptCapture();
@@ -287,6 +322,7 @@ export default function Home() {
       if (!active) return;
 
       unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+        if (!nextUser) clearDriverProofDrafts();
         setUser(nextUser);
         setProfile(null);
         setAuthReady(false);
@@ -336,7 +372,11 @@ export default function Home() {
       (nextJobs) => {
         setJobsState(failed ? "error" : "ready");
         setJobs(nextJobs);
-        setSelectedJobId((current) => current || nextJobs[0]?.id || "");
+        setSelectedJobId((current) => {
+          const currentJob = nextJobs.find(job => job.id === current);
+          if (currentJob && !["completed", "cancelled"].includes(currentJob.status)) return current;
+          return nextJobs.find(job => !["completed", "cancelled"].includes(job.status))?.id ?? currentJob?.id ?? nextJobs[0]?.id ?? "";
+        });
       },
       (message) => { failed = true; setJobsState("error"); setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`); }
     );
@@ -411,23 +451,28 @@ export default function Home() {
         }
         setFirebaseMessage("บันทึกสถานะงานสำเร็จ");
       }
+      setDriverNotice({ title: status === "completed" ? "จบงานแล้ว" : "บันทึกสถานะแล้ว", detail: status === "completed" ? "งานย้ายไปอยู่ในประวัติงาน และหยุดแชร์ตำแหน่งแล้ว" : `ใบงาน ${targetJob.workOrder} · ${statusLabels[status]}`, tone: "success" });
     } catch (error) {
       setFirebaseMessage(toMessage(error));
       setTrackingMessage(toMessage(error));
+      setDriverNotice({ title: "บันทึกไม่สำเร็จ", detail: `${toMessage(error)} กรุณาตรวจสัญญาณแล้วลองอีกครั้ง`, tone: "error" });
     } finally {
       setBusyMessage("");
     }
   }
 
-  async function handleDriverIssue(job: TransportJob, issueType: DriverIssueType, note: string) {
+  async function handleDriverIssue(job: TransportJob, issueType: DriverIssueType, note: string, photo: File | null) {
     if (!profile) return false;
     setBusyMessage("กำลังส่งรายงานปัญหา...");
     try {
-      await reportDriverIssue(job, issueType, note, profile);
+      const attachment = photo ? await uploadProof(job, photo, profile) : undefined;
+      await reportDriverIssue(job, issueType, note, profile, attachment);
       setFirebaseMessage("ส่งรายงานปัญหาให้ผู้ดูแลแล้ว");
+      setDriverNotice({ title: "ส่งเรื่องให้แอดมินแล้ว", detail: `ใบงาน ${job.workOrder} · รอคำตอบจากผู้ดูแลในหน้างานนี้`, tone: "warning" });
       return true;
     } catch (error) {
       setFirebaseMessage(toMessage(error));
+      setDriverNotice({ title: "ส่งรายงานไม่สำเร็จ", detail: `${toMessage(error)} กรุณาลองอีกครั้ง`, tone: "error" });
       return false;
     } finally {
       setBusyMessage("");
@@ -531,6 +576,7 @@ export default function Home() {
               onReportIssue={setIssueJob}
               onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
               onProfileUpdated={refreshCurrentProfile}
+              onNotice={setDriverNotice}
             />
           ) : (
             <AdminMobileScreen
@@ -616,6 +662,7 @@ export default function Home() {
           onSubmit={handleDriverIssue}
         />
       )}
+      {mode === "driver" && driverNotice && <DriverStatusDialog notice={driverNotice} onClose={() => setDriverNotice(null)} />}
     </main>
   );
 }
@@ -728,7 +775,8 @@ function DriverMobileScreen({
   onAction,
   onReportIssue,
   onUpload,
-  onProfileUpdated
+  onProfileUpdated,
+  onNotice
 }: {
   profile: UserProfile;
   screen: DriverScreen;
@@ -743,6 +791,7 @@ function DriverMobileScreen({
   onReportIssue: (job: TransportJob) => void;
   onUpload: (file: File) => void;
   onProfileUpdated: () => Promise<void>;
+  onNotice: (notice: DriverNotice) => void;
 }) {
   if (screen === "โปรไฟล์") {
     return <ProfileScreen profile={profile} onProfileUpdated={onProfileUpdated} />;
@@ -770,7 +819,11 @@ function DriverMobileScreen({
     return <ProofScreen job={selectedJob} canWrite={canWrite} onUpload={onUpload} />;
   }
 
-  return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} />;
+  if (["completed", "cancelled"].includes(selectedJob.status)) {
+    return <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="งานที่เสร็จแล้วดูได้ในเมนูประวัติงาน" />;
+  }
+
+  return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} onNotice={onNotice} />;
 }
 
 function AdminMobileScreen({
@@ -888,6 +941,7 @@ function DriverIssuesScreen({ jobs, actor }: { jobs: TransportJob[]; actor: User
       return <article className={`driver-issue-card ${!issue.resolvedAt ? "open" : "resolved"}`} key={job.id}>
         <div className="driver-issue-card-head">{!issue.resolvedAt ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}<div><strong>{label}</strong><span>ใบงาน {job.workOrder} · {job.driverName}</span></div><b>{!issue.resolvedAt ? "รอดำเนินการ" : "ดำเนินการแล้ว"}</b></div>
         <p>{issue.note || "ไม่มีรายละเอียดเพิ่มเติม"}</p>
+        {issue.photoUrl?.startsWith("https://") && <a className="driver-issue-attachment" href={issue.photoUrl} target="_blank" rel="noreferrer"><Image unoptimized src={issue.photoUrl} alt={`รูปประกอบปัญหาใบงาน ${job.workOrder}`} width={300} height={180} /></a>}
         <small>แจ้งเมื่อ {issue.reportedAt ? new Date(issue.reportedAt).toLocaleString("th-TH") : "—"}</small>
         {!issue.resolvedAt ? <div className="driver-issue-resolution"><input value={notes[job.id] ?? ""} maxLength={500} placeholder="วิธีแก้ไขหรือคำแนะนำให้คนขับ" onChange={event => setNotes(current => ({ ...current, [job.id]: event.target.value }))} /><button disabled={busyId === job.id || !notes[job.id]?.trim()} onClick={() => void resolve(job)}>{busyId === job.id ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}</button></div> : issue.resolutionNote && <p><strong>คำตอบผู้ดูแล:</strong> {issue.resolutionNote}</p>}
       </article>;
@@ -1539,7 +1593,8 @@ function DriverView({
   canWrite,
   trackingMessage,
   onAction,
-  onReportIssue
+  onReportIssue,
+  onNotice
 }: {
   job: TransportJob;
   profile: UserProfile;
@@ -1547,11 +1602,23 @@ function DriverView({
   trackingMessage: string;
   onAction: (status: JobStatus) => void;
   onReportIssue: () => void;
+  onNotice: (notice: DriverNotice) => void;
 }) {
-  const currentStep = Math.max(0, statusOrder.indexOf(job.status));
   const nextAction = nextDriverAction(job);
   const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
+  const currentStep = Math.max(0, statusOrder.indexOf(effectiveStatus ?? job.status));
   const proofStage = effectiveStatus === "arrived_pickup" || effectiveStatus === "loading" ? "pickup" : effectiveStatus === "arrived_delivery" || effectiveStatus === "unloading" ? "delivery" : null;
+  const stop = activeDriverStop(job);
+  const stopLocation = stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
+  const stopPlace = stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
+  const stopPhone = stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
+  const [finishOpen, setFinishOpen] = useState(false);
+  const finishRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = finishRef.current;
+    if (finishOpen) dialog?.showModal();
+    return () => dialog?.close();
+  }, [finishOpen]);
 
   return (
     <section className="screen">
@@ -1563,6 +1630,24 @@ function DriverView({
         <span className="live-dot">{job.trackingEnabled ? "Live" : "Standby"}</span>
       </div>
 
+      {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
+        const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
+        await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
+        onNotice({ title: proofStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: proofStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success" });
+      }} /> : nextAction && <div className="driver-current-action">
+        <small>ขั้นตอนที่ต้องทำตอนนี้</small>
+        <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทางไปจุดรับ" : nextAction.label}</strong>
+        <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว ตรวจทานก่อนจบงานและหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
+        <button disabled={!canWrite} onClick={() => nextAction.id === "completed" ? setFinishOpen(true) : onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
+      </div>}
+      {stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? "") && <div className="driver-quick-actions">
+        <a href={stopNavigationUrl(stopLocation, stopPlace)} target="_blank" rel="noreferrer"><Navigation size={19} /> นำทางไปจุด{stop === "pickup" ? "รับ" : "ส่ง"}</a>
+        {stopPhone && <a href={`tel:${stopPhone.replace(/[^+\d]/g, "")}`}><Phone size={19} /> โทรหาผู้ติดต่อ</a>}
+      </div>}
+      {!job.lastIssue?.resolvedAt && job.status === "problem" && <article className="driver-waiting-admin"><AlertTriangle size={20} /><span><strong>แอดมินรับเรื่องแล้ว</strong><small>กำลังรอคำตอบ คุณดูรายละเอียดงานหรือแจ้งข้อมูลเพิ่มเติมได้</small></span></article>}
+      {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
+      {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}
+
       <CompactJobCard
         className="primary"
         eyebrow={`ใบงาน ${job.workOrder}`}
@@ -1572,9 +1657,9 @@ function DriverView({
       >
         <div className="job-card-head job-card-actions-head">
           <span className="label">รายละเอียดเส้นทางและการติดต่อ</span>
-          <a className="round-link" aria-label="โทรหาผู้เกี่ยวข้อง" href={`tel:${job.driverPhone}`}>
+          {stopPhone && <a className="round-link" aria-label="โทรหาผู้ติดต่อจุดงาน" href={`tel:${stopPhone.replace(/[^+\d]/g, "")}`}>
             <Phone size={18} />
-          </a>
+          </a>}
         </div>
         <div className="route-block">
           <RoutePoint title="รับสินค้า" value={job.pickupLocation} href={job.pickupPlace?.navigationUrl} />
@@ -1594,19 +1679,6 @@ function DriverView({
         ))}
       </div>
 
-      {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
-
-      {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} stage={proofStage} onSubmit={async (photos, signature, signerName) => {
-        const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
-        await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
-      }} /> : nextAction && <div className="driver-current-action">
-        <small>ขั้นตอนที่ต้องทำตอนนี้</small>
-        <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทางไปจุดรับ" : nextAction.label}</strong>
-        <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว กดจบงานเพื่อหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
-        <button disabled={!canWrite} onClick={() => onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
-      </div>}
-      {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาระหว่างทาง</button>}
-
       <article className="privacy-card">
         <Bell size={20} />
         <div>
@@ -1614,6 +1686,9 @@ function DriverView({
           <p>{trackingMessage} · ระบบหยุดแชร์อัตโนมัติเมื่อกดจบงาน</p>
         </div>
       </article>
+      {finishOpen && <dialog ref={finishRef} className="driver-status-dialog" aria-labelledby="driver-finish-title" onCancel={event => { event.preventDefault(); setFinishOpen(false); }}>
+        <div className="driver-status-content"><span className="driver-status-icon"><CheckCircle2 size={31} /></span><h2 id="driver-finish-title">ตรวจทานก่อนจบงาน</h2><p>จุดรับ: {job.pickupProof?.photoPaths.length ?? 0} รูป · {job.pickupProof?.signerName || "ไม่มีผู้เซ็น"}<br />จุดส่ง: {job.deliveryProof?.photoPaths.length ?? 0} รูป · {job.deliveryProof?.signerName || "ไม่มีผู้เซ็น"}</p><div className="driver-finish-actions"><button type="button" onClick={() => setFinishOpen(false)}>กลับไปตรวจ</button><button type="button" disabled={!job.pickupProof || !job.deliveryProof} onClick={() => { setFinishOpen(false); onAction("completed"); }}>ยืนยันจบงาน</button></div></div>
+      </dialog>}
     </section>
   );
 }
@@ -1945,6 +2020,10 @@ const driverIssueOptions: Array<{ id: DriverIssueType; label: string; descriptio
   { id: "road_closed", label: "เส้นทางปิด", description: "ต้องเปลี่ยนเส้นทาง", icon: RouteOff },
   { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", description: "โทรหรือประสานผู้รับ–ส่งไม่ได้", icon: PhoneOff },
   { id: "loading_delay", label: "รอสินค้านาน", description: "รับหรือส่งสินค้าไม่ทันเวลา", icon: Timer },
+  { id: "customer_absent", label: "ลูกค้าไม่อยู่", description: "ไม่มีผู้รับหรือผู้ส่งที่จุดนัดหมาย", icon: UserRound },
+  { id: "signature_refused", label: "ปฏิเสธเซ็นชื่อ", description: "ผู้รับหรือผู้ส่งไม่ยอมเซ็น", icon: FilePenLine },
+  { id: "photo_unavailable", label: "ถ่ายรูปไม่ได้", description: "สินค้าไม่พร้อมให้ถ่ายหรือกล้องมีปัญหา", icon: Camera },
+  { id: "goods_damaged", label: "สินค้าเสียหาย", description: "พบความเสียหายก่อนรับหรือส่ง", icon: Package },
   { id: "other", label: "อื่น ๆ", description: "ระบุรายละเอียดเพิ่มเติม", icon: CircleHelp }
 ];
 
@@ -1955,11 +2034,12 @@ function DriverIssueDialog({
 }: {
   job: TransportJob;
   onClose: () => void;
-  onSubmit: (job: TransportJob, issueType: DriverIssueType, note: string) => Promise<boolean>;
+  onSubmit: (job: TransportJob, issueType: DriverIssueType, note: string, photo: File | null) => Promise<boolean>;
 }) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const [issueType, setIssueType] = useState<DriverIssueType | null>(null);
   const [note, setNote] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -1972,7 +2052,7 @@ function DriverIssueDialog({
     event.preventDefault();
     if (!issueType || submitting || (issueType === "other" && !note.trim())) return;
     setSubmitting(true);
-    const saved = await onSubmit(job, issueType, note);
+    const saved = await onSubmit(job, issueType, note, photo);
     setSubmitting(false);
     if (saved) onClose();
   }
@@ -1988,7 +2068,7 @@ function DriverIssueDialog({
       <form className="driver-issue-sheet" onSubmit={submit}>
         <span className="driver-issue-handle" aria-hidden="true" />
         <header>
-          <div><small>ใบงาน {job.workOrder}</small><h2 id="driver-issue-title">แจ้งปัญหา</h2><p>เลือกเหตุการณ์ที่กำลังพบ ผู้ดูแลจะเห็นทันที</p></div>
+          <div><small>ใบงาน {job.workOrder}</small><h2 id="driver-issue-title">แจ้งปัญหา</h2><p>เลือกเหตุการณ์หรือเหตุที่ทำขั้นตอนต่อไม่ได้ ผู้ดูแลจะเห็นทันที</p></div>
           <button type="button" aria-label="ปิดหน้าต่างแจ้งปัญหา" disabled={submitting} onClick={onClose}><X size={21} /></button>
         </header>
         <div className="driver-issue-options">
@@ -2008,6 +2088,7 @@ function DriverIssueDialog({
           <span>รายละเอียดเพิ่มเติม <small>(ไม่บังคับ)</small></span>
           <textarea value={note} maxLength={500} rows={4} placeholder="เช่น รถติดหน้าด่าน คาดว่าจะช้า 30 นาที" onChange={event => setNote(event.target.value)} />
         </label>
+        <label className="driver-issue-note"><span>รูปประกอบปัญหา <small>(ไม่บังคับ)</small></span><input type="file" accept="image/*" capture="environment" disabled={submitting} onChange={event => setPhoto(event.target.files?.[0] ?? null)} />{photo && <small>เลือกแล้ว: {photo.name}</small>}</label>
         <div className="driver-issue-actions">
           <button type="button" disabled={submitting} onClick={onClose}>ยกเลิก</button>
           <button type="submit" disabled={!issueType || submitting || (issueType === "other" && !note.trim())}>{submitting ? "กำลังส่ง..." : "ส่งรายงานปัญหา"}</button>

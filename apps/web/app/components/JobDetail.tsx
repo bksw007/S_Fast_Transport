@@ -13,7 +13,7 @@ import JobEditor from "./JobEditor";
 import { canAdministerJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
-const issueLabels: Record<DriverIssueType, string> = { accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย", road_closed: "เส้นทางปิด", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอสินค้านาน", other: "ปัญหาอื่น ๆ" };
+const issueLabels: Record<DriverIssueType, string> = { accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย", road_closed: "เส้นทางปิด", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอสินค้านาน", customer_absent: "ลูกค้าไม่อยู่", signature_refused: "ปฏิเสธเซ็นชื่อ", photo_unavailable: "ถ่ายรูปไม่ได้", goods_damaged: "สินค้าเสียหาย", other: "ปัญหาอื่น ๆ" };
 const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH") : "รอบันทึกเวลา";
 const mapUrl = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 const validPoint = (lat: unknown, lng: unknown) => typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat !== 0 || lng !== 0);
@@ -194,7 +194,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
           </div>
         </div>}
 
-        {tab === 1 && <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(() => uploadProof(job, file, actor), "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} jobId={job.id} kind="proofs" /></>}
+        {tab === 1 && <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(async () => { await uploadProof(job, file, actor); }, "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} jobId={job.id} kind="proofs" /></>}
         {tab === 2 && <><p>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์ตำแหน่ง"} · ล่าสุด {dateLabel(job.currentLocation.updatedAt)}</p>{job.trackingStatus !== "not_started" && validPoint(job.currentLocation.lat, job.currentLocation.lng) ? <>{map}<a href={mapUrl(job.currentLocation.lat, job.currentLocation.lng)} target="_blank" rel="noreferrer">เปิดตำแหน่งล่าสุดใน Google Maps</a><p>ความเร็ว {job.currentLocation.speed} กม./ชม. · ความแม่นยำ {job.currentLocation.accuracy} เมตร</p></> : <p>ยังไม่มีพิกัดสำหรับงานนี้</p>}</>}
         {tab === 3 && <Records key={`${job.id}-locations`} jobId={job.id} kind="locations" />}
         {tab === 4 && <Records key={`${job.id}-events`} jobId={job.id} kind="events" />}

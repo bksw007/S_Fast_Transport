@@ -38,6 +38,10 @@ const driverIssueLabels: Record<DriverIssueType, string> = {
   road_closed: "ถนนปิดหรือเส้นทางใช้ไม่ได้",
   contact_failed: "ติดต่อลูกค้าไม่ได้",
   loading_delay: "รอรับหรือส่งสินค้านาน",
+  customer_absent: "ลูกค้าไม่อยู่ที่จุดนัดหมาย",
+  signature_refused: "ลูกค้าปฏิเสธการเซ็นชื่อ",
+  photo_unavailable: "ไม่สามารถถ่ายรูปสินค้าได้",
+  goods_damaged: "สินค้าชำรุดหรือเสียหาย",
   other: "ปัญหาอื่น ๆ"
 };
 
@@ -641,7 +645,8 @@ export async function reportDriverIssue(
   job: TransportJob,
   issueType: DriverIssueType,
   note: string,
-  actor: UserProfile
+  actor: UserProfile,
+  photo?: { storagePath: string; downloadUrl: string }
 ) {
   const cleanNote = note.trim().slice(0, 500);
   if (issueType === "other" && !cleanNote) throw new Error("กรุณาระบุรายละเอียดของปัญหาอื่น ๆ");
@@ -656,7 +661,7 @@ export async function reportDriverIssue(
       : existing.status;
     const message = `${driverIssueLabels[issueType]}${cleanNote ? `: ${cleanNote}` : ""}`;
     const alerts = Array.isArray(existing.alerts) ? [...existing.alerts, message].slice(-20) : [message];
-    const lastIssue = { type: issueType, note: cleanNote, reportedAt: new Date().toISOString() };
+    const lastIssue = { type: issueType, note: cleanNote, reportedAt: new Date().toISOString(), ...(photo ? { photoPath: photo.storagePath, photoUrl: photo.downloadUrl } : {}) };
 
     transaction.update(jobRef, {
       status: "problem",
@@ -675,7 +680,7 @@ export async function reportDriverIssue(
       lat: job.currentLocation.lat,
       lng: job.currentLocation.lng,
       timestamp: serverTimestamp(),
-      metadata: { issueType, note: cleanNote, previousStatus, source: "driver_web" }
+      metadata: { issueType, note: cleanNote, previousStatus, source: "driver_web", ...(photo ? { photoPath: photo.storagePath } : {}) }
     });
   });
 }
@@ -715,6 +720,7 @@ export async function uploadProof(job: TransportJob, file: File, actor: UserProf
     timestamp: serverTimestamp(),
     metadata: { storagePath: objectPath }
   });
+  return { storagePath: objectPath, downloadUrl };
 }
 
 export async function createTrackingShareLink(job: TransportJob, actor: UserProfile, expiry?: Date) {

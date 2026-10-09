@@ -3,23 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
-export default function DriverStopProof({ stage, onSubmit }: {
+type ProofDraft = { photos: (File | null)[]; signerName: string; signature: Blob | null };
+const proofDrafts = new Map<string, ProofDraft>();
+export function clearDriverProofDrafts() { proofDrafts.clear(); }
+
+export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: {
   stage: "pickup" | "delivery";
+  draftKey: string;
   onSubmit: (photos: File[], signature: Blob, signerName: string) => Promise<void>;
+  onError?: (message: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const extraPhotoRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
-  const [photos, setPhotos] = useState<(File | null)[]>([null, null]);
+  const [photos, setPhotos] = useState<(File | null)[]>(() => proofDrafts.get(draftKey)?.photos ?? [null, null]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [signerName, setSignerName] = useState("");
-  const [signature, setSignature] = useState<Blob | null>(null);
+  const [signerName, setSignerName] = useState(() => proofDrafts.get(draftKey)?.signerName ?? "");
+  const [signature, setSignature] = useState<Blob | null>(() => proofDrafts.get(draftKey)?.signature ?? null);
   const [signaturePreview, setSignaturePreview] = useState("");
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [draftSigned, setDraftSigned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    proofDrafts.set(draftKey, { photos, signerName, signature });
+  }, [draftKey, photos, signerName, signature]);
 
   useEffect(() => {
     const readers = photos.map((file, index) => {
@@ -133,8 +143,11 @@ export default function DriverStopProof({ stage, onSubmit }: {
     setError("");
     try {
       await onSubmit(selectedPhotos, signature, signerName);
+      proofDrafts.delete(draftKey);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "บันทึกหลักฐานไม่สำเร็จ");
+      const message = cause instanceof Error ? cause.message : "บันทึกหลักฐานไม่สำเร็จ";
+      setError(message);
+      onError?.(message);
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,6 +59,7 @@ const colors = {
 };
 
 type AppTab = "home" | "jobs" | "account";
+type DriverNotice = { title: string; detail: string; tone: "success" | "warning" | "error" };
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -69,7 +70,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [message, setMessage] = useState("กำลังเชื่อมต่อระบบ...");
   const [busy, setBusy] = useState(false);
-  const [jobExpanded, setJobExpanded] = useState(true);
+  const [jobExpanded, setJobExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [jobListMode, setJobListMode] = useState<"active" | "history">("active");
   const [expandedHistoryId, setExpandedHistoryId] = useState("");
@@ -80,6 +81,11 @@ export default function App() {
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueType, setIssueType] = useState<DriverIssueType | null>(null);
   const [issueNote, setIssueNote] = useState("");
+  const [issuePhotoUri, setIssuePhotoUri] = useState("");
+  const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
+  const seenResolutions = useRef(new Map<string, string>());
+  const seenJobStatuses = useRef(new Map<string, JobStatus>());
+  const jobsReady = useRef(false);
   const [locationPermission, setLocationPermission] = useState({
     servicesEnabled: false,
     foreground: "undetermined",
@@ -99,6 +105,9 @@ export default function App() {
   });
 
   useEffect(() => onAuthStateChanged(auth, async (nextUser) => {
+    seenResolutions.current.clear();
+    seenJobStatuses.current.clear();
+    jobsReady.current = false;
     setUser(nextUser);
     setProfile(null);
     setJobs([]);
@@ -159,8 +168,25 @@ export default function App() {
     return subscribeDriverJobs(
       profile.uid,
       (nextJobs) => {
+        const issued = nextJobs.filter(job => job.lastIssue);
+        const resolved = issued.filter(job => job.lastIssue?.resolvedAt && job.lastIssue.resolutionNote);
+        if (jobsReady.current) {
+          const changed = resolved.find(job => seenResolutions.current.has(job.id) && seenResolutions.current.get(job.id) !== job.lastIssue?.resolvedAt);
+          const cancelled = nextJobs.find(job => seenJobStatuses.current.has(job.id) && seenJobStatuses.current.get(job.id) !== "cancelled" && job.status === "cancelled");
+          const assigned = nextJobs.find(job => !seenJobStatuses.current.has(job.id) && job.status === "assigned");
+          if (changed) setDriverNotice({ title: "แอดมินตอบกลับแล้ว", detail: `ใบงาน ${changed.workOrder}: ${changed.lastIssue?.resolutionNote}`, tone: "success" });
+          else if (cancelled) setDriverNotice({ title: "งานถูกยกเลิก", detail: `ใบงาน ${cancelled.workOrder} ย้ายไปอยู่ในประวัติงานแล้ว`, tone: "warning" });
+          else if (assigned) setDriverNotice({ title: "ได้รับงานใหม่", detail: `ใบงาน ${assigned.workOrder} · เปิดงานที่ต้องทำเพื่อดูขั้นตอนแรก`, tone: "success" });
+        }
+        seenResolutions.current = new Map(issued.map(job => [job.id, job.lastIssue?.resolvedAt ?? ""]));
+        seenJobStatuses.current = new Map(nextJobs.map(job => [job.id, job.status]));
+        jobsReady.current = true;
         setJobs(nextJobs);
-        setSelectedJobId((current) => nextJobs.some((job) => job.id === current) ? current : nextJobs[0]?.id ?? "");
+        setSelectedJobId((current) => {
+          const currentJob = nextJobs.find(job => job.id === current);
+          if (currentJob && !["completed", "cancelled"].includes(currentJob.status)) return current;
+          return nextJobs.find(job => !["completed", "cancelled"].includes(job.status))?.id ?? currentJob?.id ?? nextJobs[0]?.id ?? "";
+        });
       },
       (error) => setMessage(`อ่านใบงานไม่สำเร็จ: ${error}`)
     );
@@ -172,7 +198,7 @@ export default function App() {
   }, [user, activeSession]);
 
   const selectedJob = useMemo(
-    () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
+    () => jobs.find((job) => job.id === selectedJobId) ?? jobs.find(job => !["completed", "cancelled"].includes(job.status)) ?? jobs[0] ?? null,
     [jobs, selectedJobId]
   );
 
@@ -197,6 +223,7 @@ export default function App() {
     setIssueOpen(false);
     setIssueType(null);
     setIssueNote("");
+    setIssuePhotoUri("");
   }, [selectedJobId]);
 
   async function refreshLocationPermission() {
@@ -230,6 +257,7 @@ export default function App() {
         const proof = await uploadDriverStopProof(selectedJob, profile, step.photoStage, checkInPhotos.uris, signaturePaths, signerName);
         await updateDriverJobStatus(selectedJob, status, profile, proof);
         setMessage(step.photoStage === "pickup" ? "บันทึกหลักฐานจุดรับแล้ว เดินทางไปจุดส่งได้" : "บันทึกหลักฐานจุดส่งแล้ว กดจบงานได้");
+        setDriverNotice({ title: step.photoStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: step.photoStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success" });
         setCheckInPhotos(null);
         setSignaturePaths([]);
         setSignatureConfirmed(false);
@@ -241,6 +269,7 @@ export default function App() {
         await stopJobTracking();
         setActiveSession(null);
         setMessage("จบงานและหยุดแชร์ตำแหน่งแล้ว");
+        setDriverNotice({ title: "จบงานแล้ว", detail: "งานย้ายไปอยู่ในประวัติงาน และหยุดแชร์ตำแหน่งแล้ว", tone: "success" });
         setCheckInPhotos(null);
         return;
       }
@@ -259,6 +288,7 @@ export default function App() {
       } else {
         setMessage(`อัปเดตเป็น “${statusLabels[status]}” แล้ว`);
       }
+      setDriverNotice({ title: "บันทึกสถานะแล้ว", detail: `ใบงาน ${selectedJob.workOrder} · ${statusLabels[status]}`, tone: "success" });
       setCheckInPhotos(null);
     } catch (error) {
       if (isStart && !activeSession && !selectedJob.trackingEnabled) {
@@ -270,7 +300,7 @@ export default function App() {
         }
       }
       setMessage(toMessage(error));
-      Alert.alert("ดำเนินการไม่สำเร็จ", toMessage(error));
+      setDriverNotice({ title: "บันทึกไม่สำเร็จ", detail: `${toMessage(error)} กรุณาตรวจสัญญาณแล้วลองอีกครั้ง`, tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -306,16 +336,31 @@ export default function App() {
     if (!selectedJob || !profile || !issueType) return;
     setBusy(true);
     try {
-      await reportDriverIssue(selectedJob, profile, issueType, issueNote);
+      await reportDriverIssue(selectedJob, profile, issueType, issueNote, issuePhotoUri || undefined);
       setMessage("ส่งรายงานปัญหาให้แอดมินแล้ว");
       setIssueOpen(false);
       setIssueType(null);
       setIssueNote("");
+      setIssuePhotoUri("");
+      setTimeout(() => setDriverNotice({ title: "ส่งเรื่องให้แอดมินแล้ว", detail: `ใบงาน ${selectedJob.workOrder} · รอคำตอบจากผู้ดูแลในหน้างานนี้`, tone: "warning" }), 350);
     } catch (error) {
-      Alert.alert("ส่งรายงานไม่สำเร็จ", toMessage(error));
+      setDriverNotice({ title: "ส่งรายงานไม่สำเร็จ", detail: `${toMessage(error)} กรุณาลองอีกครั้ง`, tone: "error" });
     } finally {
       setBusy(false);
     }
+  }
+
+  async function pickIssuePhoto(source: "camera" | "library") {
+    const permission = source === "camera" ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) { Alert.alert("ต้องอนุญาตการเข้าถึง", "กรุณาอนุญาตกล้องหรือคลังภาพก่อนเพิ่มรูป"); return; }
+    const result = source === "camera"
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.65, allowsEditing: false })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.65, allowsMultipleSelection: false });
+    if (result.canceled || !result.assets[0]) return;
+    setBusy(true);
+    try { setIssuePhotoUri(await prepareCheckInPhoto(result.assets[0])); }
+    catch (error) { Alert.alert("เตรียมรูปไม่สำเร็จ", toMessage(error)); }
+    finally { setBusy(false); }
   }
 
   async function logout() {
@@ -379,7 +424,7 @@ export default function App() {
                   <SummaryCard icon="checkmark-done-outline" label="เสร็จแล้ว" value={String(completedJobs.length)} tone="orange" />
                 </View>
 
-                {selectedJob ? (
+                {selectedJob && !["completed", "cancelled"].includes(selectedJob.status) ? (
                   <JobPanel
                     job={selectedJob}
                     expanded={jobExpanded}
@@ -393,7 +438,7 @@ export default function App() {
                     onSignerNameChange={setSignerName}
                     onRemovePhoto={(index) => setCheckInPhotos(current => current ? { ...current, uris: current.uris.filter((_, slot) => slot !== index) } : null)}
                     onToggle={() => setJobExpanded((value) => !value)}
-                    onAction={(status) => void handleDriverAction(status)}
+                    onAction={(status) => status === "completed" ? Alert.alert("ตรวจทานก่อนจบงาน", `จุดรับ: ${selectedJob.pickupProof?.photoPaths.length ?? 0} รูป · ${selectedJob.pickupProof?.signerName || "ไม่มีผู้เซ็น"}\nจุดส่ง: ${selectedJob.deliveryProof?.photoPaths.length ?? 0} รูป · ${selectedJob.deliveryProof?.signerName || "ไม่มีผู้เซ็น"}\n\nเมื่อจบงาน ระบบจะหยุดแชร์ตำแหน่ง`, [{ text: "กลับไปตรวจ", style: "cancel" }, { text: "ยืนยันจบงาน", onPress: () => void handleDriverAction(status) }]) : void handleDriverAction(status)}
                     onPickPhoto={(source, stage) => void pickCheckInPhoto(source, stage)}
                     onReportIssue={() => setIssueOpen(true)}
                   />
@@ -521,12 +566,16 @@ export default function App() {
             visible={issueOpen}
             selected={issueType}
             note={issueNote}
+            photoUri={issuePhotoUri}
             busy={busy}
             onSelect={setIssueType}
             onNoteChange={setIssueNote}
+            onPickPhoto={() => Alert.alert("เพิ่มรูปประกอบปัญหา", "เลือกวิธีเพิ่มรูป", [{ text: "ถ่ายรูป", onPress: () => void pickIssuePhoto("camera") }, { text: "เลือกจากเครื่อง", onPress: () => void pickIssuePhoto("library") }, { text: "ยกเลิก", style: "cancel" }])}
+            onRemovePhoto={() => setIssuePhotoUri("")}
             onClose={() => !busy && setIssueOpen(false)}
             onSubmit={() => void submitIssue()}
           />
+          <DriverStatusModal notice={driverNotice} onClose={() => setDriverNotice(null)} />
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -618,6 +667,10 @@ function JobPanel({
   const [signatureOpen, setSignatureOpen] = useState(false);
   const hasSignature = signatureConfirmed && signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2);
   const actionDisabled = busy || (step?.id === "start_tracking" && Boolean(activeSession));
+  const activeStop = step && ["start_tracking", "arrived_pickup", "to_delivery"].includes(step.id) ? "pickup" : step && ["arrived_delivery", "ready_to_close"].includes(step.id) ? "delivery" : null;
+  const stopLocation = activeStop === "pickup" ? job.pickupLocation : job.deliveryLocation;
+  const stopNavigationUrl = activeStop === "pickup" ? job.pickupPlace?.navigationUrl : job.deliveryPlace?.navigationUrl;
+  const stopPhone = activeStop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
   return (
     <>
       <View style={styles.card}>
@@ -651,8 +704,8 @@ function JobPanel({
         <View style={styles.issueBanner}>
           <Ionicons name="warning" size={21} color={colors.danger} />
           <View style={styles.grow}>
-            <Text style={styles.issueBannerTitle}>รายงานปัญหาแล้ว</Text>
-            <Text style={styles.issueBannerText}>{job.lastIssue?.note || "แอดมินได้รับการแจ้งเตือนแล้ว คุณยังทำขั้นตอนเดิมต่อได้"}</Text>
+            <Text style={styles.issueBannerTitle}>แอดมินรับเรื่องแล้ว · รอตอบกลับ</Text>
+            <Text style={styles.issueBannerText}>{job.lastIssue?.note || "ผู้ดูแลเห็นรายงานแล้ว คุณดูรายละเอียดงานหรือแจ้งข้อมูลเพิ่มเติมได้"}</Text>
           </View>
         </View>
       )}
@@ -677,6 +730,10 @@ function JobPanel({
             </View>
             <Text style={styles.currentStepTitle}>{step.label}</Text>
             <Text style={styles.currentStepDescription}>{step.description}</Text>
+            {activeStop && <View style={styles.driverQuickActions}>
+              <Pressable accessibilityRole="link" style={styles.driverQuickAction} onPress={() => void Linking.openURL(stopNavigationUrl?.startsWith("https://") ? stopNavigationUrl : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stopLocation)}`).catch(() => Alert.alert("เปิดแผนที่ไม่สำเร็จ", stopLocation))}><Ionicons name="navigate-outline" size={20} color={colors.accent} /><Text style={styles.driverQuickActionText}>นำทางไปจุด{activeStop === "pickup" ? "รับ" : "ส่ง"}</Text></Pressable>
+              {stopPhone && <Pressable accessibilityRole="link" style={styles.driverQuickAction} onPress={() => void Linking.openURL(`tel:${stopPhone.replace(/[^+\d]/g, "")}`).catch(() => Alert.alert("โทรไม่สำเร็จ", stopPhone))}><Ionicons name="call-outline" size={20} color={colors.accent} /><Text style={styles.driverQuickActionText}>โทรหาผู้ติดต่อ</Text></Pressable>}
+            </View>}
 
             {step.photoStage && (
               <View style={styles.photoArea}>
@@ -718,7 +775,7 @@ function JobPanel({
       {step && (
         <Pressable disabled={busy} style={styles.reportIssueButton} onPress={onReportIssue}>
           <Ionicons name="warning-outline" size={21} color={colors.danger} />
-          <Text style={styles.reportIssueText}>รายงานปัญหา</Text>
+          <Text style={styles.reportIssueText}>แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</Text>
           <Ionicons name="chevron-forward" size={19} color={colors.danger} />
         </Pressable>
       )}
@@ -759,6 +816,10 @@ const issueChoices: Array<{ id: DriverIssueType; label: string; icon: keyof type
   { id: "road_closed", label: "เส้นทางปิด", icon: "trail-sign" },
   { id: "contact_failed", label: "ติดต่อลูกค้าไม่ได้", icon: "call" },
   { id: "loading_delay", label: "รอสินค้านาน", icon: "time" },
+  { id: "customer_absent", label: "ลูกค้าไม่อยู่", icon: "person-remove" },
+  { id: "signature_refused", label: "ปฏิเสธเซ็นชื่อ", icon: "create" },
+  { id: "photo_unavailable", label: "ถ่ายรูปไม่ได้", icon: "camera-outline" },
+  { id: "goods_damaged", label: "สินค้าเสียหาย", icon: "cube-outline" },
   { id: "other", label: "อื่น ๆ", icon: "ellipsis-horizontal-circle" }
 ];
 
@@ -766,18 +827,24 @@ function IssueReportModal({
   visible,
   selected,
   note,
+  photoUri,
   busy,
   onSelect,
   onNoteChange,
+  onPickPhoto,
+  onRemovePhoto,
   onClose,
   onSubmit
 }: {
   visible: boolean;
   selected: DriverIssueType | null;
   note: string;
+  photoUri: string;
   busy: boolean;
   onSelect: (value: DriverIssueType) => void;
   onNoteChange: (value: string) => void;
+  onPickPhoto: () => void;
+  onRemovePhoto: () => void;
   onClose: () => void;
   onSubmit: () => void;
 }) {
@@ -791,11 +858,11 @@ function IssueReportModal({
             <View style={styles.sheetWarningIcon}><Ionicons name="warning" size={23} color={colors.danger} /></View>
             <View style={styles.grow}>
               <Text style={styles.sheetTitle}>รายงานปัญหา</Text>
-              <Text style={styles.sheetSubtitle}>เลือกเหตุการณ์ที่เกิดขึ้น</Text>
+              <Text style={styles.sheetSubtitle}>เลือกเหตุการณ์ที่เกิดขึ้นหรือเหตุที่ทำขั้นตอนต่อไม่ได้</Text>
             </View>
             <Pressable accessibilityLabel="ปิด" style={styles.sheetClose} onPress={onClose}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
           </View>
-          <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={styles.issueChoiceRow} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={styles.issueChoiceRow} showsVerticalScrollIndicator={false}>
             {issueChoices.map((choice) => (
               <Pressable key={choice.id} style={[styles.issueChoice, selected === choice.id && styles.issueChoiceSelected]} onPress={() => onSelect(choice.id)}>
                 <View style={[styles.issueChoiceIcon, selected === choice.id && styles.issueChoiceIconSelected]}>
@@ -816,6 +883,8 @@ function IssueReportModal({
             style={styles.issueNoteInput}
             textAlignVertical="top"
           />
+          <Pressable disabled={busy} style={styles.issuePhotoButton} onPress={onPickPhoto}><Ionicons name="camera-outline" size={20} color={colors.accent} /><Text style={styles.issuePhotoButtonText}>{photoUri ? "เปลี่ยนรูปประกอบ" : "เพิ่มรูปประกอบ (ไม่บังคับ)"}</Text></Pressable>
+          {photoUri ? <View style={styles.issuePhotoPreview}><Image source={{ uri: photoUri }} style={styles.issuePhotoImage} /><Pressable accessibilityLabel="ลบรูปประกอบ" style={styles.issuePhotoRemove} onPress={onRemovePhoto}><Ionicons name="close-circle" size={28} color={colors.danger} /></Pressable></View> : null}
           <View style={styles.issueSubmitRow}>
             <Pressable disabled={busy} style={styles.cancelIssueButton} onPress={onClose}><Text style={styles.cancelIssueText}>ยกเลิก</Text></Pressable>
             <Pressable disabled={!selected || busy || (selected === "other" && !note.trim())} style={[styles.submitIssueButton, (!selected || busy || (selected === "other" && !note.trim())) && styles.disabled]} onPress={onSubmit}>
@@ -827,6 +896,21 @@ function IssueReportModal({
       </View>
     </Modal>
   );
+}
+
+function DriverStatusModal({ notice, onClose }: { notice: DriverNotice | null; onClose: () => void }) {
+  return <Modal visible={Boolean(notice)} transparent animationType="fade" onRequestClose={onClose}>
+    <View style={styles.statusModalBackdrop}>
+      <View style={styles.statusModalCard}>
+        <View style={[styles.statusModalIcon, notice?.tone === "warning" && styles.statusModalWarning, notice?.tone === "error" && styles.statusModalError]}>
+          <Ionicons name={notice?.tone === "success" ? "checkmark-circle" : notice?.tone === "error" ? "cloud-offline" : "alert-circle"} size={34} color={notice?.tone === "success" ? colors.success : notice?.tone === "error" ? colors.danger : "#9a5d00"} />
+        </View>
+        <Text style={styles.statusModalTitle}>{notice?.title}</Text>
+        <Text style={styles.statusModalDetail}>{notice?.detail}</Text>
+        <Pressable accessibilityRole="button" style={styles.statusModalButton} onPress={onClose}><Text style={styles.statusModalButtonText}>รับทราบ</Text></Pressable>
+      </View>
+    </View>
+  </Modal>;
 }
 
 function EmptyJobs({ onOpenJobs, accountMode = false }: { onOpenJobs: () => void; accountMode?: boolean }) {
@@ -964,6 +1048,15 @@ async function prepareCheckInPhoto(asset: ImagePicker.ImagePickerAsset) {
 }
 
 const styles = StyleSheet.create({
+  statusModalBackdrop: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(5,25,41,0.65)" },
+  statusModalCard: { alignItems: "center", gap: 12, padding: 24, borderRadius: 20, backgroundColor: colors.surface },
+  statusModalIcon: { width: 62, height: 62, alignItems: "center", justifyContent: "center", borderRadius: 19, backgroundColor: "#e3f3ee" },
+  statusModalWarning: { backgroundColor: colors.orangeSoft },
+  statusModalError: { backgroundColor: "#fff2f0" },
+  statusModalTitle: { color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center" },
+  statusModalDetail: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: "center" },
+  statusModalButton: { alignSelf: "stretch", minHeight: 52, alignItems: "center", justifyContent: "center", marginTop: 5, borderRadius: 12, backgroundColor: colors.accent },
+  statusModalButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
   safe: { flex: 1, backgroundColor: colors.bg },
   appShell: { flex: 1 },
   container: { padding: 18, paddingBottom: 28, gap: 18 },
@@ -1037,6 +1130,9 @@ const styles = StyleSheet.create({
   currentStepIcon: { width: 54, height: 54, marginTop: 2, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.orange, shadowColor: colors.orange, shadowOpacity: 0.25, shadowRadius: 9, elevation: 4 },
   currentStepTitle: { color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center", marginTop: 3 },
   currentStepDescription: { maxWidth: 320, color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: "center" },
+  driverQuickActions: { alignSelf: "stretch", flexDirection: "row", gap: 8, marginTop: 7 },
+  driverQuickAction: { flex: 1, minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface2 },
+  driverQuickActionText: { flexShrink: 1, color: colors.accent, fontSize: 12, fontWeight: "800", textAlign: "center" },
   photoArea: { alignSelf: "stretch", gap: 10, marginTop: 8 },
   photoPlaceholder: { minHeight: 130, alignItems: "center", justifyContent: "center", gap: 5, padding: 14, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", borderColor: "#e6bd77", backgroundColor: "#fffaf0" },
   photoPlaceholderTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
@@ -1077,7 +1173,7 @@ const styles = StyleSheet.create({
   signatureConfirmText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   reportIssueText: { flex: 1, color: colors.danger, fontSize: 14, fontWeight: "800" },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(5, 18, 30, 0.58)" },
-  issueSheet: { paddingHorizontal: 17, paddingTop: 9, paddingBottom: 12, borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: colors.surface },
+  issueSheet: { maxHeight: "90%", paddingHorizontal: 17, paddingTop: 9, paddingBottom: 12, borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: colors.surface },
   sheetHandle: { alignSelf: "center", width: 43, height: 4, marginBottom: 15, borderRadius: 3, backgroundColor: colors.border },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
   sheetWarningIcon: { width: 43, height: 43, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#fff0ee" },
@@ -1093,6 +1189,11 @@ const styles = StyleSheet.create({
   issueChoiceLabelSelected: { color: colors.danger, fontWeight: "800" },
   noteLabel: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: 17, marginBottom: 7 },
   issueNoteInput: { minHeight: 92, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, fontSize: 13, lineHeight: 19 },
+  issuePhotoButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface2 },
+  issuePhotoButtonText: { color: colors.accent, fontSize: 13, fontWeight: "800" },
+  issuePhotoPreview: { width: 116, height: 98, position: "relative", marginTop: 8 },
+  issuePhotoImage: { width: 116, height: 98, borderRadius: 11 },
+  issuePhotoRemove: { position: "absolute", right: -8, top: -8, backgroundColor: "#fff", borderRadius: 16 },
   issueSubmitRow: { flexDirection: "row", gap: 9, marginTop: 14 },
   cancelIssueButton: { flex: 1, minHeight: 51, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.surface2 },
   cancelIssueText: { color: colors.accent, fontSize: 14, fontWeight: "800" },

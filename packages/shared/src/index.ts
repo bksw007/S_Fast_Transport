@@ -92,6 +92,8 @@ export type TransportJob = {
     resolvedAt?: string;
     resolvedBy?: string;
     resolutionNote?: string;
+    photoUrl?: string;
+    photoPath?: string;
   };
   pickupProof?: StopProof;
   deliveryProof?: StopProof;
@@ -101,7 +103,7 @@ export type TransportJob = {
   notes?: string;
 };
 
-export type DriverIssueType = "accident" | "traffic" | "heavy_rain" | "vehicle_breakdown" | "road_closed" | "contact_failed" | "loading_delay" | "other";
+export type DriverIssueType = "accident" | "traffic" | "heavy_rain" | "vehicle_breakdown" | "road_closed" | "contact_failed" | "loading_delay" | "customer_absent" | "signature_refused" | "photo_unavailable" | "goods_damaged" | "other";
 export type StopProof = { photoPaths: string[]; signaturePath: string; signerName: string; signedAt: string };
 
 export type TimelineEvent = {

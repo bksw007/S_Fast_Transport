@@ -36,6 +36,10 @@ const issueLabels: Record<DriverIssueType, string> = {
   road_closed: "ถนนปิดหรือเส้นทางใช้ไม่ได้",
   contact_failed: "ติดต่อลูกค้าไม่ได้",
   loading_delay: "รอรับหรือส่งสินค้านาน",
+  customer_absent: "ลูกค้าไม่อยู่ที่จุดนัดหมาย",
+  signature_refused: "ลูกค้าปฏิเสธการเซ็นชื่อ",
+  photo_unavailable: "ไม่สามารถถ่ายรูปสินค้าได้",
+  goods_damaged: "สินค้าชำรุดหรือเสียหาย",
   other: "ปัญหาอื่น ๆ"
 };
 
@@ -222,10 +226,23 @@ export async function reportDriverIssue(
   job: TransportJob,
   profile: MobileProfile,
   issueType: DriverIssueType,
-  note: string
+  note: string,
+  photoUri?: string
 ) {
   const cleanNote = note.trim().slice(0, 500);
   if (issueType === "other" && !cleanNote) throw new Error("กรุณาระบุรายละเอียดของปัญหาอื่น ๆ");
+  let photo: { storagePath: string; downloadUrl: string } | undefined;
+  if (photoUri) {
+    const response = await fetch(photoUri);
+    if (!response.ok) throw new Error("อ่านรูปประกอบปัญหาไม่สำเร็จ");
+    const blob = await response.blob();
+    if (!blob.size || blob.size > 1024 * 1024) throw new Error("รูปประกอบปัญหาต้องไม่เกิน 1 MB");
+    const storagePath = `proof_of_delivery/${job.id}/${profile.uid}/${Date.now()}-issue.jpg`;
+    const result = await uploadBytes(ref(storage, storagePath), blob, { contentType: "image/jpeg" });
+    const downloadUrl = await getDownloadURL(result.ref);
+    await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? profile.organizationId ?? "main", uploadedByUid: profile.uid, uploadedByName: profile.displayName, fileName: "issue-photo.jpg", storagePath, downloadUrl, contentType: "image/jpeg", size: blob.size, proofKind: "issue", createdAt: serverTimestamp() });
+    photo = { storagePath, downloadUrl };
+  }
   const jobRef = doc(db, "today_jobs", job.id);
   const eventRef = doc(collection(db, "job_events"));
   await runTransaction(db, async (transaction) => {
@@ -238,7 +255,8 @@ export async function reportDriverIssue(
     const issue = {
       type: issueType,
       note: cleanNote,
-      reportedAt: new Date().toISOString()
+      reportedAt: new Date().toISOString(),
+      ...(photo ? { photoPath: photo.storagePath, photoUrl: photo.downloadUrl } : {})
     };
     const message = `${issueLabels[issueType]}${cleanNote ? `: ${cleanNote}` : ""}`;
     const alerts = Array.isArray(current.alerts) ? [...current.alerts, message].slice(-20) : [message];
@@ -260,7 +278,7 @@ export async function reportDriverIssue(
       lat: job.currentLocation.lat,
       lng: job.currentLocation.lng,
       timestamp: serverTimestamp(),
-      metadata: { issueType, note: cleanNote, previousStatus, source: "driver_mobile" }
+      metadata: { issueType, note: cleanNote, previousStatus, source: "driver_mobile", ...(photo ? { photoPath: photo.storagePath } : {}) }
     });
   });
 }
