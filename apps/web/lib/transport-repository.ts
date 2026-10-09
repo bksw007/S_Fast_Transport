@@ -830,6 +830,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     deliveryTime: data.deliveryTime ?? undefined,
     arrivedDeliveryAt: timestampToIso(data.arrivedDeliveryAt),
     completedAt: timestampToIso(data.completedAt),
+    cancelledAt: timestampToIso(data.cancelledAt ?? data.deletedAt),
     issuePreviousStatus: data.issuePreviousStatus ?? undefined,
     lastIssue: data.lastIssue ?? undefined,
     pickupProof: data.pickupProof ?? undefined,

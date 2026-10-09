@@ -16,7 +16,12 @@ import {
   type User
 } from "firebase/auth";
 import {
+  filterDriverHistory,
+  historyMonthLabel,
+  jobHistoryDate,
+  jobHistoryMonth,
   statusLabels,
+  type HistoryStatusFilter,
   type JobStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
@@ -74,6 +79,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [jobListMode, setJobListMode] = useState<"active" | "history">("active");
   const [expandedHistoryId, setExpandedHistoryId] = useState("");
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>("all");
+  const [historyMonthFilter, setHistoryMonthFilter] = useState("all");
   const [checkInPhotos, setCheckInPhotos] = useState<{ jobId: string; stage: "pickup" | "delivery"; uris: string[] } | null>(null);
   const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
   const [signatureConfirmed, setSignatureConfirmed] = useState(false);
@@ -211,9 +218,11 @@ export default function App() {
     [jobs]
   );
   const historyJobs = useMemo(
-    () => jobs.filter(job => ["completed", "cancelled"].includes(job.status)).sort((a, b) => String(b.completedAt || b.deliveryDate || b.id).localeCompare(String(a.completedAt || a.deliveryDate || a.id))),
+    () => filterDriverHistory(jobs, "all", "all"),
     [jobs]
   );
+  const visibleHistoryJobs = useMemo(() => filterDriverHistory(jobs, historyStatusFilter, historyMonthFilter), [jobs, historyStatusFilter, historyMonthFilter]);
+  const historyMonths = useMemo(() => [...new Set(historyJobs.map(jobHistoryMonth))].sort((a, b) => a === "unknown" ? 1 : b === "unknown" ? -1 : b.localeCompare(a)), [historyJobs]);
 
   useEffect(() => {
     setCheckInPhotos(null);
@@ -472,10 +481,18 @@ export default function App() {
 
                 <View style={styles.jobListTabs}><Pressable style={[styles.jobListTab, jobListMode === "active" && styles.jobListTabActive]} onPress={() => setJobListMode("active")}><Text style={[styles.jobListTabText, jobListMode === "active" && styles.jobListTabTextActive]}>งานที่ต้องทำ</Text></Pressable><Pressable style={[styles.jobListTab, jobListMode === "history" && styles.jobListTabActive]} onPress={() => setJobListMode("history")}><Text style={[styles.jobListTabText, jobListMode === "history" && styles.jobListTabTextActive]}>ประวัติงาน</Text></Pressable></View>
 
-                {(jobListMode === "history" ? historyJobs : activeJobs).length ? (jobListMode === "history" ? historyJobs : activeJobs).map((job) => (
+                {jobListMode === "history" && <View style={styles.historyFilters}>
+                  <Text style={styles.historyFilterTitle}>กรองสถานะงาน</Text>
+                  <View style={styles.historyStatusRow}>{([["all", "ทั้งหมด"], ["completed", "เสร็จงาน"], ["cancelled", "ยกเลิก"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: historyStatusFilter === value }} style={[styles.historyStatusChip, historyStatusFilter === value && styles.historyStatusChipSelected]} onPress={() => setHistoryStatusFilter(value)}><Text style={[styles.historyStatusText, historyStatusFilter === value && styles.historyStatusTextSelected]}>{label}</Text></Pressable>)}</View>
+                  <Text style={styles.historyFilterTitle}>เดือน</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyMonthRow}><Pressable accessibilityRole="button" accessibilityState={{ selected: historyMonthFilter === "all" }} style={[styles.historyMonthChip, historyMonthFilter === "all" && styles.historyMonthChipSelected]} onPress={() => setHistoryMonthFilter("all")}><Text style={[styles.historyMonthText, historyMonthFilter === "all" && styles.historyMonthTextSelected]}>ทุกเดือน</Text></Pressable>{historyMonths.map(month => <Pressable key={month} accessibilityRole="button" accessibilityState={{ selected: historyMonthFilter === month }} style={[styles.historyMonthChip, historyMonthFilter === month && styles.historyMonthChipSelected]} onPress={() => setHistoryMonthFilter(month)}><Text style={[styles.historyMonthText, historyMonthFilter === month && styles.historyMonthTextSelected]}>{historyMonthLabel(month)}</Text></Pressable>)}</ScrollView>
+                  <Text style={styles.historyResultCount}>แสดง {visibleHistoryJobs.length} จาก {historyJobs.length} งาน</Text>
+                </View>}
+
+                {(jobListMode === "history" ? visibleHistoryJobs : activeJobs).length ? (jobListMode === "history" ? visibleHistoryJobs : activeJobs).map((job) => (
                   <Pressable
                     key={job.id}
-                    style={[styles.jobListCard, selectedJobId === job.id && styles.jobListCardSelected]}
+                    style={[styles.jobListCard, jobListMode === "active" && selectedJobId === job.id && styles.jobListCardSelected, jobListMode === "history" && expandedHistoryId === job.id && styles.historyCardExpanded]}
                     onPress={() => {
                       if (jobListMode === "history") { setExpandedHistoryId(current => current === job.id ? "" : job.id); return; }
                       setSelectedJobId(job.id);
@@ -501,13 +518,13 @@ export default function App() {
                       <Text style={styles.openJobText}>{jobListMode === "history" ? expandedHistoryId === job.id ? "ซ่อนรายละเอียด" : "ดูรายละเอียด" : "เปิดใบงาน"} <Ionicons name={jobListMode === "history" ? expandedHistoryId === job.id ? "chevron-up" : "chevron-down" : "arrow-forward"} size={13} /></Text>
                     </View>
                     {jobListMode === "history" && expandedHistoryId === job.id && <View style={styles.historyDetails}>
-                      <Text style={styles.muted}>{job.status === "cancelled" ? "ยกเลิกงาน" : "จบงาน"}: {job.completedAt ? new Date(job.completedAt).toLocaleString("th-TH") : "ไม่ระบุเวลา"}</Text>
-                      <Text style={styles.muted}>จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text>
-                      <Text style={styles.muted}>จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text>
+                      <Text style={styles.historyDate}>{job.status === "completed" ? "จบงาน" : job.cancelledAt ? "ยกเลิกงาน" : "วันที่อ้างอิง"}: {jobHistoryDate(job) ? new Date(jobHistoryDate(job)!).toLocaleString("th-TH") : "ไม่ระบุเวลา"}</Text>
+                      <View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View>
+                      <View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View>
                     </View>}
                   </Pressable>
                 )) : (
-                  <View style={styles.emptyCard}><Ionicons name="file-tray-outline" size={34} color={colors.accent} /><Text style={styles.emptyTitle}>{jobListMode === "history" ? "ยังไม่มีประวัติงาน" : "ไม่มีงานที่ต้องทำตอนนี้"}</Text><Text style={styles.emptyDetail}>{jobListMode === "history" ? "เมื่อจบงาน รายการจะปรากฏที่นี่" : "งานที่เสร็จแล้วดูได้ในประวัติงาน"}</Text></View>
+                  <View style={styles.emptyCard}><Ionicons name="file-tray-outline" size={34} color={colors.accent} /><Text style={styles.emptyTitle}>{jobListMode === "history" ? historyJobs.length ? "ไม่พบงานในตัวกรองนี้" : "ยังไม่มีประวัติงาน" : "ไม่มีงานที่ต้องทำตอนนี้"}</Text><Text style={styles.emptyDetail}>{jobListMode === "history" ? historyJobs.length ? "ลองเลือกสถานะหรือเดือนอื่น" : "เมื่อจบงาน รายการจะปรากฏที่นี่" : "งานที่เสร็จแล้วดูได้ในประวัติงาน"}</Text></View>
                 )}
               </>
             )}
@@ -1088,7 +1105,24 @@ const styles = StyleSheet.create({
   jobListTabActive: { backgroundColor: colors.surface },
   jobListTabText: { color: colors.muted, fontSize: 13, fontWeight: "800" },
   jobListTabTextActive: { color: colors.accent },
-  historyDetails: { gap: 7, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  historyFilters: { gap: 9, padding: 13, borderWidth: 1, borderColor: colors.border, borderRadius: 15, backgroundColor: colors.surface },
+  historyFilterTitle: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  historyStatusRow: { flexDirection: "row", gap: 5, padding: 4, borderRadius: 11, backgroundColor: colors.surface2 },
+  historyStatusChip: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 9 },
+  historyStatusChipSelected: { backgroundColor: colors.accent },
+  historyStatusText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  historyStatusTextSelected: { color: "#ffffff" },
+  historyMonthRow: { gap: 7, paddingRight: 2 },
+  historyMonthChip: { minHeight: 42, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.surface },
+  historyMonthChipSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
+  historyMonthText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
+  historyMonthTextSelected: { color: "#ffffff" },
+  historyResultCount: { color: colors.muted, fontSize: 12 },
+  historyCardExpanded: { borderColor: colors.accent },
+  historyDetails: { gap: 9, marginTop: 12, paddingTop: 13, borderTopWidth: 1, borderTopColor: colors.border },
+  historyDate: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  historyProofSummary: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface2 },
+  historyProofText: { flex: 1, color: colors.text, fontSize: 12, lineHeight: 18 },
   summaryRow: { flexDirection: "row", gap: 11 },
   summaryCard: { flex: 1, minHeight: 104, borderRadius: 18, padding: 15, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", backgroundColor: colors.accent, elevation: 2 },
   summaryOrange: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },

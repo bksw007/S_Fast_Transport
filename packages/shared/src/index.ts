@@ -84,6 +84,7 @@ export type TransportJob = {
   deliveryTime?: string;
   arrivedDeliveryAt?: string;
   completedAt?: string;
+  cancelledAt?: string;
   issuePreviousStatus?: JobStatus;
   lastIssue?: {
     type: DriverIssueType;
@@ -105,6 +106,39 @@ export type TransportJob = {
 
 export type DriverIssueType = "accident" | "traffic" | "heavy_rain" | "vehicle_breakdown" | "road_closed" | "contact_failed" | "loading_delay" | "customer_absent" | "signature_refused" | "photo_unavailable" | "goods_damaged" | "other";
 export type StopProof = { photoPaths: string[]; signaturePath: string; signerName: string; signedAt: string };
+
+export type HistoryStatusFilter = "all" | "completed" | "cancelled";
+
+export function jobHistoryDate(job: Pick<TransportJob, "status" | "completedAt" | "cancelledAt" | "jobDate" | "deliveryDate" | "pickupDate">): string | undefined {
+  return [job.status === "cancelled" ? job.cancelledAt : job.completedAt, job.status === "cancelled" ? job.completedAt : job.cancelledAt, job.jobDate, job.deliveryDate, job.pickupDate]
+    .find(value => value && !Number.isNaN(new Date(value).getTime()));
+}
+
+export function jobHistoryMonth(job: Parameters<typeof jobHistoryDate>[0]): string {
+  const value = jobHistoryDate(job);
+  if (!value) return "unknown";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(0, 7);
+  const date = new Date(value);
+  const bangkok = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  return `${bangkok.getUTCFullYear()}-${String(bangkok.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export function historyMonthLabel(month: string): string {
+  if (month === "unknown") return "ไม่ระบุเดือน";
+  const date = new Date(`${month}-01T12:00:00`);
+  return Number.isNaN(date.getTime()) ? "ไม่ระบุเดือน" : date.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
+}
+
+export function filterDriverHistory(jobs: TransportJob[], status: HistoryStatusFilter, month: string): TransportJob[] {
+  return jobs.filter(job => (job.status === "completed" || job.status === "cancelled")
+    && (status === "all" || job.status === status)
+    && (month === "all" || jobHistoryMonth(job) === month))
+    .sort((a, b) => {
+      const aTime = Date.parse(jobHistoryDate(a) ?? "");
+      const bTime = Date.parse(jobHistoryDate(b) ?? "");
+      return ((Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0)) || b.id.localeCompare(a.id);
+    });
+}
 
 export type TimelineEvent = {
   id: string;

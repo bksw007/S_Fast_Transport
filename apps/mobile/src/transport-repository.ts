@@ -328,6 +328,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     deliveryLocation: data.deliveryLocation ?? "-",
     arrivedDeliveryAt: typeof data.arrivedDeliveryAt === "string" ? data.arrivedDeliveryAt : data.arrivedDeliveryAt?.toDate?.().toISOString(),
     completedAt: typeof data.completedAt === "string" ? data.completedAt : data.completedAt?.toDate?.().toISOString(),
+    cancelledAt: typeof data.cancelledAt === "string" ? data.cancelledAt : data.cancelledAt?.toDate?.().toISOString() ?? (typeof data.deletedAt === "string" ? data.deletedAt : data.deletedAt?.toDate?.().toISOString()),
     issuePreviousStatus: data.issuePreviousStatus,
     lastIssue: data.lastIssue,
     pickupProof: data.pickupProof,
