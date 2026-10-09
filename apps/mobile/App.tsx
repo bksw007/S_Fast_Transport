@@ -72,6 +72,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [checkInPhotos, setCheckInPhotos] = useState<{ jobId: string; stage: "pickup" | "delivery"; uris: string[] } | null>(null);
   const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
+  const [signatureConfirmed, setSignatureConfirmed] = useState(false);
   const [signerName, setSignerName] = useState("");
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueType, setIssueType] = useState<DriverIssueType | null>(null);
@@ -184,6 +185,7 @@ export default function App() {
   useEffect(() => {
     setCheckInPhotos(null);
     setSignaturePaths([]);
+    setSignatureConfirmed(false);
     setSignerName("");
     setIssueOpen(false);
     setIssueType(null);
@@ -217,12 +219,13 @@ export default function App() {
       const step = currentDriverStep(selectedJob);
       if (!step || step.nextStatus !== status) throw new Error("ขั้นตอนนี้ยังไม่พร้อมดำเนินการ");
       if (step.photoStage) {
-        if (!checkInPhotos || checkInPhotos.jobId !== selectedJob.id || checkInPhotos.stage !== step.photoStage || checkInPhotos.uris.length < 2 || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("กรุณาถ่ายรูปสินค้า 2 รูปและขอลายเซ็นก่อน");
+        if (!checkInPhotos || checkInPhotos.jobId !== selectedJob.id || checkInPhotos.stage !== step.photoStage || checkInPhotos.uris.length < 2 || !signatureConfirmed || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("กรุณาถ่ายรูปสินค้า 2 รูปและขอลายเซ็นก่อน");
         const proof = await uploadDriverStopProof(selectedJob, profile, step.photoStage, checkInPhotos.uris, signaturePaths, signerName);
         await updateDriverJobStatus(selectedJob, status, profile, proof);
         setMessage(step.photoStage === "pickup" ? "บันทึกหลักฐานจุดรับแล้ว เดินทางไปจุดส่งได้" : "บันทึกหลักฐานจุดส่งแล้ว กดจบงานได้");
         setCheckInPhotos(null);
         setSignaturePaths([]);
+        setSignatureConfirmed(false);
         setSignerName("");
         return;
       }
@@ -284,7 +287,7 @@ export default function App() {
     setBusy(true);
     try {
       const uri = await prepareCheckInPhoto(asset);
-      setCheckInPhotos(current => ({ jobId: selectedJob.id, stage, uris: current?.jobId === selectedJob.id && current.stage === stage ? [...current.uris, uri].slice(0, 6) : [uri] }));
+      setCheckInPhotos(current => ({ jobId: selectedJob.id, stage, uris: current?.jobId === selectedJob.id && current.stage === stage ? [...current.uris, uri] : [uri] }));
     } catch (error) {
       Alert.alert("เตรียมรูปไม่สำเร็จ", toMessage(error));
     } finally {
@@ -377,8 +380,9 @@ export default function App() {
                     activeSession={activeSession}
                     checkInPhotos={checkInPhotos}
                     signaturePaths={signaturePaths}
+                    signatureConfirmed={signatureConfirmed}
                     signerName={signerName}
-                    onSignatureChange={setSignaturePaths}
+                    onSignatureConfirm={(paths) => { setSignaturePaths(paths); setSignatureConfirmed(true); }}
                     onSignerNameChange={setSignerName}
                     onRemovePhoto={(index) => setCheckInPhotos(current => current ? { ...current, uris: current.uris.filter((_, slot) => slot !== index) } : null)}
                     onToggle={() => setJobExpanded((value) => !value)}
@@ -567,8 +571,9 @@ function JobPanel({
   activeSession,
   checkInPhotos,
   signaturePaths,
+  signatureConfirmed,
   signerName,
-  onSignatureChange,
+  onSignatureConfirm,
   onSignerNameChange,
   onRemovePhoto,
   onToggle,
@@ -582,8 +587,9 @@ function JobPanel({
   activeSession: TrackingSession | null;
   checkInPhotos: { jobId: string; stage: "pickup" | "delivery"; uris: string[] } | null;
   signaturePaths: string[];
+  signatureConfirmed: boolean;
   signerName: string;
-  onSignatureChange: React.Dispatch<React.SetStateAction<string[]>>;
+  onSignatureConfirm: (paths: string[]) => void;
   onSignerNameChange: (value: string) => void;
   onRemovePhoto: (index: number) => void;
   onToggle: () => void;
@@ -594,9 +600,8 @@ function JobPanel({
   const step = currentDriverStep(job);
   const completedStepCount = driverProgress(job);
   const selectedPhotos = step?.photoStage && checkInPhotos?.jobId === job.id && checkInPhotos.stage === step.photoStage ? checkInPhotos.uris : [];
-  const hasSignature = signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2);
-  const [signatureWidth, setSignatureWidth] = useState(300);
-  const signaturePoint = (x: number, y: number) => `${Math.round(Math.max(0, Math.min(300, x * 300 / signatureWidth)))} ${Math.round(Math.max(0, Math.min(140, y)))}`;
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const hasSignature = signatureConfirmed && signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2);
   const actionDisabled = busy || (step?.id === "start_tracking" && Boolean(activeSession));
   return (
     <>
@@ -660,30 +665,19 @@ function JobPanel({
 
             {step.photoStage && (
               <View style={styles.photoArea}>
-                <Text style={styles.photoPlaceholderTitle}>รูปสินค้า {selectedPhotos.length}/2 ขั้นต่ำ</Text>
+                <Text style={styles.photoPlaceholderTitle}>รูปสินค้า {selectedPhotos.length} รูป · ขั้นต่ำ 2 รูป</Text>
                 <View style={styles.proofPhotoGrid}>{selectedPhotos.map((uri, index) => <View key={`${uri}-${index}`} style={styles.proofPhotoItem}>
                   <Image source={{ uri }} style={styles.proofPhotoImage} />
                   <Pressable accessibilityLabel={`ลบรูปที่ ${index + 1}`} onPress={() => onRemovePhoto(index)} style={styles.proofPhotoRemove}><Ionicons name="close-circle" size={25} color={colors.danger} /></Pressable>
                 </View>)}</View>
-                <View style={styles.photoActions}>
-                  <Pressable disabled={busy} style={styles.photoButtonPrimary} onPress={() => onPickPhoto("camera", step.photoStage!)}>
-                    <Ionicons name="camera" size={19} color="#ffffff" />
-                    <Text style={styles.photoButtonPrimaryText}>ถ่ายรูป</Text>
-                  </Pressable>
-                  <Pressable disabled={busy} style={styles.photoButtonSecondary} onPress={() => onPickPhoto("library", step.photoStage!)}>
-                    <Ionicons name="images-outline" size={19} color={colors.accent} />
-                    <Text style={styles.photoButtonSecondaryText}>เลือกจากเครื่อง</Text>
-                  </Pressable>
-                </View>
+                <Pressable disabled={busy} style={styles.proofAddPhoto} onPress={() => Alert.alert("เพิ่มรูปสินค้า", "เลือกวิธีเพิ่มรูป", [
+                  { text: "ถ่ายรูป", onPress: () => onPickPhoto("camera", step.photoStage!) },
+                  { text: "เลือกจากเครื่อง", onPress: () => onPickPhoto("library", step.photoStage!) },
+                  { text: "ยกเลิก", style: "cancel" }
+                ])}><Ionicons name="add-circle-outline" size={21} color={colors.accent} /><Text style={styles.proofAddPhotoText}>เพิ่มรูป{selectedPhotos.length >= 2 ? " (ไม่บังคับ)" : ""}</Text></Pressable>
                 <Text style={styles.noteLabel}>ชื่อผู้{step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text>
                 <TextInput value={signerName} onChangeText={onSignerNameChange} maxLength={100} placeholder="กรอกชื่อผู้เซ็น" style={styles.proofSignerInput} />
-                <Text style={styles.noteLabel}>ลายเซ็นผู้{step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text>
-                <View style={styles.proofSignature} onLayout={event => setSignatureWidth(event.nativeEvent.layout.width)} onStartShouldSetResponderCapture={() => true} onMoveShouldSetResponder={() => true}
-                  onResponderGrant={event => { const p = signaturePoint(event.nativeEvent.locationX, event.nativeEvent.locationY); onSignatureChange(current => [...current, `M ${p} L ${p}`]); }}
-                  onResponderMove={event => { const p = signaturePoint(event.nativeEvent.locationX, event.nativeEvent.locationY); onSignatureChange(current => current.map((path, index) => index === current.length - 1 ? `${path} L ${p}` : path)); }}>
-                  <Svg width="100%" height={140} viewBox="0 0 300 140">{signaturePaths.map((path, index) => <Path key={index} d={path} fill="none" stroke={colors.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />)}</Svg>
-                </View>
-                <Pressable onPress={() => onSignatureChange([])}><Text style={styles.proofClear}>ล้างลายเซ็น</Text></Pressable>
+                <Pressable disabled={busy} style={styles.proofOpenSignature} onPress={() => setSignatureOpen(true)}><Ionicons name={hasSignature ? "checkmark-circle" : "create-outline"} size={21} color={hasSignature ? colors.success : colors.accent} /><Text style={styles.proofOpenSignatureText}>{hasSignature ? "ยืนยันลายเซ็นแล้ว · เซ็นใหม่" : `เปิดหน้าจอเซ็นชื่อผู้${step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า`}</Text></Pressable>
               </View>
             )}
 
@@ -712,8 +706,33 @@ function JobPanel({
           <Ionicons name="chevron-forward" size={19} color={colors.danger} />
         </Pressable>
       )}
+      {signatureOpen && step?.photoStage && <SignatureCaptureModal stage={step.photoStage} initialPaths={signaturePaths} onCancel={() => setSignatureOpen(false)} onConfirm={paths => { onSignatureConfirm(paths); setSignatureOpen(false); }} />}
     </>
   );
+}
+
+function SignatureCaptureModal({ stage, initialPaths, onCancel, onConfirm }: {
+  stage: "pickup" | "delivery";
+  initialPaths: string[];
+  onCancel: () => void;
+  onConfirm: (paths: string[]) => void;
+}) {
+  const [paths, setPaths] = useState(initialPaths);
+  const [size, setSize] = useState({ width: 300, height: 500 });
+  const signed = paths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2);
+  const point = (x: number, y: number) => `${Math.round(Math.max(0, Math.min(300, x * 300 / size.width)))} ${Math.round(Math.max(0, Math.min(500, y * 500 / size.height)))}`;
+
+  return <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onCancel}>
+    <SafeAreaView style={styles.signatureScreen} edges={["top", "bottom"]}>
+      <View style={styles.signatureScreenHeader}><View style={styles.grow}><Text style={styles.signatureScreenTitle}>ลายเซ็นผู้{stage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text><Text style={styles.muted}>เซ็นในพื้นที่ด้านล่าง แล้วกดยืนยันลายเซ็น</Text></View><Pressable accessibilityLabel="ปิดหน้าจอเซ็นชื่อ" onPress={onCancel}><Ionicons name="close" size={26} color={colors.accent} /></Pressable></View>
+      <View style={styles.signatureScreenPad} onLayout={event => setSize({ width: Math.max(1, event.nativeEvent.layout.width), height: Math.max(1, event.nativeEvent.layout.height) })} onStartShouldSetResponderCapture={() => true} onMoveShouldSetResponder={() => true} onResponderTerminationRequest={() => false}
+        onResponderGrant={event => { const p = point(event.nativeEvent.locationX, event.nativeEvent.locationY); setPaths(current => [...current, `M ${p} L ${p}`]); }}
+        onResponderMove={event => { const p = point(event.nativeEvent.locationX, event.nativeEvent.locationY); setPaths(current => current.map((path, index) => index === current.length - 1 ? `${path} L ${p}` : path)); }}>
+        <Svg width="100%" height="100%" viewBox="0 0 300 500">{paths.map((path, index) => <Path key={index} d={path} fill="none" stroke={colors.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />)}</Svg>
+      </View>
+      <View style={styles.signatureScreenActions}><Pressable style={styles.signatureClearButton} onPress={() => setPaths([])}><Text style={styles.signatureClearText}>ล้างลายเซ็น</Text></Pressable><Pressable disabled={!signed} style={[styles.signatureConfirmButton, !signed && styles.disabled]} onPress={() => onConfirm(paths)}><Text style={styles.signatureConfirmText}>ยืนยันลายเซ็น</Text></Pressable></View>
+    </SafeAreaView>
+  </Modal>;
 }
 
 const issueChoices: Array<{ id: DriverIssueType; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
@@ -1019,8 +1038,19 @@ const styles = StyleSheet.create({
   proofPhotoImage: { width: 95, height: 95, borderRadius: 10 },
   proofPhotoRemove: { position: "absolute", right: -4, top: -4, backgroundColor: "#fff", borderRadius: 20 },
   proofSignerInput: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: "#fff" },
-  proofSignature: { height: 140, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: "#fff", overflow: "hidden" },
-  proofClear: { color: colors.accent, fontWeight: "800", textAlign: "right" },
+  proofAddPhoto: { minHeight: 48, alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface2 },
+  proofAddPhotoText: { color: colors.accent, fontSize: 13, fontWeight: "800" },
+  proofOpenSignature: { minHeight: 52, alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface2 },
+  proofOpenSignatureText: { color: colors.accent, fontSize: 13, fontWeight: "800", textAlign: "center" },
+  signatureScreen: { flex: 1, gap: 14, padding: 16, backgroundColor: colors.surface },
+  signatureScreenHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  signatureScreenTitle: { color: colors.text, fontSize: 20, fontWeight: "800", marginBottom: 3 },
+  signatureScreenPad: { flex: 1, overflow: "hidden", borderWidth: 1, borderColor: colors.border, borderRadius: 15, backgroundColor: "#fff" },
+  signatureScreenActions: { flexDirection: "row", gap: 10 },
+  signatureClearButton: { flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.surface2 },
+  signatureClearText: { color: colors.accent, fontSize: 13, fontWeight: "800" },
+  signatureConfirmButton: { flex: 1.5, minHeight: 52, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.success },
+  signatureConfirmText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   reportIssueText: { flex: 1, color: colors.danger, fontSize: 14, fontWeight: "800" },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(5, 18, 30, 0.58)" },
   issueSheet: { paddingHorizontal: 17, paddingTop: 9, paddingBottom: 12, borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: colors.surface },

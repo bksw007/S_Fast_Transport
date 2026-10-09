@@ -3893,13 +3893,24 @@ h2 {
 .driver-current-action button, .driver-proof-submit { min-height: 52px; display: flex; justify-content: center; align-items: center; gap: 9px; border-radius: 12px; color: #fff; background: var(--accent); font-weight: 800; }
 .driver-stop-proof h2 { margin: 0; font-size: 1.16rem; }
 .driver-proof-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.driver-proof-photos label { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 13px; }
+.driver-proof-photo { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 13px; }
 .driver-proof-photos img { width: 100%; height: 110px; object-fit: cover; border-radius: 9px; }
 .driver-proof-photos input { max-width: 100%; font-size: .75rem; }
+.driver-proof-add-photo, .driver-proof-open-signature { min-height: 48px; padding: 0 14px; border: 1px solid var(--border); border-radius: 11px; color: var(--accent); background: var(--surface-2); font-weight: 800; text-align: center; }
+.driver-proof-extra-input { display: none; }
 .driver-proof-signer { display: grid; gap: 6px; font-weight: 750; }
-.driver-proof-signature { display: grid; gap: 6px; font-weight: 750; }
-.driver-proof-signature canvas { width: 100%; height: 120px; border: 1px solid var(--border); border-radius: 12px; background: #fff; touch-action: none; }
-.driver-proof-clear { justify-self: end; color: var(--accent); font-weight: 750; }
+.driver-proof-signature-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); border: 0; background: var(--surface); color: var(--text); }
+.driver-proof-signature-dialog[open] { display: flex; flex-direction: column; gap: 14px; }
+.driver-proof-signature-dialog::backdrop { background: rgb(3 17 29 / 70%); }
+.driver-proof-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.driver-proof-dialog-head > div { display: grid; gap: 4px; }
+.driver-proof-dialog-head span { color: var(--muted); font-size: .82rem; }
+.driver-proof-dialog-head button, .driver-proof-dialog-actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; background: var(--surface-2); font-weight: 800; }
+.driver-proof-signature-dialog canvas { width: 100%; flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 12px; background: #fff; touch-action: none; }
+.driver-proof-dialog-actions { display: flex; gap: 10px; }
+.driver-proof-dialog-actions button { flex: 1; }
+.driver-proof-dialog-actions button:last-child { color: #fff; background: var(--accent); }
+.driver-proof-dialog-actions button:disabled { opacity: .5; }
 .driver-proof-error { color: var(--danger) !important; }
 .driver-proof-submit:disabled, .driver-current-action button:disabled { opacity: .5; }
 .job-issue-resolution { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--danger); border-radius: 14px; background: var(--danger-soft); }
