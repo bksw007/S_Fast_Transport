@@ -15,6 +15,7 @@ export default function DriverStopProof({ stage, onSubmit }: {
   const [previews, setPreviews] = useState<string[]>([]);
   const [signerName, setSignerName] = useState("");
   const [signature, setSignature] = useState<Blob | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState("");
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [draftSigned, setDraftSigned] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,6 +31,14 @@ export default function DriverStopProof({ stage, onSubmit }: {
     });
     return () => readers.forEach(reader => reader?.abort());
   }, [photos]);
+
+  useEffect(() => {
+    if (!signature) return;
+    const reader = new FileReader();
+    reader.onload = () => setSignaturePreview(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(signature);
+    return () => reader.abort();
+  }, [signature]);
 
   useEffect(() => {
     if (!signatureOpen) return;
@@ -63,7 +72,27 @@ export default function DriverStopProof({ stage, onSubmit }: {
     const canvas = canvasRef.current;
     if (!canvas || !draftSigned) return;
     try {
-      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("บันทึกลายเซ็นไม่สำเร็จ")), "image/png"));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("บันทึกลายเซ็นไม่สำเร็จ");
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
+      for (let y = 0; y < canvas.height; y += 1) for (let x = 0; x < canvas.width; x += 1) {
+        const offset = (y * canvas.width + x) * 4;
+        if (pixels[offset] < 210 || pixels[offset + 1] < 210 || pixels[offset + 2] < 210) {
+          minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+        }
+      }
+      if (maxX < minX || maxY < minY) throw new Error("กรุณาเซ็นชื่อก่อนยืนยัน");
+      const padding = 20;
+      const left = Math.max(0, minX - padding), top = Math.max(0, minY - padding);
+      const width = Math.min(canvas.width - left, maxX - left + padding + 1);
+      const height = Math.min(canvas.height - top, maxY - top + padding + 1);
+      const cropped = document.createElement("canvas");
+      cropped.width = width; cropped.height = height;
+      const croppedContext = cropped.getContext("2d");
+      if (!croppedContext) throw new Error("บันทึกลายเซ็นไม่สำเร็จ");
+      croppedContext.drawImage(canvas, left, top, width, height, 0, 0, width, height);
+      const blob = await new Promise<Blob>((resolve, reject) => cropped.toBlob(value => value ? resolve(value) : reject(new Error("บันทึกลายเซ็นไม่สำเร็จ")), "image/png"));
       setSignature(blob);
       setSignatureOpen(false);
     } catch (cause) {
@@ -123,6 +152,7 @@ export default function DriverStopProof({ stage, onSubmit }: {
     <button type="button" className="driver-proof-add-photo" disabled={busy || !photos[0] || !photos[1]} onClick={() => extraPhotoRef.current?.click()}>＋ เพิ่มรูป (ไม่บังคับ)</button>
     <input ref={extraPhotoRef} className="driver-proof-extra-input" type="file" accept="image/*" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) setPhotos(current => [...current, file]); event.currentTarget.value = ""; }} />
     <label className="driver-proof-signer">ชื่อผู้เซ็น<input value={signerName} maxLength={100} disabled={busy} placeholder={stage === "pickup" ? "ชื่อผู้ส่งสินค้า" : "ชื่อผู้รับสินค้า"} onChange={event => setSignerName(event.target.value)} /></label>
+    <div className="driver-proof-preview"><strong>พรีวิวลายเซ็น</strong>{signaturePreview ? <Image unoptimized src={signaturePreview} alt="ลายเซ็นที่ยืนยันแล้ว" width={500} height={180} /> : <span>ยังไม่มีลายเซ็นที่ยืนยัน</span>}</div>
     <button type="button" className="driver-proof-open-signature" disabled={busy} onClick={() => { setError(""); setDraftSigned(false); setSignatureOpen(true); }}>{signature ? "✓ ยืนยันลายเซ็นแล้ว · เซ็นใหม่" : "เปิดหน้าจอเซ็นชื่อ"}</button>
     {signatureOpen && <dialog ref={dialogRef} className="driver-proof-signature-dialog" aria-label="เซ็นชื่อเต็มหน้าจอ" onCancel={event => { event.preventDefault(); setSignatureOpen(false); }}>
       <div className="driver-proof-dialog-head"><div><strong>ลายเซ็นผู้{stage === "pickup" ? "ส่ง" : "รับ"}สินค้า</strong><span>เซ็นในพื้นที่ด้านล่าง แล้วกดยืนยันลายเซ็น</span></div><button type="button" onClick={() => setSignatureOpen(false)}>ปิด</button></div>

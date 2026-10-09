@@ -6,6 +6,7 @@ import ContactBook from "./components/ContactBook";
 import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
 import DriverStopProof from "./components/DriverStopProof";
+import DriverHistory from "./components/DriverHistory";
 import { resolveDriverIssue } from "@/lib/job-detail-repository";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
@@ -519,7 +520,7 @@ export default function Home() {
             <DriverMobileScreen
               profile={profile}
               screen={driverScreen}
-              jobs={activeJobs}
+              jobs={jobs}
               selectedJob={selectedJob}
               selectedJobId={selectedJob.id}
               canWrite={canWrite && jobs.length > 0}
@@ -747,24 +748,26 @@ function DriverMobileScreen({
     return <ProfileScreen profile={profile} onProfileUpdated={onProfileUpdated} />;
   }
 
+  if (screen === "ประวัติงาน") {
+    return <DriverHistory jobs={jobs} />;
+  }
+
   if (jobs.length === 0) {
     return <EmptyState title="ยังไม่มีงานที่ได้รับมอบหมาย" description="งานใหม่จะปรากฏที่นี่หลังจากผู้ดูแลมอบหมายให้คุณ" />;
   }
 
   if (screen === "งานวันนี้") {
-    return <TodayJobs jobs={jobs} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onOpenWorkflow={onOpenWorkflow} onAction={onAction} onReportIssue={onReportIssue} />;
+    return <TodayJobs jobs={jobs.filter(job => !["completed", "cancelled"].includes(job.status))} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onOpenWorkflow={onOpenWorkflow} onAction={onAction} onReportIssue={onReportIssue} />;
   }
 
   if (screen === "แผนที่งานของฉัน") {
-    return <MapScreen jobs={jobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+    const currentJobs = jobs.filter(job => !["completed", "cancelled"].includes(job.status));
+    const currentJob = currentJobs.find(job => job.id === selectedJobId) ?? currentJobs[0];
+    return currentJob ? <MapScreen jobs={currentJobs} selectedJob={currentJob} selectedJobId={currentJob.id} onSelectJob={onSelectJob} /> : <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="แผนที่จะปรากฏเมื่อเริ่มงานขนส่ง" />;
   }
 
   if (screen === "อัปเดตหลักฐาน") {
     return <ProofScreen job={selectedJob} canWrite={canWrite} onUpload={onUpload} />;
-  }
-
-  if (screen === "ประวัติงาน") {
-    return <EmptyState title="ยังไม่มีประวัติงาน" description="งานที่ปิดแล้วจะแสดงในส่วนนี้" />;
   }
 
   return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} />;
@@ -1643,6 +1646,7 @@ function TodayJobs({
       </div>
 
       <div className="job-list">
+        {!jobs.length && <div className="driver-history-empty"><CheckCircle2 size={28} /><strong>ไม่มีงานที่ต้องทำตอนนี้</strong><p>งานที่เสร็จแล้วดูได้ในเมนูประวัติงาน</p></div>}
         {jobs.map((job) => (
           <JobSummaryCard
             key={job.id}

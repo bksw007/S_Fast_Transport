@@ -24,6 +24,7 @@ import {
   type TransportJob
 } from "@s-fast-transport/shared";
 import { db, storage } from "./firebase";
+import { signatureViewBox } from "./signature-paths";
 
 export type { DriverIssueType } from "@s-fast-transport/shared";
 
@@ -207,7 +208,7 @@ export async function uploadDriverStopProof(job: TransportJob, profile: MobilePr
     await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? profile.organizationId ?? "main", uploadedByUid: profile.uid, uploadedByName: profile.displayName, fileName: `${stage}-photo-${index + 1}.jpg`, storagePath: path, downloadUrl, contentType: "image/jpeg", size: blob.size, proofStage: stage, proofKind: "photo", createdAt: serverTimestamp() });
     photoPaths.push(path);
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="280" viewBox="0 0 300 140"><rect width="300" height="140" fill="white"/>${signaturePaths.map(path => `<path d="${path}" fill="none" stroke="#102235" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`).join("")}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="${signatureViewBox(signaturePaths)}"><rect width="300" height="500" fill="white"/>${signaturePaths.map(path => `<path d="${path}" fill="none" stroke="#102235" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`).join("")}</svg>`;
   const signature = Uint8Array.from(svg, character => character.charCodeAt(0));
   if (signature.byteLength > 1024 * 1024) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
   const signaturePath = `proof_of_delivery/${job.id}/${profile.uid}/${Date.now()}-${stage}-signature.svg`;

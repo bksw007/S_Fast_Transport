@@ -29,6 +29,7 @@ import {
   type TrackingSession
 } from "./src/location-tracking";
 import { currentDriverStep, driverProgress, driverSteps } from "./src/driver-workflow";
+import { signatureViewBox } from "./src/signature-paths";
 import {
   ensureMobileProfile,
   getMobileProfile,
@@ -70,6 +71,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [jobExpanded, setJobExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
+  const [jobListMode, setJobListMode] = useState<"active" | "history">("active");
+  const [expandedHistoryId, setExpandedHistoryId] = useState("");
   const [checkInPhotos, setCheckInPhotos] = useState<{ jobId: string; stage: "pickup" | "delivery"; uris: string[] } | null>(null);
   const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
   const [signatureConfirmed, setSignatureConfirmed] = useState(false);
@@ -179,6 +182,10 @@ export default function App() {
   );
   const completedJobs = useMemo(
     () => jobs.filter((job) => job.status === "completed"),
+    [jobs]
+  );
+  const historyJobs = useMemo(
+    () => jobs.filter(job => ["completed", "cancelled"].includes(job.status)).sort((a, b) => String(b.completedAt || b.deliveryDate || b.id).localeCompare(String(a.completedAt || a.deliveryDate || a.id))),
     [jobs]
   );
 
@@ -412,17 +419,20 @@ export default function App() {
                 <View style={styles.sectionHeading}>
                   <View>
                     <Text style={styles.kicker}>รายการขนส่ง</Text>
-                    <Text style={styles.title}>ใบงานของฉัน</Text>
-                    <Text style={styles.muted}>{jobs.length} ใบงานที่บัญชีนี้ได้รับมอบหมาย</Text>
+                    <Text style={styles.title}>{jobListMode === "history" ? "ประวัติงาน" : "ใบงานของฉัน"}</Text>
+                    <Text style={styles.muted}>{jobListMode === "history" ? `${historyJobs.length} งานที่เสร็จหรือยกเลิกแล้ว` : `${activeJobs.length} งานที่ต้องทำ`}</Text>
                   </View>
-                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{jobs.length}</Text></View>
+                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{jobListMode === "history" ? historyJobs.length : activeJobs.length}</Text></View>
                 </View>
 
-                {jobs.length ? jobs.map((job) => (
+                <View style={styles.jobListTabs}><Pressable style={[styles.jobListTab, jobListMode === "active" && styles.jobListTabActive]} onPress={() => setJobListMode("active")}><Text style={[styles.jobListTabText, jobListMode === "active" && styles.jobListTabTextActive]}>งานที่ต้องทำ</Text></Pressable><Pressable style={[styles.jobListTab, jobListMode === "history" && styles.jobListTabActive]} onPress={() => setJobListMode("history")}><Text style={[styles.jobListTabText, jobListMode === "history" && styles.jobListTabTextActive]}>ประวัติงาน</Text></Pressable></View>
+
+                {(jobListMode === "history" ? historyJobs : activeJobs).length ? (jobListMode === "history" ? historyJobs : activeJobs).map((job) => (
                   <Pressable
                     key={job.id}
                     style={[styles.jobListCard, selectedJobId === job.id && styles.jobListCardSelected]}
                     onPress={() => {
+                      if (jobListMode === "history") { setExpandedHistoryId(current => current === job.id ? "" : job.id); return; }
                       setSelectedJobId(job.id);
                       setJobExpanded(true);
                       setActiveTab("home");
@@ -443,11 +453,16 @@ export default function App() {
                     </View>
                     <View style={styles.jobListFooter}>
                       <Text style={styles.vehicleText}>{job.vehiclePlate}</Text>
-                      <Text style={styles.openJobText}>เปิดใบงาน <Ionicons name="arrow-forward" size={13} /></Text>
+                      <Text style={styles.openJobText}>{jobListMode === "history" ? expandedHistoryId === job.id ? "ซ่อนรายละเอียด" : "ดูรายละเอียด" : "เปิดใบงาน"} <Ionicons name={jobListMode === "history" ? expandedHistoryId === job.id ? "chevron-up" : "chevron-down" : "arrow-forward"} size={13} /></Text>
                     </View>
+                    {jobListMode === "history" && expandedHistoryId === job.id && <View style={styles.historyDetails}>
+                      <Text style={styles.muted}>{job.status === "cancelled" ? "ยกเลิกงาน" : "จบงาน"}: {job.completedAt ? new Date(job.completedAt).toLocaleString("th-TH") : "ไม่ระบุเวลา"}</Text>
+                      <Text style={styles.muted}>จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text>
+                      <Text style={styles.muted}>จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text>
+                    </View>}
                   </Pressable>
                 )) : (
-                  <EmptyJobs onOpenJobs={() => setActiveTab("account")} accountMode />
+                  <View style={styles.emptyCard}><Ionicons name="file-tray-outline" size={34} color={colors.accent} /><Text style={styles.emptyTitle}>{jobListMode === "history" ? "ยังไม่มีประวัติงาน" : "ไม่มีงานที่ต้องทำตอนนี้"}</Text><Text style={styles.emptyDetail}>{jobListMode === "history" ? "เมื่อจบงาน รายการจะปรากฏที่นี่" : "งานที่เสร็จแล้วดูได้ในประวัติงาน"}</Text></View>
                 )}
               </>
             )}
@@ -677,6 +692,7 @@ function JobPanel({
                 ])}><Ionicons name="add-circle-outline" size={21} color={colors.accent} /><Text style={styles.proofAddPhotoText}>เพิ่มรูป{selectedPhotos.length >= 2 ? " (ไม่บังคับ)" : ""}</Text></Pressable>
                 <Text style={styles.noteLabel}>ชื่อผู้{step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text>
                 <TextInput value={signerName} onChangeText={onSignerNameChange} maxLength={100} placeholder="กรอกชื่อผู้เซ็น" style={styles.proofSignerInput} />
+                <View style={styles.proofSignaturePreview}><Text style={styles.proofSignaturePreviewLabel}>พรีวิวลายเซ็น</Text>{hasSignature ? <Svg width="100%" height={110} viewBox={signatureViewBox(signaturePaths)}>{signaturePaths.map((path, index) => <Path key={index} d={path} fill="none" stroke={colors.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />)}</Svg> : <Text style={styles.muted}>ยังไม่มีลายเซ็นที่ยืนยัน</Text>}</View>
                 <Pressable disabled={busy} style={styles.proofOpenSignature} onPress={() => setSignatureOpen(true)}><Ionicons name={hasSignature ? "checkmark-circle" : "create-outline"} size={21} color={hasSignature ? colors.success : colors.accent} /><Text style={styles.proofOpenSignatureText}>{hasSignature ? "ยืนยันลายเซ็นแล้ว · เซ็นใหม่" : `เปิดหน้าจอเซ็นชื่อผู้${step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า`}</Text></Pressable>
               </View>
             )}
@@ -974,6 +990,12 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   countBadge: { minWidth: 42, height: 42, borderRadius: 14, backgroundColor: colors.orangeSoft, alignItems: "center", justifyContent: "center" },
   countBadgeText: { color: "#9a5d00", fontSize: 18, fontWeight: "800" },
+  jobListTabs: { flexDirection: "row", gap: 8, padding: 4, borderRadius: 13, backgroundColor: colors.surface2 },
+  jobListTab: { flex: 1, minHeight: 42, alignItems: "center", justifyContent: "center", borderRadius: 10 },
+  jobListTabActive: { backgroundColor: colors.surface },
+  jobListTabText: { color: colors.muted, fontSize: 13, fontWeight: "800" },
+  jobListTabTextActive: { color: colors.accent },
+  historyDetails: { gap: 7, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   summaryRow: { flexDirection: "row", gap: 11 },
   summaryCard: { flex: 1, minHeight: 104, borderRadius: 18, padding: 15, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", backgroundColor: colors.accent, elevation: 2 },
   summaryOrange: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
@@ -1038,6 +1060,8 @@ const styles = StyleSheet.create({
   proofPhotoImage: { width: 95, height: 95, borderRadius: 10 },
   proofPhotoRemove: { position: "absolute", right: -4, top: -4, backgroundColor: "#fff", borderRadius: 20 },
   proofSignerInput: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: "#fff" },
+  proofSignaturePreview: { alignSelf: "stretch", minHeight: 145, gap: 8, padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: "#fff" },
+  proofSignaturePreviewLabel: { color: colors.text, fontSize: 12, fontWeight: "800" },
   proofAddPhoto: { minHeight: 48, alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface2 },
   proofAddPhotoText: { color: colors.accent, fontSize: 13, fontWeight: "800" },
   proofOpenSignature: { minHeight: 52, alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface2 },
