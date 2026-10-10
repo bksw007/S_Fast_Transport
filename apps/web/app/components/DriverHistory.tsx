@@ -19,15 +19,16 @@ function Proofs({ job }: { job: TransportJob }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => subscribeJobRecords(job.id, "proofs", rows => { setRecords(rows); setLoading(false); }, cause => { setError(cause.message); setLoading(false); }), [job.id]);
+  const currentPaths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
+  const visibleRecords = records.filter(({ data }) => !["photo", "photo_revision"].includes(String(data.proofKind)) || currentPaths.includes(String(data.storagePath)));
   if (loading) return <p className="driver-history-proof-message">กำลังโหลดหลักฐาน...</p>;
   if (error) return <p className="driver-history-proof-message" role="alert">โหลดหลักฐานไม่สำเร็จ: {error}</p>;
-  if (!records.length) return <p className="driver-history-proof-message">ยังไม่มีไฟล์หลักฐานสำหรับงานนี้</p>;
-  return <div className="driver-history-proofs">{records.map(({ id, data }) => {
+  if (!visibleRecords.length) return <p className="driver-history-proof-message">ยังไม่มีไฟล์หลักฐานสำหรับงานนี้</p>;
+  return <div className="driver-history-proofs">{visibleRecords.map(({ id, data }) => {
     const url = typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") ? data.downloadUrl : "";
     const isImage = typeof data.contentType === "string" && data.contentType.startsWith("image/");
     const stage = data.proofStage === "pickup" || data.checkInStage === "pickup" ? "จุดรับ" : data.proofStage === "delivery" || data.checkInStage === "delivery" ? "จุดส่ง" : "เอกสารอื่น";
-    const currentPaths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
-    const name = data.proofKind === "signature" ? `ลายเซ็น ${data.signerName || ""}` : data.proofKind === "photo" || data.proofKind === "photo_revision" ? currentPaths.includes(String(data.storagePath)) ? "รูปสินค้าปัจจุบัน" : "รูปสินค้าเดิม" : data.proofKind === "issue" ? "รูปแจ้งปัญหา" : data.fileName || "ไฟล์แนบ";
+    const name = data.proofKind === "signature" ? `ลายเซ็น ${data.signerName || ""}` : data.proofKind === "photo" || data.proofKind === "photo_revision" ? "รูปสินค้า" : data.proofKind === "issue" ? "รูปแจ้งปัญหา" : data.fileName || "ไฟล์แนบ";
     const content = <><span className="driver-history-proof-image">{url && isImage ? <Image unoptimized src={url} alt={`${stage} ${name}`} width={420} height={260} /> : <FileImage size={32} />}</span><span className="driver-history-proof-caption"><small>{stage}</small><strong>{name}</strong><em>{url ? "แตะเพื่อเปิดไฟล์" : "ไม่มีลิงก์ไฟล์"}</em></span></>;
     return url ? <a href={url} target="_blank" rel="noreferrer" key={id} className="driver-history-proof">{content}</a> : <div key={id} className="driver-history-proof">{content}</div>;
   })}</div>;

@@ -32,7 +32,7 @@ export default function DriverProofPhotoEditor({ job, actor, onNotice }: {
 
   return <details className="driver-proof-editor">
     <summary><Camera size={19} /> <span>รูปหลักฐานที่บันทึกแล้ว</span><small>แตะเพื่อดูหรือเปลี่ยนรูป</small></summary>
-    <p>แตะเปลี่ยนรูปที่ต้องการได้ รูปเดิมจะยังอยู่ในประวัติการแก้ไข</p>
+    <p>แตะเปลี่ยนรูปที่ต้องการได้ ระบบจะลบรูปเดิมหลังบันทึกรูปใหม่สำเร็จ</p>
     {(["pickup", "delivery"] as const).map(stage => {
       const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
       if (!proof?.photoPaths.length) return null;
@@ -48,7 +48,7 @@ export default function DriverProofPhotoEditor({ job, actor, onNotice }: {
               setBusyPath(path);
               try {
                 await replaceStopProofPhoto(job, stage, index, file, actor);
-                onNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว และเก็บรูปเดิมไว้ในประวัติ`, tone: "success" });
+                onNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว ระบบกำลังลบรูปเดิม`, tone: "success" });
               } catch (error) {
                 onNotice({ title: "เปลี่ยนรูปไม่สำเร็จ", detail: error instanceof Error ? error.message : "กรุณาลองอีกครั้ง", tone: "error" });
               } finally { setBusyPath(""); }

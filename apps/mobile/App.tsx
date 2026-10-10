@@ -358,14 +358,14 @@ export default function App() {
     try {
       const uri = await prepareCheckInPhoto(result.assets[0]);
       await replaceDriverStopProofPhoto(job, profile, stage, index, uri);
-      setDriverNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว และเก็บรูปเดิมไว้ในประวัติ`, tone: "success" });
+      setDriverNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว ระบบกำลังลบรูปเดิม`, tone: "success" });
     } catch (error) {
       setDriverNotice({ title: "เปลี่ยนรูปไม่สำเร็จ", detail: toMessage(error), tone: "error" });
     } finally { setBusy(false); }
   }
 
   function promptReplacePhoto(job: TransportJob, stage: "pickup" | "delivery", index: number) {
-    Alert.alert("เปลี่ยนรูปหลักฐาน", `เลือกรูปใหม่สำหรับ${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}\nรูปเดิมจะยังอยู่ในประวัติ`, [
+    Alert.alert("เปลี่ยนรูปหลักฐาน", `เลือกรูปใหม่สำหรับ${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}\nรูปเดิมจะถูกลบหลังบันทึกรูปใหม่สำเร็จ`, [
       { text: "ถ่ายรูป", onPress: () => void pickReplacementPhoto(job, stage, index, "camera") },
       { text: "เลือกจากเครื่อง", onPress: () => void pickReplacementPhoto(job, stage, index, "library") },
       { text: "ยกเลิก", style: "cancel" }
@@ -969,7 +969,7 @@ function SavedProofPhotos({ job, busy, onReplace }: { job: TransportJob; busy: b
   if (!paths.length) return null;
   return <View style={styles.savedProofCard}>
     <Pressable style={styles.savedProofToggle} onPress={event => { event.stopPropagation(); setExpanded(value => !value); }}><Ionicons name="images-outline" size={20} color={colors.accent} /><Text style={styles.savedProofTitle}>รูปหลักฐานที่บันทึกแล้ว</Text><Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={19} color={colors.accent} /></Pressable>
-    {expanded && <Text style={styles.savedProofHint}>เปลี่ยนได้ทีละรูป โดยเก็บรูปเดิมไว้ในประวัติ</Text>}
+    {expanded && <Text style={styles.savedProofHint}>เปลี่ยนได้ทีละรูป ระบบจะลบรูปเดิมหลังบันทึกรูปใหม่สำเร็จ</Text>}
     {expanded && <>
     {(["pickup", "delivery"] as const).map(stage => {
       const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
