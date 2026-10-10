@@ -4781,6 +4781,8 @@ textarea:focus {
 .dashboard-filters button > span { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); font-size: .68rem; }
 .dashboard-filters button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
 .dashboard-filters button[aria-pressed="true"] > span { background: color-mix(in srgb, var(--surface) 16%, transparent); }
+.dashboard-month-filter { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--muted); font-size: .76rem; }
+.dashboard-month-filter select { min-height: 36px; padding: 4px 28px 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 .dashboard-job-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .dashboard-job { display: flex; flex-direction: column; gap: 0; min-width: 0; text-align: left; border: 1px solid var(--border); padding: 20px; border-radius: 14px; background: var(--surface); transition: border-color .15s, box-shadow .15s; }
 .dashboard-job:hover { border-color: var(--accent); box-shadow: 0 5px 16px rgb(0 0 0 / 6%); }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Search, Truck, UserRound } from "lucide-react";
-import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
+import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Search, Truck, UserRound } from "lucide-react";
+import { historyMonthLabel, jobHistoryMonth, statusLabels, type TransportJob } from "@s-fast-transport/shared";
 
 type Filter = "all" | "active" | "attention" | "completed" | "cancelled";
 const filters: { id: Filter; label: string }[] = [
@@ -13,29 +13,35 @@ const isActive = (job: TransportJob) => job.status !== "completed" && job.status
 const needsAttention = (job: TransportJob) => isActive(job) && (job.alerts.length > 0 || job.status === "problem");
 const pageSize = 12;
 
-export default function AdminDashboard({ jobs, dataState, selectedJobId, onSelectJob }: {
+export default function AdminDashboard({ jobs, deletedJobs = [], dataState, selectedJobId, onSelectJob }: {
   jobs: TransportJob[];
+  deletedJobs?: TransportJob[];
   dataState: "loading" | "ready" | "error";
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  const [month, setMonth] = useState("all");
   const [page, setPage] = useState(1);
+  const allJobs = useMemo(() => [...jobs, ...deletedJobs], [jobs, deletedJobs]);
+  const deletedIds = useMemo(() => new Set(deletedJobs.map(job => job.id)), [deletedJobs]);
+  const jobMonth = (job: TransportJob) => job.status === "cancelled" || job.status === "completed" ? jobHistoryMonth(job) : job.jobDate?.slice(0, 7) || "unknown";
+  const months = useMemo(() => [...new Set(allJobs.map(jobMonth))].sort((a, b) => a === "unknown" ? 1 : b === "unknown" ? -1 : b.localeCompare(a)), [allJobs]);
   const counts = useMemo(() => ({
-    all: jobs.length,
+    all: allJobs.length,
     active: jobs.filter(isActive).length,
     attention: jobs.filter(needsAttention).length,
     completed: jobs.filter(job => job.status === "completed").length,
-    cancelled: jobs.filter(job => job.status === "cancelled").length
-  }), [jobs]);
+    cancelled: allJobs.filter(job => job.status === "cancelled").length
+  }), [jobs, allJobs]);
   const shown = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("th-TH");
-    return jobs.filter(job => {
+    return allJobs.filter(job => {
       const matchesFilter = filter === "all" || (filter === "active" ? isActive(job) : filter === "attention" ? needsAttention(job) : job.status === filter);
-      return matchesFilter && (!term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th-TH").includes(term)));
+      return matchesFilter && (month === "all" || jobMonth(job) === month) && (!term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th-TH").includes(term)));
     });
-  }, [jobs, search, filter]);
+  }, [allJobs, search, filter, month]);
   const pages = Math.max(1, Math.ceil(shown.length / pageSize));
   const currentPage = Math.min(page, pages);
   const completedPercent = counts.all ? Math.round(counts.completed / counts.all * 100) : 0;
@@ -69,17 +75,18 @@ export default function AdminDashboard({ jobs, dataState, selectedJobId, onSelec
     <section className="dashboard-jobs" aria-labelledby="dashboard-jobs-title">
       <div className="dashboard-list-heading"><div><span className="dashboard-section-kicker">รายการงานขนส่ง</span><h2 id="dashboard-jobs-title">ติดตามทุกงานในที่เดียว</h2><p>เลือกใบงานเพื่อดูรายละเอียด หลักฐาน และตำแหน่งรถ</p></div><label className="dashboard-search"><Search size={18} /><input aria-label="ค้นหาใบงาน" placeholder="ค้นหาใบงาน ลูกค้า คนขับ หรือทะเบียน" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label></div>
       <div className="dashboard-filters" role="group" aria-label="กรองสถานะงาน">{filters.map(item => <button key={item.id} aria-pressed={filter === item.id} onClick={() => selectFilter(item.id)}>{item.label}<span>{ready ? counts[item.id] : "—"}</span></button>)}</div>
+      <label className="dashboard-month-filter"><CalendarDays size={17} /><span>เดือน</span><select value={month} onChange={event => { setMonth(event.target.value); setPage(1); }}><option value="all">ทุกเดือน</option>{months.map(value => <option key={value} value={value}>{historyMonthLabel(value)}</option>)}</select></label>
       {dataState === "loading" ? <div className="dashboard-empty" role="status"><Clock3 size={30} /><h3>กำลังโหลดใบงาน</h3><p>กำลังรวบรวมข้อมูลภาพรวมของคุณ</p></div>
         : dataState === "error" ? <div className="dashboard-empty" role="alert"><AlertTriangle size={30} /><h3>โหลดข้อมูลไม่สำเร็จ</h3><p>ตรวจสอบการเชื่อมต่อ แล้วเปิด Dashboard อีกครั้งหรือรีเฟรชหน้า</p></div>
-        : !shown.length ? <div className="dashboard-empty"><Search size={30} /><h3>{jobs.length ? "ไม่พบงานที่ตรงกับตัวกรอง" : "ยังไม่มีใบงาน"}</h3><p>{jobs.length ? "ลองเปลี่ยนคำค้นหาหรือเลือกสถานะอื่น" : "เมื่อมีใบงาน ระบบจะแสดงภาพรวมและรายการงานที่นี่"}</p>{(search || filter !== "all") && <button onClick={() => { setSearch(""); selectFilter("all"); }}>ล้างตัวกรอง</button>}</div>
-        : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => <button type="button" className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} aria-haspopup="dialog" aria-label={`เปิดรายละเอียดใบงาน ${job.workOrder}`} data-selected={selectedJobId === job.id} onClick={() => onSelectJob(job.id)}>
-          <span className="dashboard-job-top"><span className="dashboard-work-order">{job.workOrder}</span><span className={`dashboard-job-status ${job.status === "completed" ? "completed" : needsAttention(job) ? "attention" : ""}`}>{statusLabels[job.status]}</span></span>
+        : !shown.length ? <div className="dashboard-empty"><Search size={30} /><h3>{allJobs.length ? "ไม่พบงานที่ตรงกับตัวกรอง" : "ยังไม่มีใบงาน"}</h3><p>{allJobs.length ? "ลองเปลี่ยนคำค้นหา สถานะ หรือเดือน" : "เมื่อมีใบงาน ระบบจะแสดงภาพรวมและรายการงานที่นี่"}</p>{(search || filter !== "all" || month !== "all") && <button onClick={() => { setSearch(""); setMonth("all"); selectFilter("all"); }}>ล้างตัวกรอง</button>}</div>
+        : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => { const deleted = deletedIds.has(job.id); const Card = deleted ? "div" : "button"; return <Card type={deleted ? undefined : "button"} className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} aria-haspopup={deleted ? undefined : "dialog"} aria-label={deleted ? undefined : `เปิดรายละเอียดใบงาน ${job.workOrder}`} data-selected={selectedJobId === job.id} onClick={deleted ? undefined : () => onSelectJob(job.id)}>
+          <span className="dashboard-job-top"><span className="dashboard-work-order">{job.workOrder}</span><span className={`dashboard-job-status ${job.status === "completed" ? "completed" : needsAttention(job) ? "attention" : ""}`}>{deleted ? "ลบใบงานแล้ว" : statusLabels[job.status]}</span></span>
           <span className="dashboard-customer">{job.customer}</span>
           <span className="dashboard-job-route"><span><MapPin size={16} /><span><small>รับสินค้า</small><strong>{job.pickupLocation}</strong></span></span><span><MapPin size={16} /><span><small>ส่งสินค้า</small><strong>{job.deliveryLocation}</strong></span></span></span>
           <span className="dashboard-job-assignment"><span><UserRound size={15} />{job.driverName || "ยังไม่ระบุคนขับ"}</span><span><Truck size={15} />{job.vehiclePlate || "ยังไม่ระบุรถ"}</span></span>
           {needsAttention(job) && <span className="dashboard-job-alert"><AlertTriangle size={14} />{job.alerts[0] || "งานนี้มีปัญหา กรุณาตรวจสอบ"}</span>}
-          <span className="dashboard-job-footer"><span><Clock3 size={14} /> ETA {job.eta || "—"}</span><span>ดูรายละเอียด<ArrowRight size={16} /></span></span>
-        </button>)}</div><div className="dashboard-pagination"><span>แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, shown.length)} จาก {shown.length} งาน</span>{pages > 1 && <div><button aria-label="หน้าก่อนหน้า" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button><span>{currentPage} / {pages}</span><button aria-label="หน้าถัดไป" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}</div></>}
+          <span className="dashboard-job-footer"><span><Clock3 size={14} /> {deleted ? "ยกเลิก" : "ETA"} {deleted ? (job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH") : "—") : job.eta || "—"}</span>{!deleted && <span>ดูรายละเอียด<ArrowRight size={16} /></span>}</span>
+        </Card>; })}</div><div className="dashboard-pagination"><span>แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, shown.length)} จาก {shown.length} งาน</span>{pages > 1 && <div><button aria-label="หน้าก่อนหน้า" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button><span>{currentPage} / {pages}</span><button aria-label="หน้าถัดไป" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}</div></>}
     </section>
   </section>;
 }

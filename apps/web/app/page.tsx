@@ -255,6 +255,7 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [jobsState, setJobsState] = useState<"loading" | "ready" | "error">("loading");
   const [jobs, setJobs] = useState<TransportJob[]>([]);
+  const [deletedJobs, setDeletedJobs] = useState<TransportJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("job") ?? "";
@@ -327,6 +328,7 @@ export default function Home() {
         if (!nextUser) clearDriverProofDrafts();
         setUser(nextUser);
         setProfile(null);
+        setDeletedJobs([]);
         setAuthReady(false);
 
         if (!nextUser) {
@@ -380,7 +382,8 @@ export default function Home() {
           return nextJobs.find(job => !["completed", "cancelled"].includes(job.status))?.id ?? currentJob?.id ?? nextJobs[0]?.id ?? "";
         });
       },
-      (message) => { failed = true; setJobsState("error"); setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`); }
+      (message) => { failed = true; setJobsState("error"); setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`); },
+      setDeletedJobs
     );
   }, [user, profile]);
 
@@ -619,7 +622,7 @@ export default function Home() {
               ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
-            <AdminDashboard jobs={jobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} />
+            <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} />
           ) : adminScreen === "แจ้งเตือน" ? (
             <DriverIssuesScreen jobs={jobs} actor={profile} />
           ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (

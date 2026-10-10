@@ -184,7 +184,8 @@ export function currentDriverIdentity(data: DocumentData): CurrentDriverIdentity
 export function subscribeTodayJobs(
   profile: UserProfile,
   onJobs: (jobs: TransportJob[]) => void,
-  onError: (message: string) => void
+  onError: (message: string) => void,
+  onDeletedJobs?: (jobs: TransportJob[]) => void
 ): Unsubscribe {
   const jobsRef = collection(db, "today_jobs");
   const jobsQuery = profile.role === "driver"
@@ -230,10 +231,14 @@ export function subscribeTodayJobs(
   const stopJobs = onSnapshot(
     jobsQuery,
     (snapshot) => {
-      currentJobs = snapshot.docs
-        .filter((jobDoc) => !jobDoc.data().deletedAt)
+      const visibleDocs = snapshot.docs.filter((jobDoc) => !jobDoc.data().deletedAt);
+      currentJobs = visibleDocs
         .map((jobDoc) => toTransportJob(jobDoc.id, jobDoc.data()))
         .sort((a, b) => b.id.localeCompare(a.id));
+      if (profile.role !== "driver") onDeletedJobs?.(snapshot.docs
+        .filter((jobDoc) => Boolean(jobDoc.data().deletedAt))
+        .map((jobDoc) => toTransportJob(jobDoc.id, jobDoc.data()))
+        .sort((a, b) => b.id.localeCompare(a.id)));
       jobsReady = true;
       emitJobs();
     },
