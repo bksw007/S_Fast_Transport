@@ -4540,6 +4540,14 @@ textarea:focus {
 .report-pagination { justify-content: flex-end; margin-top: 12px; font-size: .8rem; }
 .report-empty { text-align: center; padding: 40px 18px; color: var(--muted); }
 .report-export { padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; line-height: 1.7; }
+.report-completion-list { display: grid; gap: 10px; }
+.report-completion-list article { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.report-completion-list article div { display: grid; gap: 3px; min-width: 0; }
+.report-completion-list article strong { font-size: .95rem; }
+.report-completion-list article span, .report-completion-list article small { color: var(--muted); overflow-wrap: anywhere; }
+.report-completion-list article button { flex: none; padding: 9px 12px; border-radius: 8px; background: var(--accent); color: var(--surface); font-size: .78rem; }
+.report-completion-list article button:disabled { opacity: .6; }
+@media (max-width: 640px) { .report-completion-list article { align-items: stretch; flex-direction: column; } }
 .report-warning { padding: 12px; background: #fce4df; color: #94382d; border-radius: 8px; }
 @media (max-width: 760px) {
   .report-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }

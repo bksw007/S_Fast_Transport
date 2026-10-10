@@ -3,9 +3,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { BarChart3, Download, Printer, RotateCcw } from "lucide-react";
 import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
+import { getDownloadURL, ref } from "firebase/storage";
+import { storage } from "@/lib/firebase";
+import { completionReportHtml, type ReportProof } from "@/lib/job-completion-report";
 import { bangkokDate, deliveryLabels, deliveryResult, filterReportJobs, groupReportJobs, summarizeJobs, type GroupBy, type ReportFilters } from "@/lib/reports";
 
-const tabs = ["อัตราส่งตรงเวลา", "งานสำเร็จและงานล่าช้า", "ประสิทธิภาพรถและคนขับ", "ส่งออก Excel หรือ PDF"];
+const tabs = ["อัตราส่งตรงเวลา", "งานสำเร็จและงานล่าช้า", "ประสิทธิภาพรถและคนขับ", "ส่งออก Excel หรือ PDF", "รายงานรายใบงาน"];
 const rate = (value: number | null) => value === null ? "—" : `${value}%`;
 const dateTime = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "short", timeStyle: "short" }) : "ไม่บันทึก";
 const initialFilters = (): ReportFilters => { const today = bangkokDate(); return { start: `${today.slice(0, 7)}-01`, end: today, organization: "", customer: "", search: "", status: "" }; };
@@ -19,6 +22,7 @@ export function ReportsScreen({ jobs, dataState = "ready" }: { jobs: TransportJo
   const [now, setNow] = useState(() => Date.now());
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [openingJobId, setOpeningJobId] = useState("");
   const [message, setMessage] = useState("");
   const exportLock = useRef(false);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);
@@ -31,6 +35,7 @@ export function ReportsScreen({ jobs, dataState = "ready" }: { jobs: TransportJo
   const pages = Math.max(1, Math.ceil(filtered.length / 25));
   const currentPage = Math.min(page, pages);
   const shown = filtered.slice((currentPage - 1) * 25, currentPage * 25);
+  const completedJobs = filtered.filter(job => job.status === "completed");
   const missingDates = jobs.filter(job => !job.jobDate).length;
   const period = `${filters.start || "ไม่จำกัด"} ถึง ${filters.end || "ไม่จำกัด"}`;
   const scope = `บริษัท: ${companies.find(([id]) => id === filters.organization)?.[1] || "ทั้งหมดตามสิทธิ์"} · ลูกค้า: ${filters.customer || "ทั้งหมด"} · สถานะ: ${filters.status === "delayed" ? "ล่าช้า / เลยกำหนด" : statusLabels[filters.status as keyof typeof statusLabels] || "ทั้งหมด"} · ค้นหา: ${filters.search || "—"}`;
@@ -74,6 +79,26 @@ export function ReportsScreen({ jobs, dataState = "ready" }: { jobs: TransportJo
     win.document.close(); win.focus(); win.print();
     setMessage("เปิดรายงานแล้ว เลือกบันทึกเป็น PDF ในหน้าต่างพิมพ์ได้เลย");
   }
+  async function openCompletionReport(job: TransportJob) {
+    const preview = window.open("", "_blank");
+    if (!preview) { setMessage("กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อเปิดรายงานรายใบงาน"); return; }
+    preview.document.write("<!doctype html><html lang=th><meta charset=utf-8><title>กำลังเตรียมรายงาน</title><body style='font-family:Tahoma,sans-serif;padding:32px'>กำลังเตรียมรายงานและโหลดหลักฐาน…</body></html>");
+    preview.document.close();
+    setOpeningJobId(job.id); setMessage("");
+    try {
+      async function proofUrls(proof: TransportJob["pickupProof"]): Promise<ReportProof> {
+        return { photos: await Promise.all((proof?.photoPaths ?? []).map(path => getDownloadURL(ref(storage, path)))), signature: proof?.signaturePath ? await getDownloadURL(ref(storage, proof.signaturePath)) : undefined };
+      }
+      const [pickup, delivery] = await Promise.all([proofUrls(job.pickupProof), proofUrls(job.deliveryProof)]);
+      preview.document.open();
+      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`));
+      preview.document.close();
+      preview.focus();
+    } catch {
+      preview.close();
+      setMessage(`เปิดรายงาน ${job.workOrder} ไม่สำเร็จ กรุณาตรวจสอบไฟล์หลักฐานแล้วลองใหม่`);
+    } finally { setOpeningJobId(""); }
+  }
   if (dataState !== "ready") return <section className="screen reports-screen"><h1>รายงานขนส่ง</h1><p role={dataState === "error" ? "alert" : "status"}>{dataState === "error" ? "โหลดข้อมูลรายงานไม่สำเร็จ กรุณารีเฟรชหน้าเพื่อลองใหม่" : "กำลังโหลดข้อมูลรายงาน…"}</p></section>;
   const exportButtons = <div className="report-actions"><button type="button" onClick={() => void exportExcel()} disabled={exporting || !filtered.length || invalidDates}><Download size={16} />{exporting ? "กำลังสร้างไฟล์…" : "Excel (.xlsx)"}</button><button type="button" onClick={printReport} disabled={!filtered.length || invalidDates}><Printer size={16} />พิมพ์ / PDF</button></div>;
   return <section className="screen reports-screen">
@@ -100,6 +125,7 @@ export function ReportsScreen({ jobs, dataState = "ready" }: { jobs: TransportJo
       {tab === 0 && <div className="report-insight"><div><h2>ความตรงเวลาในการถึงจุดส่ง</h2><strong className="report-rate">{rate(summary.onTimeRate)}</strong><p>ประเมินได้ {summary.evaluated} จาก {summary.total - summary.cancelled} งานที่ไม่ยกเลิก</p><div className="report-meter" aria-hidden="true"><span style={{ width: `${summary.onTimeRate ?? 0}%` }} /></div></div><div><p>ถึงตรงเวลา <b>{summary.onTime}</b> · ถึงล่าช้า <b>{summary.late}</b></p><p>ยังไม่ถึงจุดส่งและเลยกำหนด <b>{summary.overdue}</b></p><p>ข้อมูลไม่พอประเมิน <b>{summary.unknown}</b></p><p className="report-note">{methodology}</p></div></div>}
       {tab === 2 && <><div className="report-section-head"><h2>ผลงานตามทรัพยากร</h2><label>สรุปตาม <select value={groupBy} onChange={e => setGroupBy(e.target.value as GroupBy)}><option value="vehicle">รถ</option><option value="driver">คนขับ</option><option value="company">บริษัท</option><option value="customer">ลูกค้า</option></select></label></div><p className="report-note">เปรียบเทียบจำนวนงานและความตรงเวลา ไม่ใช่อัตราการใช้รถหรือระยะทาง • คนขับที่ไม่มีรหัสบัญชีจะจัดกลุ่มด้วยชื่อภายในบริษัท</p><div className="report-table-wrap"><table><caption>สรุปผลงาน {groups.length} รายการ</caption><thead><tr>{["ชื่อ / บริษัท", "งาน", "สำเร็จ", "เที่ยวตามใบงาน", "ถึงล่าช้า", "เลยกำหนด", "ตรงเวลา"].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{groups.map(row => <tr key={row.key}><td><strong>{row.label}</strong><small>{row.company}</small></td><td>{row.total}</td><td>{row.completed}</td><td>{row.trips}</td><td>{row.late}</td><td>{row.overdue}</td><td>{rate(row.onTimeRate)}<small>ประเมิน {row.evaluated} งาน</small></td></tr>)}</tbody></table></div></>}
       {tab === 3 && <div className="report-export"><h2>ส่งออกรายงานที่เลือก</h2><p>{period} · {filtered.length} งาน</p><p>Excel มีรายละเอียดงานและสรุปแยกตามรถ คนขับ บริษัท และลูกค้า พร้อมตัวกรองและวิธีคำนวณ ส่วน PDF ใช้หน้าต่างพิมพ์ของเบราว์เซอร์</p><p>ส่งออกทุกงานที่ตรงตัวกรอง รวมถึงงานในหน้าถัดไป</p>{exportButtons}</div>}
+      {tab === 4 && <div className="report-completion"><div className="report-section-head"><div><h2>รายงานส่งมอบรายใบงาน</h2><p className="report-note">เลือกงานที่เสร็จแล้วเพื่อดูตัวอย่าง พร้อมภาพจุดรับ จุดส่ง และลายเซ็น แล้วบันทึกเป็น PDF</p></div><span>{completedJobs.length} งาน</span></div>{completedJobs.length ? <div className="report-completion-list">{completedJobs.map(job => <article key={job.id}><div><strong>{job.workOrder}</strong><span>{job.customer} · {job.jobDate || "ไม่ระบุวันที่งาน"}</span><small>{job.pickupLocation} → {job.deliveryLocation}</small></div><button type="button" disabled={Boolean(openingJobId)} onClick={() => void openCompletionReport(job)}>{openingJobId === job.id ? "กำลังเตรียม…" : "ดูตัวอย่าง / PDF"}</button></article>)}</div> : <div className="report-empty"><h2>ไม่พบงานที่เสร็จแล้ว</h2><p>ลองเปลี่ยนช่วงวันที่หรือล้างตัวกรอง</p></div>}</div>}
       {(tab === 0 || tab === 1) && <><div className="report-section-head"><h2>{tab === 0 ? "รายละเอียดการส่ง" : "สถานะงานและงานที่ต้องติดตาม"}</h2><button onClick={() => change({ status: filters.status === "delayed" ? "" : "delayed" })}>{filters.status === "delayed" ? "ดูทุกสถานะ" : "ดูเฉพาะล่าช้า / เลยกำหนด"}</button></div><div className="report-table-wrap"><table><caption>วันที่งาน {period}</caption><thead><tr><th>ใบงาน / วันที่</th><th>ลูกค้า / บริษัท</th><th>รถ / คนขับ</th><th>สถานะ</th><th>กำหนดถึงจุดส่ง</th><th>ถึงจริง</th><th>ผลการส่ง</th></tr></thead><tbody>{shown.map(job => <tr key={job.id}><td><strong>{job.workOrder}</strong><small>{job.jobDate || "ไม่ระบุวันที่"}</small></td><td>{job.customer}<small>{job.carrierName || job.organizationId || "ไม่ระบุบริษัท"}</small></td><td>{job.vehiclePlate}<small>{job.driverName}</small></td><td>{statusLabels[job.status]}</td><td>{job.deliveryDate || "—"}<small>{job.deliveryTime || "ไม่ระบุเวลา"}</small></td><td>{dateTime(job.arrivedDeliveryAt)}</td><td><span className={`report-badge ${deliveryResult(job, now)}`}>{deliveryLabels[deliveryResult(job, now)]}</span></td></tr>)}</tbody></table></div>{filtered.length > 0 && <div className="report-pagination"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button><span>หน้า {currentPage} / {pages} · 25 งานต่อหน้า</span><button disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>ถัดไป</button></div>}</>}
       {!filtered.length && !invalidDates && <div className="report-empty"><BarChart3 size={28} /><h2>ไม่พบงานตามตัวกรอง</h2><p>ลองเลือกทุกช่วงเวลาหรือล้างตัวกรอง ระบบจะแสดงข้อมูลเมื่อมีใบงานที่คุณมีสิทธิ์ดู</p></div>}
     </div>
