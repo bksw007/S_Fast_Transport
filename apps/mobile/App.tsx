@@ -8,6 +8,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as WebBrowser from "expo-web-browser";
+import { getDownloadURL, ref } from "firebase/storage";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -25,7 +26,7 @@ import {
   type JobStatus,
   type TransportJob
 } from "@s-fast-transport/shared";
-import { auth } from "./src/firebase";
+import { auth, storage } from "./src/firebase";
 import {
   flushPendingPoints,
   getActiveTrackingSession,
@@ -40,6 +41,7 @@ import {
   getMobileProfile,
   rollbackTrackingStart,
   reportDriverIssue,
+  replaceDriverStopProofPhoto,
   subscribeDriverJobs,
   updateDriverJobStatus,
   uploadDriverStopProof,
@@ -341,6 +343,35 @@ export default function App() {
     }
   }
 
+  async function pickReplacementPhoto(job: TransportJob, stage: "pickup" | "delivery", index: number, source: "camera" | "library") {
+    if (!profile || busy) return;
+    const permission = source === "camera" ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("ต้องอนุญาตการเข้าถึง", source === "camera" ? "กรุณาอนุญาตกล้อง" : "กรุณาอนุญาตคลังภาพ");
+      return;
+    }
+    const result = source === "camera"
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.65, allowsEditing: false })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.65, allowsMultipleSelection: false });
+    if (result.canceled || !result.assets[0]) return;
+    setBusy(true);
+    try {
+      const uri = await prepareCheckInPhoto(result.assets[0]);
+      await replaceDriverStopProofPhoto(job, profile, stage, index, uri);
+      setDriverNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว และเก็บรูปเดิมไว้ในประวัติ`, tone: "success" });
+    } catch (error) {
+      setDriverNotice({ title: "เปลี่ยนรูปไม่สำเร็จ", detail: toMessage(error), tone: "error" });
+    } finally { setBusy(false); }
+  }
+
+  function promptReplacePhoto(job: TransportJob, stage: "pickup" | "delivery", index: number) {
+    Alert.alert("เปลี่ยนรูปหลักฐาน", `เลือกรูปใหม่สำหรับ${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}\nรูปเดิมจะยังอยู่ในประวัติ`, [
+      { text: "ถ่ายรูป", onPress: () => void pickReplacementPhoto(job, stage, index, "camera") },
+      { text: "เลือกจากเครื่อง", onPress: () => void pickReplacementPhoto(job, stage, index, "library") },
+      { text: "ยกเลิก", style: "cancel" }
+    ]);
+  }
+
   async function submitIssue() {
     if (!selectedJob || !profile || !issueType) return;
     setBusy(true);
@@ -449,6 +480,7 @@ export default function App() {
                     onToggle={() => setJobExpanded((value) => !value)}
                     onAction={(status) => status === "completed" ? Alert.alert("ตรวจทานก่อนจบงาน", `จุดรับ: ${selectedJob.pickupProof?.photoPaths.length ?? 0} รูป · ${selectedJob.pickupProof?.signerName || "ไม่มีผู้เซ็น"}\nจุดส่ง: ${selectedJob.deliveryProof?.photoPaths.length ?? 0} รูป · ${selectedJob.deliveryProof?.signerName || "ไม่มีผู้เซ็น"}\n\nเมื่อจบงาน ระบบจะหยุดแชร์ตำแหน่ง`, [{ text: "กลับไปตรวจ", style: "cancel" }, { text: "ยืนยันจบงาน", onPress: () => void handleDriverAction(status) }]) : void handleDriverAction(status)}
                     onPickPhoto={(source, stage) => void pickCheckInPhoto(source, stage)}
+                    onReplacePhoto={(stage, index) => promptReplacePhoto(selectedJob, stage, index)}
                     onReportIssue={() => setIssueOpen(true)}
                   />
                 ) : (
@@ -521,6 +553,7 @@ export default function App() {
                       <Text style={styles.historyDate}>{job.status === "completed" ? "จบงาน" : job.cancelledAt ? "ยกเลิกงาน" : "วันที่อ้างอิง"}: {jobHistoryDate(job) ? new Date(jobHistoryDate(job)!).toLocaleString("th-TH") : "ไม่ระบุเวลา"}</Text>
                       <View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View>
                       <View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View>
+                      {job.status === "completed" && <SavedProofPhotos job={job} busy={busy} onReplace={(stage, index) => promptReplacePhoto(job, stage, index)} />}
                     </View>}
                   </Pressable>
                 )) : (
@@ -660,6 +693,7 @@ function JobPanel({
   onToggle,
   onAction,
   onPickPhoto,
+  onReplacePhoto,
   onReportIssue
 }: {
   job: TransportJob;
@@ -676,6 +710,7 @@ function JobPanel({
   onToggle: () => void;
   onAction: (status: JobStatus) => void;
   onPickPhoto: (source: "camera" | "library", stage: "pickup" | "delivery") => void;
+  onReplacePhoto: (stage: "pickup" | "delivery", index: number) => void;
   onReportIssue: () => void;
 }) {
   const step = currentDriverStep(job);
@@ -773,12 +808,12 @@ function JobPanel({
 
             <Pressable
               disabled={actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))}
-              style={[styles.nextStepButton, (actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))) && styles.disabled]}
+              style={[styles.nextStepButton, step.id === "start_tracking" && styles.nextStepAccept, step.id === "completed" && styles.nextStepFinish, (actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))) && styles.disabled]}
               onPress={() => onAction(step.nextStatus)}
             >
-              {busy ? <ActivityIndicator color="#ffffff" /> : <Ionicons name={step.icon} size={21} color="#ffffff" />}
-              <Text style={styles.nextStepButtonText}>{busy ? "กำลังบันทึก..." : step.label}</Text>
-              {!busy && <Ionicons name="arrow-forward" size={20} color="#ffffff" />}
+              {busy ? <ActivityIndicator color={step.id === "start_tracking" || step.id === "completed" ? colors.accent : "#ffffff"} /> : <Ionicons name={step.icon} size={21} color={step.id === "start_tracking" || step.id === "completed" ? colors.accent : "#ffffff"} />}
+              <Text style={[styles.nextStepButtonText, (step.id === "start_tracking" || step.id === "completed") && styles.nextStepLightText]}>{busy ? "กำลังบันทึก..." : step.label}</Text>
+              {!busy && <Ionicons name="arrow-forward" size={20} color={step.id === "start_tracking" || step.id === "completed" ? colors.accent : "#ffffff"} />}
             </Pressable>
           </View>
         ) : (
@@ -796,6 +831,7 @@ function JobPanel({
           <Ionicons name="chevron-forward" size={19} color={colors.danger} />
         </Pressable>
       )}
+      <SavedProofPhotos job={job} busy={busy} onReplace={onReplacePhoto} />
       {signatureOpen && step?.photoStage && <SignatureCaptureModal stage={step.photoStage} initialPaths={signaturePaths} onCancel={() => setSignatureOpen(false)} onConfirm={paths => { onSignatureConfirm(paths); setSignatureOpen(false); }} />}
     </>
   );
@@ -915,7 +951,48 @@ function IssueReportModal({
   );
 }
 
+function SavedProofPhotos({ job, busy, onReplace }: { job: TransportJob; busy: boolean; onReplace: (stage: "pickup" | "delivery", index: number) => void }) {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState(false);
+  const paths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
+  const pathsKey = paths.join("|");
+  useEffect(() => {
+    let active = true;
+    void Promise.all(paths.map(async path => {
+      try { return [path, await getDownloadURL(ref(storage, path))] as const; }
+      catch { return [path, ""] as const; }
+    })).then(entries => { if (active) setUrls(Object.fromEntries(entries)); });
+    return () => { active = false; };
+  // Re-read previews whenever the saved photo paths change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathsKey]);
+  if (!paths.length) return null;
+  return <View style={styles.savedProofCard}>
+    <Pressable style={styles.savedProofToggle} onPress={event => { event.stopPropagation(); setExpanded(value => !value); }}><Ionicons name="images-outline" size={20} color={colors.accent} /><Text style={styles.savedProofTitle}>รูปหลักฐานที่บันทึกแล้ว</Text><Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={19} color={colors.accent} /></Pressable>
+    {expanded && <Text style={styles.savedProofHint}>เปลี่ยนได้ทีละรูป โดยเก็บรูปเดิมไว้ในประวัติ</Text>}
+    {expanded && <>
+    {(["pickup", "delivery"] as const).map(stage => {
+      const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
+      if (!proof?.photoPaths.length) return null;
+      return <View key={stage} style={styles.savedProofStage}>
+        <Text style={styles.savedProofStageTitle}>{stage === "pickup" ? "จุดรับสินค้า" : "จุดส่งสินค้า"}</Text>
+        <View style={styles.savedProofGrid}>{proof.photoPaths.map((path, index) => <View key={path} style={styles.savedProofItem}>
+          {urls[path] ? <Image source={{ uri: urls[path] }} style={styles.savedProofImage} resizeMode="contain" /> : <View style={styles.savedProofImage}><Text style={styles.muted}>กำลังโหลดรูป</Text></View>}
+          <Pressable disabled={busy} style={[styles.savedProofButton, busy && styles.disabled]} onPress={event => { event.stopPropagation(); onReplace(stage, index); }}><Ionicons name="refresh" size={16} color={colors.accent} /><Text style={styles.savedProofButtonText}>เปลี่ยนรูปที่ {index + 1}</Text></Pressable>
+        </View>)}</View>
+      </View>;
+    })}</>}
+  </View>;
+}
+
 function DriverStatusModal({ notice, onClose }: { notice: DriverNotice | null; onClose: () => void }) {
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => closeRef.current(), notice.tone === "success" ? 3000 : 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   return <Modal visible={Boolean(notice)} transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.statusModalBackdrop}>
       <View style={styles.statusModalCard}>
@@ -924,7 +1001,6 @@ function DriverStatusModal({ notice, onClose }: { notice: DriverNotice | null; o
         </View>
         <Text style={styles.statusModalTitle}>{notice?.title}</Text>
         <Text style={styles.statusModalDetail}>{notice?.detail}</Text>
-        <Pressable accessibilityRole="button" style={styles.statusModalButton} onPress={onClose}><Text style={styles.statusModalButtonText}>รับทราบ</Text></Pressable>
       </View>
     </View>
   </Modal>;
@@ -1072,8 +1148,17 @@ const styles = StyleSheet.create({
   statusModalError: { backgroundColor: "#fff2f0" },
   statusModalTitle: { color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center" },
   statusModalDetail: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: "center" },
-  statusModalButton: { alignSelf: "stretch", minHeight: 52, alignItems: "center", justifyContent: "center", marginTop: 5, borderRadius: 12, backgroundColor: colors.accent },
-  statusModalButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  savedProofCard: { gap: 10, padding: 15, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface },
+  savedProofToggle: { minHeight: 45, flexDirection: "row", alignItems: "center", gap: 8 },
+  savedProofTitle: { flex: 1, color: colors.accent, fontSize: 16, fontWeight: "800" },
+  savedProofHint: { color: colors.muted, fontSize: 12 },
+  savedProofStage: { gap: 8 },
+  savedProofStageTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  savedProofGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  savedProofItem: { width: "48%", gap: 6, padding: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 11 },
+  savedProofImage: { width: "100%", height: 110, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 },
+  savedProofButton: { minHeight: 43, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 8, backgroundColor: "#bfe9f8" },
+  savedProofButtonText: { color: colors.accent, fontSize: 12, fontWeight: "800" },
   safe: { flex: 1, backgroundColor: colors.bg },
   appShell: { flex: 1 },
   container: { padding: 18, paddingBottom: 28, gap: 18 },
@@ -1181,7 +1266,10 @@ const styles = StyleSheet.create({
   photoButtonSecondary: { flex: 1, minHeight: 47, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 13, backgroundColor: colors.surface2 },
   photoButtonSecondaryText: { color: colors.accent, fontSize: 12, fontWeight: "800" },
   nextStepButton: { alignSelf: "stretch", minHeight: 57, marginTop: 8, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, borderRadius: 15, backgroundColor: colors.success },
+  nextStepAccept: { backgroundColor: "#bfe9f8" },
+  nextStepFinish: { backgroundColor: "#bce9cb" },
   nextStepButtonText: { flex: 1, color: "#ffffff", fontSize: 15, fontWeight: "800", textAlign: "center" },
+  nextStepLightText: { color: colors.accent },
   finishedStep: { alignItems: "center", gap: 8, padding: 24 },
   finishedStepTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
   reportIssueButton: { minHeight: 53, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", gap: 9, borderRadius: 15, backgroundColor: "#fff7f6", borderWidth: 1, borderColor: "#edcbc8" },

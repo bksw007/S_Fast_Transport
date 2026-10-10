@@ -5,6 +5,8 @@ import Image from "next/image";
 import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, FileImage, MapPin, Truck } from "lucide-react";
 import { filterDriverHistory, historyMonthLabel, jobHistoryDate, jobHistoryMonth, type HistoryStatusFilter, type TransportJob } from "@s-fast-transport/shared";
 import { subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
+import DriverProofPhotoEditor from "./DriverProofPhotoEditor";
+import type { UserProfile } from "@/lib/transport-repository";
 
 function dateLabel(value?: string) {
   if (!value) return "ไม่ระบุเวลา";
@@ -12,11 +14,11 @@ function dateLabel(value?: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
 }
 
-function Proofs({ jobId }: { jobId: string }) {
+function Proofs({ job }: { job: TransportJob }) {
   const [records, setRecords] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  useEffect(() => subscribeJobRecords(jobId, "proofs", rows => { setRecords(rows); setLoading(false); }, cause => { setError(cause.message); setLoading(false); }), [jobId]);
+  useEffect(() => subscribeJobRecords(job.id, "proofs", rows => { setRecords(rows); setLoading(false); }, cause => { setError(cause.message); setLoading(false); }), [job.id]);
   if (loading) return <p className="driver-history-proof-message">กำลังโหลดหลักฐาน...</p>;
   if (error) return <p className="driver-history-proof-message" role="alert">โหลดหลักฐานไม่สำเร็จ: {error}</p>;
   if (!records.length) return <p className="driver-history-proof-message">ยังไม่มีไฟล์หลักฐานสำหรับงานนี้</p>;
@@ -24,13 +26,14 @@ function Proofs({ jobId }: { jobId: string }) {
     const url = typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") ? data.downloadUrl : "";
     const isImage = typeof data.contentType === "string" && data.contentType.startsWith("image/");
     const stage = data.proofStage === "pickup" || data.checkInStage === "pickup" ? "จุดรับ" : data.proofStage === "delivery" || data.checkInStage === "delivery" ? "จุดส่ง" : "เอกสารอื่น";
-    const name = data.proofKind === "signature" ? `ลายเซ็น ${data.signerName || ""}` : data.proofKind === "photo" ? "รูปสินค้า" : data.proofKind === "issue" ? "รูปแจ้งปัญหา" : data.fileName || "ไฟล์แนบ";
+    const currentPaths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
+    const name = data.proofKind === "signature" ? `ลายเซ็น ${data.signerName || ""}` : data.proofKind === "photo" || data.proofKind === "photo_revision" ? currentPaths.includes(String(data.storagePath)) ? "รูปสินค้าปัจจุบัน" : "รูปสินค้าเดิม" : data.proofKind === "issue" ? "รูปแจ้งปัญหา" : data.fileName || "ไฟล์แนบ";
     const content = <><span className="driver-history-proof-image">{url && isImage ? <Image unoptimized src={url} alt={`${stage} ${name}`} width={420} height={260} /> : <FileImage size={32} />}</span><span className="driver-history-proof-caption"><small>{stage}</small><strong>{name}</strong><em>{url ? "แตะเพื่อเปิดไฟล์" : "ไม่มีลิงก์ไฟล์"}</em></span></>;
     return url ? <a href={url} target="_blank" rel="noreferrer" key={id} className="driver-history-proof">{content}</a> : <div key={id} className="driver-history-proof">{content}</div>;
   })}</div>;
 }
 
-export default function DriverHistory({ jobs }: { jobs: TransportJob[] }) {
+export default function DriverHistory({ jobs, actor, onNotice }: { jobs: TransportJob[]; actor: UserProfile; onNotice: (notice: { title: string; detail: string; tone: "success" | "error" }) => void }) {
   const [expandedId, setExpandedId] = useState("");
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>("all");
   const [monthFilter, setMonthFilter] = useState("all");
@@ -59,7 +62,8 @@ export default function DriverHistory({ jobs }: { jobs: TransportJob[] }) {
       {expandedId === job.id && <div className="driver-history-details" id={`driver-history-details-${job.id}`}>
         <div className="driver-history-route"><p><MapPin size={17} /> <span><small>จุดรับ</small><strong>{job.pickupLocation}</strong></span></p><p><MapPin size={17} /> <span><small>จุดส่ง</small><strong>{job.deliveryLocation}</strong></span></p></div>
         <div className="driver-history-proof-status"><span><Camera size={17} /> จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</span><span><Camera size={17} /> จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</span></div>
-        <h3>หลักฐานที่บันทึก</h3><Proofs jobId={job.id} />
+        {job.status === "completed" && <DriverProofPhotoEditor job={job} actor={actor} onNotice={onNotice} />}
+        <h3>ประวัติไฟล์หลักฐาน</h3><Proofs job={job} />
       </div>}
     </article>)}
   </section>;

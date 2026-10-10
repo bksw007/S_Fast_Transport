@@ -95,17 +95,17 @@ async function requestRoadDistance(job: TransportJob) {
   return pending;
 }
 
-function Records({ jobId, kind }: { jobId: string; kind: "proofs" | "events" | "locations" }) {
+function Records({ job, kind }: { job: TransportJob; kind: "proofs" | "events" | "locations" }) {
   const [rows, setRows] = useState<JobRecord[]>([]);
   const [state, setState] = useState("กำลังโหลด…");
-  useEffect(() => subscribeJobRecords(jobId, kind, data => { setRows(data); setState(""); }, () => setState("โหลดข้อมูลไม่สำเร็จ กรุณาปิดแล้วเปิดแท็บนี้อีกครั้ง")), [jobId, kind]);
+  useEffect(() => subscribeJobRecords(job.id, kind, data => { setRows(data); setState(""); }, () => setState("โหลดข้อมูลไม่สำเร็จ กรุณาปิดแล้วเปิดแท็บนี้อีกครั้ง")), [job.id, kind]);
   if (state) return <p className="job-detail-empty" role="status">{state}</p>;
   if (!rows.length) return <p className="job-detail-empty">ยังไม่มี{kind === "proofs" ? "หลักฐาน" : kind === "events" ? "เหตุการณ์ที่บันทึก" : "ประวัติตำแหน่ง"}สำหรับใบงานนี้</p>;
   return <div className={`job-records job-records-${kind}`}>
     {kind === "locations" && <p>ตำแหน่งที่บันทึกจริง ล่าสุดไม่เกิน 500 จุด เรียงจากใหม่ไปเก่า</p>}
     {rows.map(({ id, data }) => <article key={id}>
       <time>{dateLabel(recordTime(data))}</time>
-      {kind === "proofs" ? <><strong>{data.proofStage === "pickup" ? "จุดรับสินค้า" : data.proofStage === "delivery" ? "จุดส่งสินค้า" : "หลักฐานทั่วไป"} · {data.proofKind === "signature" ? "ลายเซ็น" : data.proofKind === "photo" ? "รูปสินค้า" : data.fileName || "หลักฐาน"}</strong><p>{data.proofKind === "signature" ? `ผู้เซ็น ${data.signerName || "—"} · ` : ""}อัปโหลดโดย {data.uploadedByName || "—"}</p>{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
+      {kind === "proofs" ? <><strong>{data.proofStage === "pickup" ? "จุดรับสินค้า" : data.proofStage === "delivery" ? "จุดส่งสินค้า" : "หลักฐานทั่วไป"} · {data.proofKind === "signature" ? "ลายเซ็น" : data.proofKind === "photo" || data.proofKind === "photo_revision" ? [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])].includes(String(data.storagePath)) ? "รูปสินค้าปัจจุบัน" : "รูปสินค้าเดิม" : data.fileName || "หลักฐาน"}</strong><p>{data.proofKind === "signature" ? `ผู้เซ็น ${data.signerName || "—"} · ` : ""}อัปโหลดโดย {data.uploadedByName || "—"}</p>{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
         : kind === "events" ? <><strong>{data.message || data.type || "เหตุการณ์"}</strong><p>{data.actorName || "ระบบ"}</p></>
         : <><strong>{Number(data.speed || 0).toFixed(1)} กม./ชม.</strong>{validPoint(data.lat, data.lng) ? <a href={mapUrl(data.lat, data.lng)} target="_blank" rel="noreferrer">{data.lat.toFixed(6)}, {data.lng.toFixed(6)} · เปิดแผนที่</a> : <p>ไม่มีพิกัดที่ใช้งานได้</p>}</>}
     </article>)}
@@ -194,10 +194,10 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
           </div>
         </div>}
 
-        {tab === 1 && <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(async () => { await uploadProof(job, file, actor); }, "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} jobId={job.id} kind="proofs" /></>}
+        {tab === 1 && <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(async () => { await uploadProof(job, file, actor); }, "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} job={job} kind="proofs" /></>}
         {tab === 2 && <><p>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์ตำแหน่ง"} · ล่าสุด {dateLabel(job.currentLocation.updatedAt)}</p>{job.trackingStatus !== "not_started" && validPoint(job.currentLocation.lat, job.currentLocation.lng) ? <>{map}<a href={mapUrl(job.currentLocation.lat, job.currentLocation.lng)} target="_blank" rel="noreferrer">เปิดตำแหน่งล่าสุดใน Google Maps</a><p>ความเร็ว {job.currentLocation.speed} กม./ชม. · ความแม่นยำ {job.currentLocation.accuracy} เมตร</p></> : <p>ยังไม่มีพิกัดสำหรับงานนี้</p>}</>}
-        {tab === 3 && <Records key={`${job.id}-locations`} jobId={job.id} kind="locations" />}
-        {tab === 4 && <Records key={`${job.id}-events`} jobId={job.id} kind="events" />}
+        {tab === 3 && <Records key={`${job.id}-locations`} job={job} kind="locations" />}
+        {tab === 4 && <Records key={`${job.id}-events`} job={job} kind="events" />}
       </div>
     </div>
   </section>;

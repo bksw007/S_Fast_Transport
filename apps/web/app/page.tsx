@@ -7,6 +7,7 @@ import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
 import DriverStopProof, { clearDriverProofDrafts } from "./components/DriverStopProof";
 import DriverHistory from "./components/DriverHistory";
+import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { resolveDriverIssue } from "@/lib/job-detail-repository";
 import JobDetail from "./components/JobDetail";
@@ -798,7 +799,7 @@ function DriverMobileScreen({
   }
 
   if (screen === "ประวัติงาน") {
-    return <DriverHistory jobs={jobs} />;
+    return <DriverHistory jobs={jobs} actor={profile} onNotice={onNotice} />;
   }
 
   if (jobs.length === 0) {
@@ -1638,7 +1639,7 @@ function DriverView({
         <small>ขั้นตอนที่ต้องทำตอนนี้</small>
         <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทางไปจุดรับ" : nextAction.label}</strong>
         <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว ตรวจทานก่อนจบงานและหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
-        <button disabled={!canWrite} onClick={() => nextAction.id === "completed" ? setFinishOpen(true) : onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
+        <button className={nextAction.id === "start_tracking" ? "driver-action-accept" : nextAction.id === "completed" ? "driver-action-finish" : ""} disabled={!canWrite} onClick={() => nextAction.id === "completed" ? setFinishOpen(true) : onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
       </div>}
       {stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? "") && <div className="driver-quick-actions">
         <a href={stopNavigationUrl(stopLocation, stopPlace)} target="_blank" rel="noreferrer"><Navigation size={19} /> นำทางไปจุด{stop === "pickup" ? "รับ" : "ส่ง"}</a>
@@ -1647,6 +1648,7 @@ function DriverView({
       {!job.lastIssue?.resolvedAt && job.status === "problem" && <article className="driver-waiting-admin"><AlertTriangle size={20} /><span><strong>แอดมินรับเรื่องแล้ว</strong><small>กำลังรอคำตอบ คุณดูรายละเอียดงานหรือแจ้งข้อมูลเพิ่มเติมได้</small></span></article>}
       {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
       {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}
+      {canWrite && <DriverProofPhotoEditor job={job} actor={profile} onNotice={onNotice} />}
 
       <CompactJobCard
         className="primary"
@@ -1995,7 +1997,7 @@ function JobSummaryCard({
                 <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทาง" : nextAction.label}</strong>
               </div>
               <button
-                className="job-next-action"
+                className={`job-next-action ${nextAction.id === "start_tracking" ? "driver-action-accept" : nextAction.id === "completed" ? "driver-action-finish" : ""}`}
                 type="button"
                 disabled={!canWrite}
                 onClick={() => onAction(nextAction.nextStatus, job)}

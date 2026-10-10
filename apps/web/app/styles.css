@@ -3891,6 +3891,23 @@ h2 {
 .driver-current-action strong { font-size: 1.18rem; }
 .driver-current-action p, .driver-stop-proof p { margin: 0; color: var(--muted); }
 .driver-current-action button, .driver-proof-submit { min-height: 52px; display: flex; justify-content: center; align-items: center; gap: 9px; border-radius: 12px; color: #fff; background: var(--accent); font-weight: 800; }
+.driver-current-action button.driver-action-accept, .job-next-action.driver-action-accept { color: #123b56; background: #bfe9f8; }
+.driver-current-action button.driver-action-finish, .job-next-action.driver-action-finish, .driver-finish-actions button:last-child { color: #15543d; background: #bce9cb; }
+.driver-proof-editor { padding: 17px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.driver-proof-editor[open] { display: grid; gap: 12px; }
+.driver-proof-editor summary { display: flex; align-items: center; gap: 8px; list-style: none; color: var(--accent); font-size: .88rem; font-weight: 800; cursor: pointer; }
+.driver-proof-editor summary::-webkit-details-marker { display: none; }
+.driver-proof-editor summary small { margin-left: auto; color: var(--muted); font-size: .68rem; font-weight: 600; }
+.driver-proof-editor > p { margin: 0; color: var(--muted); font-size: .76rem; }
+.driver-proof-editor-stage { display: grid; gap: 8px; }
+.driver-proof-editor-stage > strong { font-size: .82rem; }
+.driver-proof-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.driver-proof-editor-photo { display: grid; gap: 7px; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 12px; }
+.driver-proof-editor-photo img, .driver-proof-editor-photo > span { width: 100%; height: 115px; object-fit: contain; border-radius: 8px; background: var(--surface-2); }
+.driver-proof-editor-photo > span { display: grid; place-items: center; font-size: .72rem; color: var(--muted); }
+.driver-proof-editor-photo label { min-height: 43px; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 7px; border-radius: 9px; color: var(--accent); background: #bfe9f8; font-size: .74rem; font-weight: 800; text-align: center; cursor: pointer; }
+.driver-proof-editor-photo label.disabled { opacity: .55; cursor: wait; }
+.driver-proof-editor-photo input { display: none; }
 .driver-stop-proof h2 { margin: 0; font-size: 1.16rem; }
 .driver-proof-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .driver-proof-photo { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 13px; }
@@ -3997,6 +4014,7 @@ h2 {
 .driver-issue-actions button[type="submit"] { color: #fff; background: var(--danger); }
 .driver-status-dialog { width: min(calc(100% - 32px), 390px); max-width: none; margin: auto; padding: 0; border: 0; border-radius: 20px; color: var(--text); background: var(--surface); box-shadow: 0 24px 70px rgb(7 28 44 / 25%); }
 .driver-status-dialog::backdrop { background: rgb(5 25 41 / 65%); }
+.driver-status-dialog:not(:has(button)) .driver-status-content { padding-bottom: 27px; }
 .driver-status-content { display: grid; justify-items: center; gap: 12px; padding: 27px 22px 22px; text-align: center; }
 .driver-status-icon { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 19px; color: var(--success); background: var(--success-soft); }
 .driver-status-dialog.warning .driver-status-icon { color: #9a5d00; background: var(--warning-soft); }

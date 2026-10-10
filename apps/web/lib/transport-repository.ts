@@ -641,6 +641,34 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
   return { photoPaths, signaturePath, signerName: signerName.trim(), signedAt: new Date().toISOString() };
 }
 
+export async function replaceStopProofPhoto(job: TransportJob, stage: "pickup" | "delivery", index: number, file: File, actor: UserProfile) {
+  const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
+  const previousPath = proof?.photoPaths[index];
+  if (!previousPath || !Number.isInteger(index) || index < 0) throw new Error("ไม่พบรูปที่ต้องการเปลี่ยน");
+  if (!isImageFile(file) || file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("กรุณาเลือกรูปภาพที่มีขนาดไม่เกินกำหนด");
+  const compressed = await compressImageForUpload(file);
+  const extension = compressed.type === "image/png" ? "png" : compressed.type === "image/webp" ? "webp" : "jpg";
+  const path = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${crypto.randomUUID()}-${stage}-revision.${extension}`;
+  const result = await uploadBytes(ref(storage, path), compressed, { contentType: compressed.type });
+  const downloadUrl = await getDownloadURL(result.ref);
+  const jobRef = doc(db, "today_jobs", job.id);
+  const proofRef = doc(collection(db, "proof_of_delivery"));
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const data = snapshot.data();
+    if (data.assignedDriverUid !== actor.uid || data.status === "cancelled") throw new Error("ไม่สามารถแก้ไขรูปของงานนี้ได้");
+    const current = data[stage === "pickup" ? "pickupProof" : "deliveryProof"] as StopProof | undefined;
+    if (current?.photoPaths[index] !== previousPath) throw new Error("รูปนี้ถูกเปลี่ยนไปแล้ว กรุณาโหลดหน้าใหม่");
+    const photoPaths = [...current.photoPaths];
+    photoPaths[index] = path;
+    transaction.update(jobRef, { [stage === "pickup" ? "pickupProof" : "deliveryProof"]: { ...current, photoPaths }, updatedAt: serverTimestamp() });
+    transaction.set(proofRef, { jobId: job.id, organizationId: job.organizationId ?? actor.organizationId ?? "main", uploadedByUid: actor.uid, uploadedByName: actor.displayName, fileName: `${stage}-photo-${index + 1}-revision.${extension}`, storagePath: path, downloadUrl, contentType: compressed.type, size: compressed.size, proofStage: stage, proofKind: "photo_revision", replacesPath: previousPath, photoIndex: index, createdAt: serverTimestamp() });
+    transaction.set(eventRef, { jobId: job.id, type: "proof_photo_replaced", message: `คนขับเปลี่ยนรูปหลักฐาน${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}`, actorUid: actor.uid, actorName: actor.displayName, organizationId: job.organizationId ?? actor.organizationId ?? "main", timestamp: serverTimestamp(), metadata: { stage, index, previousPath, path, source: "driver_web" } });
+  });
+}
+
 export async function reportDriverIssue(
   job: TransportJob,
   issueType: DriverIssueType,
