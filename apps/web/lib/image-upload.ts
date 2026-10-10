@@ -3,7 +3,6 @@ export const MAX_SOURCE_IMAGE_BYTES = 20 * 1024 * 1024;
 
 const MAX_IMAGE_DIMENSION = 2048;
 const MIN_JPEG_QUALITY = 0.42;
-const MAX_JPEG_QUALITY = 0.9;
 const ENCODE_ATTEMPTS = 8;
 
 export function isImageFile(file: File) {
@@ -43,8 +42,10 @@ async function encodeUnderLimit(initialCanvas: HTMLCanvasElement) {
   let canvas = initialCanvas;
 
   for (let resizeAttempt = 0; resizeAttempt < 5; resizeAttempt += 1) {
+    const preferred = await canvasToJpeg(canvas, 0.82);
+    if (preferred.size <= MAX_STORED_IMAGE_BYTES) return preferred;
     let low = MIN_JPEG_QUALITY;
-    let high = MAX_JPEG_QUALITY;
+    let high = 0.82;
     let bestBlob: Blob | null = null;
 
     for (let attempt = 0; attempt < ENCODE_ATTEMPTS; attempt += 1) {

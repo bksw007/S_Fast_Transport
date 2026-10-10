@@ -4034,6 +4034,14 @@ h2 {
 .driver-status-dialog.error .driver-status-icon { color: var(--danger); background: var(--danger-soft); }
 .driver-status-content h2 { margin: 0; font-size: 1.25rem; }
 .driver-status-content p { margin: 0 0 5px; color: var(--muted); line-height: 1.55; }
+.driver-status-progress { width: 100%; display: grid; gap: 7px; color: var(--accent); font-size: .85rem; }
+.driver-status-progress > div { height: 10px; overflow: hidden; border-radius: 999px; background: var(--surface-2); }
+.driver-status-progress span { height: 100%; display: block; border-radius: inherit; background: var(--success); transition: width .18s ease; }
+.driver-status-recovery { color: var(--muted); line-height: 1.5; }
+.driver-status-recovery.error { color: var(--danger); }
+.driver-proof-draft-state { padding: 9px 11px; border-radius: 10px; background: var(--success-soft); color: var(--success) !important; font-size: .72rem; }
+.driver-proof-draft-state.saving { background: var(--surface-2); color: var(--muted) !important; }
+.driver-proof-draft-state.error { background: var(--danger-soft); color: var(--danger) !important; }
 .driver-status-content button { width: 100%; min-height: 50px; border-radius: 11px; color: #fff; background: var(--accent); font-weight: 800; }
 .driver-waiting-admin { display: flex; gap: 9px; padding: 13px; border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border)); border-radius: 12px; color: #9a5d00; background: var(--warning-soft); }
 .driver-waiting-admin span { display: grid; gap: 3px; }

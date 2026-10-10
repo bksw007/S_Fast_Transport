@@ -5,10 +5,11 @@ import Image from "next/image";
 import ContactBook from "./components/ContactBook";
 import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
-import DriverStopProof, { clearDriverProofDrafts } from "./components/DriverStopProof";
+import DriverStopProof, { clearDriverProofDraft, clearDriverProofDrafts } from "./components/DriverStopProof";
 import DriverHistory from "./components/DriverHistory";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
+import { saveDriverProofDraft } from "@/lib/driver-proof-draft";
 import { resolveDriverIssue } from "@/lib/job-detail-repository";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
@@ -1665,10 +1666,21 @@ function DriverView({
 
       {showingProofForm && <div className="driver-step-actions solo">{backButton}</div>}
       {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
-        onNotice({ title: "กำลังบันทึกหลักฐาน", detail: `กำลังส่งรูปและลายเซ็นจุด${proofStage === "pickup" ? "รับ" : "ส่ง"} กรุณารอสักครู่`, tone: "pending" });
-        const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
+        const draftKey = `${profile.uid}-${job.id}-${proofStage}`;
+        let draftSaved = false;
+        let draftSaveFailed = false;
+        const showProgress = (progress: number, detail: string) => onNotice({ title: "กำลังบันทึกหลักฐาน", detail, tone: "pending", progress, draftSaved, draftSaveFailed });
+        showProgress(0, "กำลังสำรองรูปและลายเซ็นในเครื่อง");
+        try {
+          await saveDriverProofDraft(draftKey, { photos, signature, signerName });
+          draftSaved = true;
+        } catch {
+          draftSaveFailed = true;
+        }
+        const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile, showProgress);
         await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
-        onNotice({ title: proofStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: proofStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success" });
+        onNotice({ title: proofStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: proofStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success", progress: 100 });
+        void clearDriverProofDraft(draftKey).catch(() => undefined);
       }} /> : nextAction && <div className="driver-current-action">
         <small>ขั้นตอนที่ต้องทำตอนนี้</small>
         <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทางไปจุดรับ" : nextAction.label}</strong>

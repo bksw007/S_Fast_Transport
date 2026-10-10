@@ -2,10 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { deleteDriverProofDraft, loadDriverProofDraft, saveDriverProofDraft, type DriverProofDraft } from "@/lib/driver-proof-draft";
 
-type ProofDraft = { photos: (File | null)[]; signerName: string; signature: Blob | null };
-const proofDrafts = new Map<string, ProofDraft>();
+const proofDrafts = new Map<string, DriverProofDraft>();
 export function clearDriverProofDrafts() { proofDrafts.clear(); }
+export async function clearDriverProofDraft(key: string) {
+  proofDrafts.delete(key);
+  await deleteDriverProofDraft(key);
+}
 
 export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: {
   stage: "pickup" | "delivery";
@@ -26,10 +30,46 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
   const [draftSigned, setDraftSigned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [restoring, setRestoring] = useState(() => !proofDrafts.has(draftKey));
+  const [draftStorage, setDraftStorage] = useState<"saving" | "saved" | "error">("saving");
+  const previousMedia = useRef({ photos, signature });
 
   useEffect(() => {
-    proofDrafts.set(draftKey, { photos, signerName, signature });
-  }, [draftKey, photos, signerName, signature]);
+    if (proofDrafts.has(draftKey)) return;
+    let active = true;
+    void loadDriverProofDraft(draftKey).then(saved => {
+      if (!active || !saved) return;
+      const draft = proofDrafts.get(draftKey) ?? saved;
+      setPhotos(draft.photos?.length >= 2 ? draft.photos : [null, null]);
+      setSignerName(draft.signerName ?? "");
+      setSignature(draft.signature ?? null);
+    }).catch(() => {
+      if (active) setDraftStorage("error");
+    }).finally(() => {
+      if (active) setRestoring(false);
+    });
+    return () => { active = false; };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (restoring) return;
+    const draft = { photos, signerName, signature };
+    proofDrafts.set(draftKey, draft);
+    const mediaChanged = previousMedia.current.photos !== photos || previousMedia.current.signature !== signature;
+    previousMedia.current = { photos, signature };
+    let active = true;
+    const persist = () => {
+      setDraftStorage("saving");
+      void saveDriverProofDraft(draftKey, draft).then(() => {
+        if (active) setDraftStorage("saved");
+      }).catch(() => {
+        if (active) setDraftStorage("error");
+      });
+    };
+    const timer = mediaChanged ? null : window.setTimeout(persist, 250);
+    if (mediaChanged) persist();
+    return () => { active = false; if (timer !== null) window.clearTimeout(timer); };
+  }, [draftKey, photos, signerName, signature, restoring]);
 
   useEffect(() => {
     const readers = photos.map((file, index) => {
@@ -143,7 +183,6 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     setError("");
     try {
       await onSubmit(selectedPhotos, signature, signerName);
-      proofDrafts.delete(draftKey);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "บันทึกหลักฐานไม่สำเร็จ";
       setError(message);
@@ -153,9 +192,12 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     }
   }
 
+  if (restoring) return <section className="driver-stop-proof"><h2>กำลังเปิดแบบร่างหลักฐาน...</h2><p>กำลังคืนรูปและลายเซ็นที่บันทึกไว้ในเครื่อง</p></section>;
+
   return <section className="driver-stop-proof">
     <h2>{stage === "pickup" ? "ยืนยันรับสินค้า" : "ยืนยันส่งสินค้า"}</h2>
     <p>ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้{stage === "pickup" ? "ผู้ส่ง" : "ผู้รับ"}เซ็นชื่อก่อนเดินทางต่อ</p>
+    <p className={`driver-proof-draft-state ${draftStorage}`} role="status">{draftStorage === "saved" ? "✓ แบบร่างเก็บไว้ในเครื่องแล้ว เปิดแอปใหม่ได้หากการส่งสะดุด" : draftStorage === "error" ? "บันทึกแบบร่างในเครื่องไม่ได้ กรุณาตรวจพื้นที่ว่างของอุปกรณ์" : "กำลังเก็บแบบร่างในเครื่อง..."}</p>
     <div className="driver-proof-photos">{photos.map((file, index) => <div className="driver-proof-photo" key={index}>
       <span>รูปสินค้า {index + 1} {photos[index] ? "✓" : "· ยังไม่มีรูป"}</span>
       {previews[index] && photos[index] && <Image unoptimized src={previews[index]} alt={`รูปสินค้า ${index + 1}`} width={320} height={220} />}

@@ -19,7 +19,7 @@ import {
   type DocumentData,
   type Unsubscribe
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes, uploadBytesResumable, type UploadTask } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { loadCompanySettings } from "./settings-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
@@ -625,24 +625,93 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
   await syncActiveShareLinks(job, status);
 }
 
-export async function uploadStopProof(job: TransportJob, stage: "pickup" | "delivery", photos: File[], signature: Blob, signerName: string, actor: UserProfile): Promise<StopProof> {
+export async function uploadStopProof(job: TransportJob, stage: "pickup" | "delivery", photos: File[], signature: Blob, signerName: string, actor: UserProfile, onProgress?: (percent: number, detail: string) => void): Promise<StopProof> {
   if (photos.length < 2 || !signerName.trim() || !signature.size) throw new Error("ต้องมีรูปอย่างน้อย 2 รูป ชื่อผู้เซ็น และลายเซ็น");
-  const photoPaths: string[] = [];
+  if (signature.size > MAX_STORED_IMAGE_BYTES) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
+  onProgress?.(0, "กำลังเตรียมรูปหลักฐาน");
+  const preparedPhotos: File[] = [];
   for (const [index, file] of photos.entries()) {
     if (!isImageFile(file) || file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("รูปสินค้าไม่ถูกต้องหรือมีขนาดเกินกำหนด");
-    const compressed = await compressImageForUpload(file);
-    const extension = compressed.type === "image/png" ? "png" : compressed.type === "image/webp" ? "webp" : "jpg";
-    const path = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${stage}-${index}.${extension}`;
-    const result = await uploadBytes(ref(storage, path), compressed, { contentType: compressed.type });
-    const downloadUrl = await getDownloadURL(result.ref);
-    await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? actor.organizationId ?? "main", uploadedByUid: actor.uid, uploadedByName: actor.displayName, fileName: `${stage}-photo-${index + 1}.${extension}`, storagePath: path, downloadUrl, contentType: compressed.type, size: compressed.size, proofStage: stage, proofKind: "photo", createdAt: serverTimestamp() });
-    photoPaths.push(path);
+    preparedPhotos.push(await compressImageForUpload(file));
+    onProgress?.(Math.round((index + 1) / photos.length * 10), `เตรียมรูปสินค้า ${index + 1}/${photos.length} แล้ว`);
   }
-  if (signature.size > MAX_STORED_IMAGE_BYTES) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
-  const signaturePath = `proof_of_delivery/${job.id}/${actor.uid}/${Date.now()}-${stage}-signature.png`;
-  const result = await uploadBytes(ref(storage, signaturePath), signature, { contentType: "image/png" });
-  const downloadUrl = await getDownloadURL(result.ref);
-  await addDoc(collection(db, "proof_of_delivery"), { jobId: job.id, organizationId: job.organizationId ?? actor.organizationId ?? "main", uploadedByUid: actor.uid, uploadedByName: actor.displayName, fileName: `${stage}-signature.png`, storagePath: signaturePath, downloadUrl, contentType: "image/png", size: signature.size, proofStage: stage, proofKind: "signature", signerName: signerName.trim(), createdAt: serverTimestamp() });
+  const uploadId = crypto.randomUUID();
+  const assets = [...preparedPhotos.map((file, index) => {
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    return { file, path: `proof_of_delivery/${job.id}/${actor.uid}/${uploadId}-${stage}-${index}.${extension}`, name: `${stage}-photo-${index + 1}.${extension}`, kind: "photo" as const };
+  }), { file: signature, path: `proof_of_delivery/${job.id}/${actor.uid}/${uploadId}-${stage}-signature.png`, name: `${stage}-signature.png`, kind: "signature" as const }];
+  const uploadedBytes = assets.map(() => 0);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.file.size, 0);
+  const stallMessage = "การอัปโหลดไม่มีความคืบหน้าเกิน 60 วินาที กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง";
+  let lastPercent = 10;
+  const reportUpload = () => {
+    const percent = Math.min(85, 10 + Math.floor(uploadedBytes.reduce((sum, bytes) => sum + bytes, 0) / totalBytes * 75));
+    if (percent > lastPercent) {
+      lastPercent = percent;
+      onProgress?.(percent, "กำลังอัปโหลดรูปและลายเซ็น");
+    }
+  };
+  let nextAsset = 0;
+  const tasks: UploadTask[] = [];
+  try {
+    await Promise.all(Array.from({ length: Math.min(3, assets.length) }, async () => {
+      while (nextAsset < assets.length) {
+        const index = nextAsset++;
+        const asset = assets[index];
+        const task = uploadBytesResumable(ref(storage, asset.path), asset.file, { contentType: asset.file.type || "image/png" });
+        tasks.push(task);
+        await new Promise<void>((resolve, reject) => {
+          let stalled = false;
+          let lastBytes = 0;
+          let timeout = window.setTimeout(() => { stalled = true; task.cancel(); }, 60_000);
+          const clearStallTimer = () => window.clearTimeout(timeout);
+          task.on("state_changed", snapshot => {
+            uploadedBytes[index] = snapshot.bytesTransferred;
+            reportUpload();
+            if (snapshot.bytesTransferred > lastBytes) {
+              lastBytes = snapshot.bytesTransferred;
+              clearStallTimer();
+              timeout = window.setTimeout(() => { stalled = true; task.cancel(); }, 60_000);
+            }
+          }, error => {
+            clearStallTimer();
+            reject(stalled ? new Error(stallMessage) : error);
+          }, () => {
+            clearStallTimer();
+            resolve();
+          });
+        });
+        uploadedBytes[index] = asset.file.size;
+        reportUpload();
+      }
+    }));
+  } catch (error) {
+    tasks.forEach(task => task.cancel());
+    throw error;
+  }
+  onProgress?.(85, "อัปโหลดครบแล้ว กำลังลงทะเบียนหลักฐาน");
+  const downloadUrls = await Promise.all(assets.map(asset => getDownloadURL(ref(storage, asset.path))));
+  onProgress?.(90, "กำลังบันทึกข้อมูลหลักฐาน");
+  const batch = writeBatch(db);
+  assets.forEach((asset, index) => batch.set(doc(collection(db, "proof_of_delivery")), {
+    jobId: job.id,
+    organizationId: job.organizationId ?? actor.organizationId ?? "main",
+    uploadedByUid: actor.uid,
+    uploadedByName: actor.displayName,
+    fileName: asset.name,
+    storagePath: asset.path,
+    downloadUrl: downloadUrls[index],
+    contentType: asset.file.type || "image/png",
+    size: asset.file.size,
+    proofStage: stage,
+    proofKind: asset.kind,
+    ...(asset.kind === "signature" ? { signerName: signerName.trim() } : {}),
+    createdAt: serverTimestamp()
+  }));
+  await batch.commit();
+  onProgress?.(95, "หลักฐานครบแล้ว กำลังยืนยันขั้นตอนงาน");
+  const photoPaths = assets.slice(0, -1).map(asset => asset.path);
+  const signaturePath = assets[assets.length - 1].path;
   return { photoPaths, signaturePath, signerName: signerName.trim(), signedAt: new Date().toISOString() };
 }
 
