@@ -86,7 +86,7 @@ stale-location alert at most once per hour until the GPS recovers.
 When a driver replaces a pickup or delivery photo, `removeReplacedProofPhoto`
 deletes the superseded Storage object and its proof record after the new photo
 is saved. The job event remains as an audit entry. Deploy this Firestore trigger
-with `firebase deploy --only functions:removeReplacedProofPhoto`.
+with `firebase deploy --only functions:proof-cleanup`.
 
 Driver mobile env in `apps/mobile/.env` (parked):
 

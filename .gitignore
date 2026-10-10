@@ -12,3 +12,4 @@ firestore-debug.log
 output
 .vercel
 functions/lib/
+functions-proof/lib/

@@ -1,11 +1,9 @@
 {
-  "name": "@s-fast-transport/functions",
+  "name": "@s-fast-transport/proof-cleanup",
   "private": true,
   "version": "0.1.0",
   "main": "lib/index.js",
-  "engines": {
-    "node": "20"
-  },
+  "engines": { "node": "22" },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
@@ -13,11 +11,9 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
     "firebase-admin": "^14.2.0",
-    "firebase-functions": "^7.3.2",
-    "web-push": "^3.6.7"
+    "firebase-functions": "^7.3.2"
   },
   "devDependencies": {
-    "@types/web-push": "^3.6.4",
     "typescript": "^5.7.2"
   }
 }
