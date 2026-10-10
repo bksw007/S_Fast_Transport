@@ -5,10 +5,12 @@ const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const compile = text => ts.transpileModule(text, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+const shared = { exports: {} };
+vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
 let slots = [], cursor = 0, selected;
 const context = { React, exports: {}, require: name => {
   if (name === 'react') return { ...React, useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = value; }]; } };
-  if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'Assigned', completed: 'Completed', cancelled: 'Cancelled', problem: 'Problem' } };
+  if (name === '@s-fast-transport/shared') return shared.exports;
   return require(name);
 }};
 vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboard.tsx', 'utf8')), context);
@@ -44,7 +46,7 @@ function visit(node) {
 }
 visit(file);
 let received, opened;
-const navigation = { React, adminScreen: 'Dashboard', mode: 'admin', jobs, activeJobs: jobs.slice(0, 2), jobsState: 'ready', selectedJob: jobs[2], selectedJobId: 'done', jobDetailOpen: true, canWrite: true, profile: {},
+const navigation = { React, adminScreen: 'Dashboard', mode: 'admin', jobs, deletedJobs: [], activeJobs: jobs.slice(0, 2), jobsState: 'ready', selectedJob: jobs[2], selectedJobId: 'done', jobDetailOpen: true, canWrite: true, profile: {},
   setSelectedJobId: id => { selected = id; }, setJobDetailOpen: value => { opened = value; },
   AdminDashboard: props => { received = props; return React.createElement('div'); },
   JobDetailModal: props => props.children, JobDetail: props => React.createElement('div', null, props.job.id), GoogleLiveMap: () => null,

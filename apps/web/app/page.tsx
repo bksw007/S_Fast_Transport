@@ -75,7 +75,6 @@ import {
   adminMenu,
   driverActions,
   driverMenu,
-  sampleJobs,
   statusLabels,
   type JobPlace,
   type JobStatus,
@@ -227,6 +226,12 @@ type DriverScreen = (typeof driverMenu)[number];
 type AdminScreen = (typeof adminMenu)[number];
 
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const emptySelectedJob: TransportJob = {
+  id: "", workOrder: "", customer: "", driverName: "", driverPhone: "", vehiclePlate: "",
+  pickupLocation: "", deliveryLocation: "", status: "assigned", trackingStatus: "not_started",
+  trackingEnabled: false, eta: "", lastUpdatedMinutes: 0,
+  currentLocation: { lat: 0, lng: 0, speed: 0, heading: 0, accuracy: 0, updatedAt: "" }, alerts: []
+};
 let googleMapsLoader: Promise<void> | null = null;
 
 function readAppearance(): { theme: "light" | "dark"; fontScale: number } {
@@ -410,10 +415,10 @@ export default function Home() {
   }, [ownDriverJobs, profile, adminDriverMode]);
 
   const selectedJob = useMemo(
-    () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? sampleJobs[0],
+    () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? emptySelectedJob,
     [jobs, selectedJobId]
   );
-  const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? sampleJobs[0];
+  const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? emptySelectedJob;
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
   const canWrite = Boolean(profile && hasApprovedAccess(profile));
 
