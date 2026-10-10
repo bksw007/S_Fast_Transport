@@ -1623,6 +1623,8 @@ function DriverView({
   const stopLocation = stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
   const stopPlace = stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
   const stopPhone = stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
+  const canNavigate = Boolean(!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? ""));
+  const backButton = <button className="driver-step-back" type="button" aria-label="กลับไปงานวันนี้" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับ</button>;
   const [finishOpen, setFinishOpen] = useState(false);
   const finishRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -1632,7 +1634,7 @@ function DriverView({
   }, [finishOpen]);
 
   return (
-    <section className="screen">
+    <section className="screen driver-workflow-screen">
       <div className="section-title">
         <div>
           <h1>กำลังขนส่ง</h1>
@@ -1641,7 +1643,7 @@ function DriverView({
         <span className="live-dot">{job.trackingEnabled ? "Live" : "Standby"}</span>
       </div>
 
-      {showingProofForm && <button className="driver-proof-back" type="button" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับไปงานวันนี้</button>}
+      {showingProofForm && <div className="driver-step-actions solo">{backButton}</div>}
       {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
         const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
         await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
@@ -1652,10 +1654,11 @@ function DriverView({
         <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว ตรวจทานก่อนจบงานและหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
         <button className={nextAction.id === "start_tracking" ? "driver-action-accept" : nextAction.id === "completed" ? "driver-action-finish" : ""} disabled={!canWrite} onClick={() => nextAction.id === "completed" ? setFinishOpen(true) : onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
       </div>}
-      {!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? "") && <div className="driver-quick-actions">
-        <a href={stopNavigationUrl(stopLocation, stopPlace)} target="_blank" rel="noreferrer"><Navigation size={19} /> นำทางไปจุด{stop === "pickup" ? "รับ" : "ส่ง"}</a>
-        {stopPhone && <a href={`tel:${stopPhone.replace(/[^+\d]/g, "")}`}><Phone size={19} /> โทรหาผู้ติดต่อ</a>}
+      {!showingProofForm && <div className={`driver-step-actions${canNavigate ? "" : " solo"}`}>
+        {backButton}
+        {canNavigate && <a className="driver-step-navigation" href={stopNavigationUrl(stopLocation, stopPlace)} target="_blank" rel="noreferrer"><Navigation size={19} /> นำทางไปจุด{stop === "pickup" ? "รับ" : "ส่ง"}</a>}
       </div>}
+      {canNavigate && stopPhone && <a className="driver-step-call" href={`tel:${stopPhone.replace(/[^+\d]/g, "")}`}><Phone size={19} /> โทรหาผู้ติดต่อ</a>}
       {!job.lastIssue?.resolvedAt && job.status === "problem" && <article className="driver-waiting-admin"><AlertTriangle size={20} /><span><strong>แอดมินรับเรื่องแล้ว</strong><small>กำลังรอคำตอบ คุณดูรายละเอียดงานหรือแจ้งข้อมูลเพิ่มเติมได้</small></span></article>}
       {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
       {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}

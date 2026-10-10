@@ -3886,9 +3886,16 @@ h2 {
 .driver-issue-sheet > header > button { width: 39px; height: 39px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; background: var(--surface-2); }
 
 .driver-issue-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.driver-workflow-screen { display: grid; align-content: start; gap: 16px; }
+.driver-workflow-screen > .section-title { margin: 10px 0 0; }
+.driver-workflow-screen > .job-report-issue { margin-top: 0; }
 .driver-current-action, .driver-stop-proof { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
-.driver-proof-back { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; color: var(--accent); background: var(--surface); font-size: .8rem; font-weight: 800; }
-.driver-proof-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.driver-step-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.driver-step-actions.solo { grid-template-columns: minmax(0, 1fr); }
+.driver-step-actions > *, .driver-step-call { min-width: 0; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 12px; color: var(--accent); background: var(--surface); font-size: .8rem; font-weight: 800; text-align: center; }
+.driver-step-actions .driver-step-navigation { border-color: var(--success); color: var(--success); }
+.driver-step-actions .driver-step-navigation:hover { background: var(--success-soft); }
+.driver-step-actions > :focus-visible, .driver-step-call:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .driver-current-action small { color: var(--muted); font-weight: 800; }
 .driver-current-action strong { font-size: 1.18rem; }
 .driver-current-action p, .driver-stop-proof p { margin: 0; color: var(--muted); }
@@ -4024,8 +4031,6 @@ h2 {
 .driver-status-content h2 { margin: 0; font-size: 1.25rem; }
 .driver-status-content p { margin: 0 0 5px; color: var(--muted); line-height: 1.55; }
 .driver-status-content button { width: 100%; min-height: 50px; border-radius: 11px; color: #fff; background: var(--accent); font-weight: 800; }
-.driver-quick-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-.driver-quick-actions a { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px; border: 1px solid var(--border); border-radius: 12px; color: var(--accent); background: var(--surface); font-size: .8rem; font-weight: 800; text-align: center; }
 .driver-waiting-admin { display: flex; gap: 9px; padding: 13px; border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border)); border-radius: 12px; color: #9a5d00; background: var(--warning-soft); }
 .driver-waiting-admin span { display: grid; gap: 3px; }
 .driver-waiting-admin small { color: var(--text); line-height: 1.45; }
