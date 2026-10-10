@@ -1655,7 +1655,7 @@ function DriverView({
       </div>}
       {!job.lastIssue?.resolvedAt && job.status === "problem" && <article className="driver-waiting-admin"><AlertTriangle size={20} /><span><strong>แอดมินรับเรื่องแล้ว</strong><small>กำลังรอคำตอบ คุณดูรายละเอียดงานหรือแจ้งข้อมูลเพิ่มเติมได้</small></span></article>}
       {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
-      {!showingProofForm && !["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}
+      {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}
       {canWrite && <DriverProofPhotoEditor job={job} actor={profile} onNotice={onNotice} />}
 
       <CompactJobCard
