@@ -4026,6 +4026,10 @@ h2 {
 .driver-status-dialog:not(:has(button)) .driver-status-content { padding-bottom: 27px; }
 .driver-status-content { display: grid; justify-items: center; gap: 12px; padding: 27px 22px 22px; text-align: center; }
 .driver-status-icon { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 19px; color: var(--success); background: var(--success-soft); }
+.driver-status-dialog.pending .driver-status-icon { color: var(--accent); background: var(--surface-2); }
+.driver-status-dialog.pending .driver-status-icon svg { animation: driver-status-spin 1.2s linear infinite; }
+@keyframes driver-status-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .driver-status-dialog.pending .driver-status-icon svg { animation: none; } }
 .driver-status-dialog.warning .driver-status-icon { color: #9a5d00; background: var(--warning-soft); }
 .driver-status-dialog.error .driver-status-icon { color: var(--danger); background: var(--danger-soft); }
 .driver-status-content h2 { margin: 0; font-size: 1.25rem; }

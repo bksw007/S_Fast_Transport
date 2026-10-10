@@ -443,6 +443,7 @@ export default function Home() {
 
   async function handleDriverAction(status: JobStatus, targetJob = selectedJob) {
     if (!profile) return;
+    setDriverNotice({ title: status === "accepted" ? "กำลังเริ่มงาน" : status === "completed" ? "กำลังจบงาน" : "กำลังบันทึกสถานะ", detail: `ใบงาน ${targetJob.workOrder} · กรุณารอสักครู่`, tone: "pending" });
     setBusyMessage(status === "accepted" ? "กำลังขอสิทธิ์และเริ่ม GPS..." : "กำลังบันทึก...");
     try {
       if (status === "accepted") {
@@ -1664,6 +1665,7 @@ function DriverView({
 
       {showingProofForm && <div className="driver-step-actions solo">{backButton}</div>}
       {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
+        onNotice({ title: "กำลังบันทึกหลักฐาน", detail: `กำลังส่งรูปและลายเซ็นจุด${proofStage === "pickup" ? "รับ" : "ส่ง"} กรุณารอสักครู่`, tone: "pending" });
         const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
         await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
         onNotice({ title: proofStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: proofStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success" });

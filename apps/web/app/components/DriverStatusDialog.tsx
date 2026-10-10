@@ -1,24 +1,25 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { AlertTriangle, CheckCircle2, WifiOff } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { AlertTriangle, CheckCircle2, LoaderCircle, WifiOff } from "lucide-react";
 
-export type DriverNotice = { title: string; detail: string; tone: "success" | "warning" | "error" };
+export type DriverNotice = { title: string; detail: string; tone: "pending" | "success" | "warning" | "error" };
 
 export default function DriverStatusDialog({ notice, onClose }: { notice: DriverNotice; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = dialogRef.current;
-    dialog?.showModal();
+    if (dialog && !dialog.open) dialog.showModal();
     return () => dialog?.close();
   }, []);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
   useEffect(() => {
+    if (notice.tone === "pending") return;
     const timer = window.setTimeout(() => closeRef.current(), notice.tone === "success" ? 3000 : 5000);
     return () => window.clearTimeout(timer);
   }, [notice.title, notice.detail, notice.tone]);
-  const Icon = notice.tone === "success" ? CheckCircle2 : notice.tone === "error" ? WifiOff : AlertTriangle;
+  const Icon = notice.tone === "success" ? CheckCircle2 : notice.tone === "error" ? WifiOff : notice.tone === "pending" ? LoaderCircle : AlertTriangle;
   return <dialog ref={dialogRef} className={`driver-status-dialog ${notice.tone}`} onCancel={event => { event.preventDefault(); onClose(); }} aria-labelledby="driver-status-title">
     <div className="driver-status-content" role="status">
       <span className="driver-status-icon"><Icon size={31} /></span>
