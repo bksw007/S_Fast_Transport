@@ -18,6 +18,7 @@ import SettingsScreen, { type AppearanceSettings } from "./components/SettingsSc
 import LocationManagementScreen from "./components/LocationManagementScreen";
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   BarChart3,
   Bell,
@@ -573,6 +574,7 @@ export default function Home() {
               trackingMessage={trackingMessage}
               onSelectJob={setSelectedJobId}
               onOpenWorkflow={() => setDriverScreen("กำลังขนส่ง")}
+              onBackToJobs={() => setDriverScreen("งานวันนี้")}
               onAction={handleDriverAction}
               onReportIssue={setIssueJob}
               onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
@@ -773,6 +775,7 @@ function DriverMobileScreen({
   trackingMessage,
   onSelectJob,
   onOpenWorkflow,
+  onBackToJobs,
   onAction,
   onReportIssue,
   onUpload,
@@ -788,6 +791,7 @@ function DriverMobileScreen({
   trackingMessage: string;
   onSelectJob: (jobId: string) => void;
   onOpenWorkflow: () => void;
+  onBackToJobs: () => void;
   onAction: (status: JobStatus, job?: TransportJob) => void;
   onReportIssue: (job: TransportJob) => void;
   onUpload: (file: File) => void;
@@ -824,7 +828,7 @@ function DriverMobileScreen({
     return <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="งานที่เสร็จแล้วดูได้ในเมนูประวัติงาน" />;
   }
 
-  return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} onNotice={onNotice} />;
+  return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} onNotice={onNotice} onBackToJobs={onBackToJobs} />;
 }
 
 function AdminMobileScreen({
@@ -1595,7 +1599,8 @@ function DriverView({
   trackingMessage,
   onAction,
   onReportIssue,
-  onNotice
+  onNotice,
+  onBackToJobs
 }: {
   job: TransportJob;
   profile: UserProfile;
@@ -1604,11 +1609,13 @@ function DriverView({
   onAction: (status: JobStatus) => void;
   onReportIssue: () => void;
   onNotice: (notice: DriverNotice) => void;
+  onBackToJobs: () => void;
 }) {
   const nextAction = nextDriverAction(job);
   const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
   const currentStep = Math.max(0, statusOrder.indexOf(effectiveStatus ?? job.status));
   const proofStage = effectiveStatus === "arrived_pickup" || effectiveStatus === "loading" ? "pickup" : effectiveStatus === "arrived_delivery" || effectiveStatus === "unloading" ? "delivery" : null;
+  const showingProofForm = Boolean(proofStage && canWrite);
   const stop = activeDriverStop(job);
   const stopLocation = stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
   const stopPlace = stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
@@ -1631,6 +1638,7 @@ function DriverView({
         <span className="live-dot">{job.trackingEnabled ? "Live" : "Standby"}</span>
       </div>
 
+      {showingProofForm && <button className="driver-proof-back" type="button" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับไปงานวันนี้</button>}
       {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
         const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile);
         await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
@@ -1641,13 +1649,13 @@ function DriverView({
         <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว ตรวจทานก่อนจบงานและหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
         <button className={nextAction.id === "start_tracking" ? "driver-action-accept" : nextAction.id === "completed" ? "driver-action-finish" : ""} disabled={!canWrite} onClick={() => nextAction.id === "completed" ? setFinishOpen(true) : onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
       </div>}
-      {stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? "") && <div className="driver-quick-actions">
+      {!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? "") && <div className="driver-quick-actions">
         <a href={stopNavigationUrl(stopLocation, stopPlace)} target="_blank" rel="noreferrer"><Navigation size={19} /> นำทางไปจุด{stop === "pickup" ? "รับ" : "ส่ง"}</a>
         {stopPhone && <a href={`tel:${stopPhone.replace(/[^+\d]/g, "")}`}><Phone size={19} /> โทรหาผู้ติดต่อ</a>}
       </div>}
       {!job.lastIssue?.resolvedAt && job.status === "problem" && <article className="driver-waiting-admin"><AlertTriangle size={20} /><span><strong>แอดมินรับเรื่องแล้ว</strong><small>กำลังรอคำตอบ คุณดูรายละเอียดงานหรือแจ้งข้อมูลเพิ่มเติมได้</small></span></article>}
       {job.lastIssue?.resolutionNote && <article className="privacy-card"><CheckCircle2 size={20} /><div><strong>ผู้ดูแลตอบกลับปัญหาแล้ว</strong><p>{job.lastIssue.resolutionNote}</p></div></article>}
-      {!["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}
+      {!showingProofForm && !["assigned", "completed", "cancelled"].includes(effectiveStatus ?? "") && <button className="job-report-issue" type="button" disabled={!canWrite} onClick={onReportIssue}><AlertTriangle size={20} /> แจ้งปัญหาหรือทำขั้นตอนต่อไม่ได้</button>}
       {canWrite && <DriverProofPhotoEditor job={job} actor={profile} onNotice={onNotice} />}
 
       <CompactJobCard

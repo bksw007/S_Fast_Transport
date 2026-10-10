@@ -3887,6 +3887,8 @@ h2 {
 
 .driver-issue-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .driver-current-action, .driver-stop-proof { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
+.driver-proof-back { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; color: var(--accent); background: var(--surface); font-size: .8rem; font-weight: 800; }
+.driver-proof-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .driver-current-action small { color: var(--muted); font-weight: 800; }
 .driver-current-action strong { font-size: 1.18rem; }
 .driver-current-action p, .driver-stop-proof p { margin: 0; color: var(--muted); }
