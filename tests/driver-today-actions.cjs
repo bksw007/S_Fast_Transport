@@ -83,7 +83,7 @@ const issueButton = renderedNodes.find(node => node.props?.className === 'job-re
 assert.ok(issueButton, 'active job exposes issue reporting');
 issueButton.props.onClick();
 assert.equal(issueJobId, 'job-1');
-const button = nodes(tree).find(node => node.props?.className === 'job-next-action');
+const button = nodes(tree).find(node => node.type === 'button' && String(node.props?.className || '').split(/\s+/).includes('job-next-action'));
 assert.ok(button, 'expanded today job must show its next action');
 assert.match(React.Children.toArray(button.props.children).join(''), /ถึงจุดรับสินค้า/);
 button.props.onClick();
