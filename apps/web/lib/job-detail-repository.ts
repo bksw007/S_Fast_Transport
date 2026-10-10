@@ -1,6 +1,6 @@
 import { collection, deleteField, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where, writeBatch, type DocumentData } from "firebase/firestore";
 import { db } from "./firebase";
-import { hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
+import { canReceiveDriverJobs, hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
 import type { TransportJob } from "@s-fast-transport/shared";
 import { coordinateFingerprint } from "./google-routes-distance";
 import { validateJobEditDraft, type JobEditDraft } from "./job-edit";
@@ -92,7 +92,7 @@ async function loadDriverAssignment(driverId: string, organizationId: string) {
   if (driver.organizationId !== organizationId || driver.status === "inactive" || !driver.userUid) throw new Error("คนขับไม่พร้อมใช้งานหรือไม่ได้อยู่ในบริษัทนี้");
   const userSnapshot = await getDoc(doc(db, "users", driver.userUid));
   const user = userSnapshot.data();
-  if (!user || user.role !== "driver" || user.active !== true || user.approvalStatus !== "approved" || user.organizationId !== organizationId) {
+  if (!user || !canReceiveDriverJobs(user as UserProfile, organizationId)) {
     throw new Error("บัญชีแอปของคนขับยังไม่พร้อมรับงาน");
   }
   return { driverId, assignedDriverUid: driver.userUid as string, driverName: String(user.fullName || driver.name), driverPhone: String(user.phone || driver.phone || "") };

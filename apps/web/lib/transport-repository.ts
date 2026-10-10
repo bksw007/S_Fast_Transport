@@ -400,7 +400,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
   if (!driver.userUid) throw new Error("คนขับยังไม่เชื่อมบัญชีแอป กรุณาเชื่อมบัญชีในเมนูรถและคนขับก่อน");
   const userSnapshot = await getDoc(doc(db, "users", driver.userUid));
   const assignedUser = userSnapshot.data();
-  if (!assignedUser || assignedUser.role !== "driver" || assignedUser.active !== true || assignedUser.approvalStatus !== "approved" || assignedUser.organizationId !== organizationId) {
+  if (!assignedUser || !canReceiveDriverJobs(assignedUser as UserProfile, organizationId)) {
     throw new Error("บัญชีแอปของคนขับยังไม่พร้อมรับงาน กรุณาตรวจสอบในเมนูรถและคนขับ");
   }
 
@@ -898,6 +898,11 @@ function toJobPlace(value: unknown): JobPlace | undefined {
 
 export function isMainAdmin(profile: UserProfile) {
   return ["owner", "admin", "dispatcher"].includes(profile.role);
+}
+
+export function canReceiveDriverJobs(profile: Pick<UserProfile, "role" | "active" | "approvalStatus" | "organizationId">, organizationId: string) {
+  return ["driver", "owner", "admin", "dispatcher", "subcontract_admin"].includes(profile.role)
+    && profile.active && profile.approvalStatus === "approved" && profile.organizationId === organizationId;
 }
 
 export function hasApprovedAccess(profile: UserProfile) {

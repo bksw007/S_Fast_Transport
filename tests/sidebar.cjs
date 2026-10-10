@@ -9,14 +9,16 @@ vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const file = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const code = file.statements.filter(n => ts.isFunctionDeclaration(n) && n.name?.text === 'SectionMenu' || ts.isVariableStatement(n) && /^const (adminMenuDetails|driverMenuDetails)/.test(n.getText(file))).map(n => n.getText(file)).join('\n');
-let signedOut = false, selected, closed;
+let signedOut = false, selected, closed, enteredDriver = false, leftDriver = false;
 const context = { React, ...require('lucide-react'), ...shared.exports, auth: {}, signOut: () => { signedOut = true; }, isMainAdmin: profile => profile.role === 'admin' };
 vm.runInNewContext(compile(code), context);
 function nodes(node) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
-function menu(mode, role) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount: 3, adminScreen: 'Dashboard', driverScreen: 'งานวันนี้', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; } })); }
+function menu(mode, role) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount: 3, adminScreen: 'Dashboard', driverScreen: 'งานวันนี้', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; }, onEnterDriverMode: () => { enteredDriver = true; }, onLeaveDriverMode: () => { leftDriver = true; } })); }
 let rendered = menu('admin', 'admin');
 let links = rendered.filter(n => n.type === 'button' && n.props.title);
-assert.equal(links.length, shared.exports.adminMenu.length + 1); // Navigation entries and sign out.
+assert.equal(links.length, shared.exports.adminMenu.length + 2); // Navigation entries, admin driver, and sign out.
+links.find(n => n.props.title === 'ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง').props.onClick();
+assert.equal(enteredDriver, true);
 const dataGroup = rendered.find(n => n.type === "section" && n.props?.["aria-label"] === "ข้อมูลและรายงาน");
 assert.ok(nodes(dataGroup).some(n => n.props?.title === "ผู้ติดต่อจุดรับและจุดส่ง"));
 links.find(n => n.props.title === "ผู้ติดต่อจุดรับและจุดส่ง").props.onClick();
@@ -31,5 +33,8 @@ rendered = menu('admin', 'subcontract_admin');
 assert.ok(!rendered.some(n => n.props?.title === 'สิทธิ์ Google Login' || n.props?.title === 'ซับคอนแท็ค' || n.props?.title === 'ลูกค้าและลิงก์ติดตาม'));
 rendered = menu('driver', 'driver');
 assert.equal(rendered.filter(n => n.type === 'button' && n.props.title).length, 7);
+const adminDriverMenu = menu('driver', 'admin');
+adminDriverMenu.find(n => n.props.className === 'sidebar-return-admin').props.onClick();
+assert.equal(leftDriver, true);
 rendered.find(n => n.props?.['aria-label'] === 'เปิดโปรไฟล์ของฉัน').props.onClick(); assert.equal(selected, 'โปรไฟล์');
 console.log('PASS: sidebar preserves all role-specific destinations, active state, profile and sign out');

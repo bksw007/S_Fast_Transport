@@ -102,6 +102,7 @@ import {
 } from "@/lib/profile-repository";
 import {
   createJob,
+  canReceiveDriverJobs,
   ensureAccessProfile,
   formatJobDateKey,
   getUserProfile,
@@ -266,6 +267,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [driverScreen, setDriverScreen] = useState<DriverScreen>(driverMenu[0]);
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
+  const [adminDriverMode, setAdminDriverMode] = useState(false);
   const [pendingAccessCount, setPendingAccessCount] = useState(0);
   const [trackingMessage, setTrackingMessage] = useState("พร้อมขอตำแหน่งเมื่อกดเริ่มแชร์");
   const [issueJob, setIssueJob] = useState<TransportJob | null>(null);
@@ -273,6 +275,7 @@ export default function Home() {
   const seenResolution = useRef(new Map<string, string>());
   const seenDriverJobs = useRef(new Map<string, JobStatus>());
   const resolutionReady = useRef(false);
+  const ownDriverJobs = useMemo(() => jobs.filter(job => job.assignedDriverUid === profile?.uid), [jobs, profile?.uid]);
 
   useEffect(() => {
     seenResolution.current.clear();
@@ -281,28 +284,28 @@ export default function Home() {
   }, [profile?.uid]);
 
   useEffect(() => {
-    if (!profile || profile.role !== "driver" || jobsState !== "ready") return;
-    const issued = jobs.filter(job => job.lastIssue);
+    if (!profile || (profile.role !== "driver" && !adminDriverMode) || jobsState !== "ready") return;
+    const issued = ownDriverJobs.filter(job => job.lastIssue);
     const resolved = issued.filter(job => job.lastIssue?.resolvedAt && job.lastIssue.resolutionNote);
     if (resolutionReady.current) {
       const changed = resolved.find(job => seenResolution.current.has(job.id) && seenResolution.current.get(job.id) !== job.lastIssue?.resolvedAt);
-      const cancelled = jobs.find(job => seenDriverJobs.current.has(job.id) && seenDriverJobs.current.get(job.id) !== "cancelled" && job.status === "cancelled");
-      const assigned = jobs.find(job => !seenDriverJobs.current.has(job.id) && job.status === "assigned");
+      const cancelled = ownDriverJobs.find(job => seenDriverJobs.current.has(job.id) && seenDriverJobs.current.get(job.id) !== "cancelled" && job.status === "cancelled");
+      const assigned = ownDriverJobs.find(job => !seenDriverJobs.current.has(job.id) && job.status === "assigned");
       if (changed) setDriverNotice({ title: "แอดมินตอบกลับแล้ว", detail: `ใบงาน ${changed.workOrder}: ${changed.lastIssue?.resolutionNote}`, tone: "success" });
       else if (cancelled) setDriverNotice({ title: "งานถูกยกเลิก", detail: `ใบงาน ${cancelled.workOrder} ย้ายไปอยู่ในประวัติงานแล้ว`, tone: "warning" });
       else if (assigned) setDriverNotice({ title: "ได้รับงานใหม่", detail: `ใบงาน ${assigned.workOrder} · เปิดงานวันนี้เพื่อดูขั้นตอนแรก`, tone: "success" });
     }
     seenResolution.current = new Map(issued.map(job => [job.id, job.lastIssue?.resolvedAt ?? ""]));
-    seenDriverJobs.current = new Map(jobs.map(job => [job.id, job.status]));
+    seenDriverJobs.current = new Map(ownDriverJobs.map(job => [job.id, job.status]));
     resolutionReady.current = true;
-  }, [jobs, jobsState, profile]);
+  }, [ownDriverJobs, jobsState, profile, adminDriverMode]);
 
   useEffect(() => {
-    if (!profile || profile.role !== "driver") return;
+    if (!profile || (profile.role !== "driver" && !adminDriverMode)) return;
     const offline = () => setDriverNotice({ title: "ไม่มีอินเทอร์เน็ต", detail: "ข้อมูลและรูปที่ยังไม่ส่งจะค้างอยู่บนหน้านี้ กรุณาเชื่อมต่อแล้วกดบันทึกอีกครั้ง", tone: "warning" });
     window.addEventListener("offline", offline);
     return () => window.removeEventListener("offline", offline);
-  }, [profile]);
+  }, [profile, adminDriverMode]);
 
   useEffect(() => {
     preparePwaInstallPromptCapture();
@@ -329,6 +332,7 @@ export default function Home() {
         setUser(nextUser);
         setProfile(null);
         setDeletedJobs([]);
+        setAdminDriverMode(false);
         setAuthReady(false);
 
         if (!nextUser) {
@@ -396,19 +400,20 @@ export default function Home() {
   }, [profile]);
 
   useEffect(() => {
-    if (!profile || profile.role !== "driver" || jobs.length === 0) return;
+    if (!profile || (profile.role !== "driver" && !adminDriverMode) || ownDriverJobs.length === 0) return;
     const storedJobId = getStoredTrackingJobId();
-    const storedJob = jobs.find((job) => job.id === storedJobId);
+    const storedJob = ownDriverJobs.find((job) => job.id === storedJobId);
     if (!storedJob) return;
     void resumePwaJobTrackingIfAllowed(storedJob, profile).then((resumed) => {
       if (resumed) setTrackingMessage("กำลังแชร์ตำแหน่ง · จะอัปเดตทันทีเมื่อกลับมาเปิดแอป");
     });
-  }, [jobs, profile]);
+  }, [ownDriverJobs, profile, adminDriverMode]);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? sampleJobs[0],
     [jobs, selectedJobId]
   );
+  const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? sampleJobs[0];
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
   const canWrite = Boolean(profile && hasApprovedAccess(profile));
 
@@ -503,7 +508,7 @@ export default function Home() {
     return <PendingAccessScreen user={user} profile={profile} />;
   }
 
-  const mode = profile.role === "driver" ? "driver" : "admin";
+  const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
 
   return (
     <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
@@ -562,6 +567,8 @@ export default function Home() {
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
           onAdminScreenChange={(screen) => { setJobDetailOpen(false); setAdminScreen(screen); }}
+          onEnterDriverMode={() => { setJobDetailOpen(false); setDriverScreen("งานวันนี้"); setSelectedJobId(ownDriverJobs[0]?.id ?? ""); setAdminDriverMode(true); }}
+          onLeaveDriverMode={() => { setAdminDriverMode(false); setSelectedJobId(""); }}
           onNavigate={() => setMobileMenuOpen(false)}
         />
 
@@ -570,17 +577,17 @@ export default function Home() {
             <DriverMobileScreen
               profile={profile}
               screen={driverScreen}
-              jobs={jobs}
-              selectedJob={selectedJob}
-              selectedJobId={selectedJob.id}
-              canWrite={canWrite && jobs.length > 0}
+              jobs={ownDriverJobs}
+              selectedJob={selectedDriverJob}
+              selectedJobId={selectedDriverJob.id}
+              canWrite={canWrite && ownDriverJobs.length > 0}
               trackingMessage={trackingMessage}
               onSelectJob={setSelectedJobId}
               onOpenWorkflow={() => setDriverScreen("กำลังขนส่ง")}
               onBackToJobs={() => setDriverScreen("งานวันนี้")}
-              onAction={handleDriverAction}
+              onAction={(status, job) => handleDriverAction(status, job ?? selectedDriverJob)}
               onReportIssue={setIssueJob}
-              onUpload={(file) => runAction((actor) => uploadProof(selectedJob, file, actor))}
+              onUpload={(file) => runAction((actor) => uploadProof(selectedDriverJob, file, actor))}
               onProfileUpdated={refreshCurrentProfile}
               onNotice={setDriverNotice}
             />
@@ -709,6 +716,8 @@ function SectionMenu({
   adminScreen,
   onDriverScreenChange,
   onAdminScreenChange,
+  onEnterDriverMode,
+  onLeaveDriverMode,
   onNavigate
 }: {
   open: boolean;
@@ -721,6 +730,8 @@ function SectionMenu({
   adminScreen: AdminScreen;
   onDriverScreenChange: (screen: DriverScreen) => void;
   onAdminScreenChange: (screen: AdminScreen) => void;
+  onEnterDriverMode: () => void;
+  onLeaveDriverMode: () => void;
   onNavigate: () => void;
 }) {
   const items = mode === "driver"
@@ -731,12 +742,14 @@ function SectionMenu({
     ? [{ title: "งานของฉัน", items }]
     : [
         { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
+        { title: "งานคนขับ", items: [{ label: "แอดมินคนขับ", description: "ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง", icon: Truck }] },
         { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "สมุดรายชื่อ", "Reports"].includes(item.label)) },
         { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
       ];
   const displayLabels: Record<string, string> = { "Jobs / ใบงาน": "ใบงานขนส่ง", "Live Tracking": "ติดตามรถ", "User Management": "จัดการผู้ใช้งาน", "Settings": "ตั้งค่าระบบ", "Reports": "รายงาน" };
   function navigate(screen: string) {
-    if (mode === "driver") onDriverScreenChange(screen as DriverScreen);
+    if (screen === "แอดมินคนขับ") onEnterDriverMode();
+    else if (mode === "driver") onDriverScreenChange(screen as DriverScreen);
     else onAdminScreenChange(screen as AdminScreen);
     onNavigate();
   }
@@ -745,6 +758,7 @@ function SectionMenu({
     <nav id="primary-navigation" className={`section-menu sidebar-navigation ${open ? "mobile-open" : ""}`} aria-label={mode === "driver" ? "เมนูคนขับ" : "เมนูผู้ดูแล"}>
       <div className="sidebar-workspace"><Building2 size={17} /><div><strong>{profile.organizationName || "S Fast Transport"}</strong><span>{mode === "driver" ? "พื้นที่ทำงานคนขับ" : profile.organizationType === "subcontract" ? "ผู้ดูแลบริษัทขนส่ง" : "ผู้ดูแลบริษัทหลัก"}</span></div></div>
       <div className="sidebar-menu-scroll">
+        {mode === "driver" && profile.role !== "driver" && <button type="button" className="sidebar-return-admin" onClick={() => { onLeaveDriverMode(); onNavigate(); }}><ArrowLeft size={18} /> กลับสู่แอดมิน</button>}
         {groups.filter(group => group.items.length > 0).map(group => <section className="sidebar-menu-group" key={group.title} aria-label={group.title}>
           <h2>{group.title}</h2>
           <div className="sidebar-menu-list">{group.items.map(item => {
@@ -2270,7 +2284,7 @@ function AdminView({
   }, [organizationId]);
   const driverOptions = drivers.filter(driver => driver.organizationId === organizationId && driver.status !== "inactive").map(driver => {
     const linked = driverProfiles.find(user => user.uid === driver.userUid);
-    return { id: driver.id, name: linked?.fullName || driver.name, phone: linked?.phone || driver.phone, eligible: Boolean(linked && linked.role === "driver" && linked.active && linked.approvalStatus === "approved" && linked.organizationId === organizationId) };
+    return { id: driver.id, name: linked?.fullName || driver.name, phone: linked?.phone || driver.phone, eligible: Boolean(linked && canReceiveDriverJobs(linked, organizationId)) };
   });
 
   function updateDraft(field: keyof JobDraft, value: string) {

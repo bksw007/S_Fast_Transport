@@ -42,6 +42,9 @@ function reset() {
   assert.equal(secondWorkOrder, `${firstWorkOrder.slice(0, -3)}002`, 'daily sequence increments atomically');
   reset(); records['users/user-b'].phone = ''; await context.exports.createJob(draft, actor);
   assert.equal(writes.find(write => write.path.startsWith('today_jobs/')).data.driverPhone, '222');
+  reset(); records['drivers/driver-b'].userUid = 'admin'; records['users/admin'] = { organizationId: 'main', fullName: 'Admin Driver', role: 'admin', active: true, approvalStatus: 'approved' };
+  await context.exports.createJob(draft, actor);
+  assert.equal(writes.find(write => write.path.startsWith('today_jobs/')).data.assignedDriverUid, 'admin', 'an admin linked as a driver can receive their own job');
   const invalid = [
     () => delete records['drivers/driver-b'],
     () => { records['drivers/driver-b'].status = 'inactive'; },
@@ -50,7 +53,7 @@ function reset() {
     () => delete records['users/user-b'],
     () => { records['users/user-b'].active = false; },
     () => { records['users/user-b'].approvalStatus = 'pending'; },
-    () => { records['users/user-b'].role = 'admin'; },
+    () => { records['users/user-b'].role = 'unknown'; },
     () => { records['users/user-b'].organizationId = 'other'; }
   ];
   for (const change of invalid) {

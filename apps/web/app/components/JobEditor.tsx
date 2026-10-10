@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Save, Trash2 } from "lucide-react";
 import type { TransportJob } from "@s-fast-transport/shared";
-import { subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
+import { canReceiveDriverJobs, subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
 import { subscribeDrivers, type TransportDriver } from "@/lib/resource-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
 import { jobToEditDraft, type JobEditDraft } from "@/lib/job-edit";
@@ -50,7 +50,7 @@ export default function JobEditor({
         userUid: driver.userUid,
         name: linked?.fullName || driver.name,
         phone: linked?.phone || driver.phone,
-        eligible: Boolean(linked && linked.role === "driver" && linked.active && linked.approvalStatus === "approved" && linked.organizationId === organizationId)
+        eligible: Boolean(linked && canReceiveDriverJobs(linked, organizationId))
       };
     }), [drivers, organizationId, profiles]);
   const inferredDriverId = drivers.find(driver => driver.userUid && driver.userUid === job.assignedDriverUid)?.id ?? "";

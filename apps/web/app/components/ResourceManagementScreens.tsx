@@ -59,7 +59,7 @@ import {
   type VehicleImageKind,
   type VehicleUploadSelection
 } from "@/lib/resource-repository";
-import { subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
+import { canReceiveDriverJobs, subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
 import { downloadPrivateDocument, driverLicenseTypes, formatPhoneNumber, getPrivateDocumentPreviewURL } from "@/lib/profile-repository";
 import { thaiProvinces } from "@/lib/thai-provinces";
 
@@ -646,7 +646,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
         <form className="resource-form" onSubmit={saveDriver}>
           <header><div><small>{editingDriver ? "EDIT DRIVER" : "NEW DRIVER"}</small><h2>{editingDriver ? "แก้ไขข้อมูลคนขับ" : "เพิ่มคนขับ"}</h2></div><UserRound size={24} /></header>
           <div className="resource-form-grid">
-            <ResourceField label="เชื่อมบัญชีผู้ใช้งาน" wide><select value={driverDraft.userUid} onChange={(event) => linkDriverProfile(event.target.value)}><option value="">ไม่เชื่อมบัญชี</option>{userProfiles.filter((item) => item.role === "driver").map((item) => <option key={item.uid} value={item.uid}>{item.fullName || item.displayName} · {item.email}</option>)}</select></ResourceField>
+            <ResourceField label="เชื่อมบัญชีผู้ใช้งาน" wide><select value={driverDraft.userUid} onChange={(event) => linkDriverProfile(event.target.value)}><option value="">ไม่เชื่อมบัญชี</option>{userProfiles.filter((item) => canReceiveDriverJobs(item, organizationId)).map((item) => <option key={item.uid} value={item.uid}>{item.fullName || item.displayName} · {item.email}</option>)}</select></ResourceField>
             <ResourceField label="ชื่อ–นามสกุล *"><input required value={driverDraft.name} placeholder="ชื่อคนขับ" onChange={(event) => setDriverDraft({ ...driverDraft, name: event.target.value })} /></ResourceField>
             <ResourceField label="เบอร์ติดต่อ *"><input type="tel" inputMode="numeric" required maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(driverDraft.phone)} placeholder="080-000-0000" onChange={(event) => setDriverDraft({ ...driverDraft, phone: formatPhoneNumber(event.target.value) })} /></ResourceField>
             <ResourceField label="อีเมล"><input type="email" value={driverDraft.email} placeholder="driver@company.com" onChange={(event) => setDriverDraft({ ...driverDraft, email: event.target.value })} /></ResourceField>

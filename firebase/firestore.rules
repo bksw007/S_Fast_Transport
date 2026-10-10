@@ -39,10 +39,6 @@ service cloud.firestore {
       return role() == "subcontract_admin";
     }
 
-    function isDriver() {
-      return role() == "driver";
-    }
-
     function canManageListOption(orgId, data) {
       return isMainCompanyAdmin()
         || (
@@ -59,7 +55,7 @@ service cloud.firestore {
     }
 
     function isAssignedDriver(jobId) {
-      return isDriver()
+      return activeUser()
         && get(/databases/$(database)/documents/today_jobs/$(jobId)).data.assignedDriverUid == request.auth.uid;
     }
 
