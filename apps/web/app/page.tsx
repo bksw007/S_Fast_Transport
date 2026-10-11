@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { Bai_Jamjuree } from "next/font/google";
 import ContactBook from "./components/ContactBook";
 import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
@@ -130,6 +131,13 @@ import {
   stopPwaJobTracking
 } from "@/lib/pwa-location";
 import { registerPwaServiceWorker, subscribeToTrackingAlerts } from "@/lib/pwa-push";
+
+const landingFont = Bai_Jamjuree({
+  subsets: ["thai", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-landing"
+});
 
 const statusOrder: JobStatus[] = [
   "assigned",
@@ -1281,12 +1289,12 @@ function EmptyState({ title, description }: { title: string; description: string
 
 function SessionLoadingScreen() {
   return (
-    <main className="landing-page" aria-busy="true" aria-live="polite">
+    <main className={`landing-page ${landingFont.variable}`} aria-busy="true" aria-live="polite">
       <div className="landing-photo" aria-hidden="true" />
       <div className="landing-shade" aria-hidden="true" />
       <header className="landing-header"><span className="landing-kicker">S FAST TRANSPORTATION</span></header>
       <section className="landing-content landing-loading-content">
-        <Image className="landing-logo" src="/s-fast-transportation-logo.png" alt="โลโก้ S Fast Transportation" width={5905} height={3327} priority />
+        <Image className="landing-logo" src="/s-fast-transportation-logo-transparent.png" alt="โลโก้ S Fast Transportation" width={1671} height={941} priority />
         <h1>ขับเคลื่อนทุกการขนส่ง<br />ด้วยความมั่นใจ</h1>
         <p className="landing-description">กำลังตรวจสอบการเข้าสู่ระบบ...</p>
       </section>
@@ -1327,7 +1335,7 @@ function LoginScreen() {
   }
 
   return (
-    <main className="landing-page">
+    <main className={`landing-page ${landingFont.variable}`}>
       <div className="landing-photo" aria-hidden="true" />
       <div className="landing-shade" aria-hidden="true" />
       <header className="landing-header">
@@ -1335,7 +1343,7 @@ function LoginScreen() {
         <span className="landing-header-note">TRANSPORT OPERATIONS PLATFORM</span>
       </header>
       <section className="landing-content" aria-labelledby="landing-title">
-        <Image className="landing-logo" src="/s-fast-transportation-logo.png" alt="โลโก้ S Fast Transportation" width={5905} height={3327} priority />
+        <Image className="landing-logo" src="/s-fast-transportation-logo-transparent.png" alt="โลโก้ S Fast Transportation" width={1671} height={941} priority />
         <p className="landing-overline">S FAST TRANSPORTATION</p>
         <h1 id="landing-title">ขับเคลื่อนทุกการขนส่ง<br />ด้วยความมั่นใจ</h1>
         <p className="landing-description">พื้นที่ทำงานสำหรับทีมขนส่ง ติดตามงาน จัดการรถและคนขับ<br className="landing-desktop-break" /> พร้อมเชื่อมทุกการส่งมอบไว้ในที่เดียว</p>
