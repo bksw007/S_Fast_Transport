@@ -57,6 +57,24 @@ assert.equal(nodes().filter(n => n.props?.className === 'dashboard-delete-succes
 slots[8] = 'ลบใบงาน WO-cancel ถาวรแล้ว'; render();
 find(n => n.props?.className === 'dashboard-metric all').props.onClick(); render();
 assert.equal(nodes().filter(n => n.props?.className === 'dashboard-delete-success').length, 0, 'success message clears when changing tabs');
+const datedJobs = [
+  { ...makeJob('older-active', 'assigned'), pickupDate: '2026-10-08' },
+  { ...makeJob('new-completed', 'completed'), pickupDate: '2026-10-12' },
+  { ...makeJob('old-cancelled', 'cancelled'), pickupDate: '2026-10-06' },
+  { ...makeJob('new-attention', 'problem'), pickupDate: '2026-10-13' },
+  { ...makeJob('old-completed', 'completed'), pickupDate: '2026-10-07' },
+  { ...makeJob('new-cancelled', 'cancelled'), pickupDate: '2026-10-11' },
+  { ...makeJob('old-attention', 'problem'), pickupDate: '2026-10-09' },
+  makeJob('undated', 'assigned')
+];
+function visibleOrders() { return nodes().filter(n => n.props?.className === 'dashboard-work-order').map(n => n.props.children); }
+function selectTab(label) { nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(label)).props.onClick(); render(datedJobs); }
+slots = []; render(datedJobs);
+assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-new-completed', 'WO-new-cancelled', 'WO-old-attention', 'WO-older-active', 'WO-old-completed', 'WO-old-cancelled', 'WO-undated']);
+selectTab('กำลังดำเนินงาน'); assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-old-attention', 'WO-older-active', 'WO-undated']);
+selectTab('ต้องติดตาม'); assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-old-attention']);
+selectTab('เสร็จงาน'); assert.deepEqual(visibleOrders(), ['WO-new-completed', 'WO-old-completed']);
+selectTab('ยกเลิก'); assert.deepEqual(visibleOrders(), ['WO-new-cancelled', 'WO-old-cancelled']);
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const file = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

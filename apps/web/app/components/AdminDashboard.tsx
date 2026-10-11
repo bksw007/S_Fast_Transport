@@ -11,6 +11,7 @@ const filters: { id: Filter; label: string }[] = [
 ];
 const isActive = (job: TransportJob) => job.status !== "completed" && job.status !== "cancelled";
 const needsAttention = (job: TransportJob) => isActive(job) && (job.alerts.length > 0 || job.status === "problem");
+const pickupDateKey = (job: TransportJob) => /^\d{4}-\d{2}-\d{2}$/.test(job.pickupDate || "") ? job.pickupDate || "" : "";
 const pageSize = 12;
 
 export default function AdminDashboard({ jobs, deletedJobs = [], dataState, selectedJobId, onSelectJob, onPermanentlyDelete }: {
@@ -51,6 +52,10 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
     return allJobs.filter(job => {
       const matchesFilter = filter === "all" || (filter === "active" ? isActive(job) : filter === "attention" ? needsAttention(job) : job.status === filter);
       return matchesFilter && (month === "all" || jobMonth(job) === month) && (!term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th-TH").includes(term)));
+    }).sort((a, b) => {
+      return pickupDateKey(b).localeCompare(pickupDateKey(a))
+        || (b.pickupTime || "").localeCompare(a.pickupTime || "")
+        || b.workOrder.localeCompare(a.workOrder, "th");
     });
   }, [allJobs, search, filter, month]);
   const pages = Math.max(1, Math.ceil(shown.length / pageSize));
