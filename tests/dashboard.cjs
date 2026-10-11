@@ -7,9 +7,9 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const compile = text => ts.transpileModule(text, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
 const shared = { exports: {} };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
-let slots = [], cursor = 0, selected, permanentlyDeleted;
-const context = { React, exports: {}, require: name => {
-  if (name === 'react') return { ...React, useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = value; }]; } };
+let slots = [], cursor = 0, selected, permanentlyDeleted, dismissMessage;
+const context = { React, exports: {}, window: { setTimeout: fn => { dismissMessage = fn; return 1; }, clearTimeout: () => {} }, require: name => {
+  if (name === 'react') return { ...React, useEffect: fn => fn(), useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = value; }]; } };
   if (name === '@s-fast-transport/shared') return shared.exports;
   return require(name);
 }};
@@ -49,6 +49,14 @@ slots = []; render(jobs, 'ready', [makeJob('soft-deleted', 'cancelled')]);
 nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('ยกเลิก')).props.onClick();
 render(jobs, 'ready', [makeJob('soft-deleted', 'cancelled')]);
 assert.equal(nodes().filter(n => n.props?.className === 'dashboard-delete-button').length, 2, 'soft-deleted jobs also offer permanent deletion');
+slots = []; slots[0] = 'cancelled'; slots[8] = 'ลบใบงาน WO-cancel ถาวรแล้ว'; render();
+assert.equal(find(n => n.props?.className === 'dashboard-delete-success').props.role, 'status');
+assert.equal(typeof dismissMessage, 'function');
+dismissMessage(); render();
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-delete-success').length, 0, 'success message dismisses after timeout');
+slots[8] = 'ลบใบงาน WO-cancel ถาวรแล้ว'; render();
+find(n => n.props?.className === 'dashboard-metric all').props.onClick(); render();
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-delete-success').length, 0, 'success message clears when changing tabs');
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const file = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

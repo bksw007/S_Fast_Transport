@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Search, Trash2, Truck, UserRound } from "lucide-react";
 import { historyMonthLabel, jobHistoryMonth, statusLabels, type TransportJob } from "@s-fast-transport/shared";
 
@@ -30,6 +30,11 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   const [deletingId, setDeletingId] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deletedMessage, setDeletedMessage] = useState("");
+  useEffect(() => {
+    if (!deletedMessage) return;
+    const timeout = window.setTimeout(() => setDeletedMessage(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [deletedMessage]);
   const allJobs = useMemo(() => [...jobs, ...deletedJobs], [jobs, deletedJobs]);
   const deletedIds = useMemo(() => new Set(deletedJobs.map(job => job.id)), [deletedJobs]);
   const jobMonth = (job: TransportJob) => job.status === "cancelled" || job.status === "completed" ? jobHistoryMonth(job) : job.jobDate?.slice(0, 7) || "unknown";
@@ -52,7 +57,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   const currentPage = Math.min(page, pages);
   const completedPercent = counts.all ? Math.round(counts.completed / counts.all * 100) : 0;
   const ready = dataState === "ready";
-  function selectFilter(next: Filter) { setFilter(next); setPage(1); }
+  function selectFilter(next: Filter) { setFilter(next); setPage(1); setDeletedMessage(""); }
   async function permanentlyDelete(job: TransportJob) {
     if (!onPermanentlyDelete || confirmation !== job.workOrder || deletingId) return;
     setDeletingId(job.id); setDeleteError(""); setDeletedMessage("");
@@ -93,7 +98,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
       <div className="dashboard-list-heading"><div><span className="dashboard-section-kicker">รายการงานขนส่ง</span><h2 id="dashboard-jobs-title">ติดตามทุกงานในที่เดียว</h2><p>เลือกใบงานเพื่อดูรายละเอียด หลักฐาน และตำแหน่งรถ</p></div><label className="dashboard-search"><Search size={18} /><input aria-label="ค้นหาใบงาน" placeholder="ค้นหาใบงาน ลูกค้า คนขับ หรือทะเบียน" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label></div>
       <div className="dashboard-filters" role="group" aria-label="กรองสถานะงาน">{filters.map(item => <button key={item.id} aria-pressed={filter === item.id} onClick={() => selectFilter(item.id)}>{item.label}<span>{ready ? counts[item.id] : "—"}</span></button>)}</div>
       <label className="dashboard-month-filter"><CalendarDays size={17} /><span>เดือน</span><select value={month} onChange={event => { setMonth(event.target.value); setPage(1); }}><option value="all">ทุกเดือน</option>{months.map(value => <option key={value} value={value}>{historyMonthLabel(value)}</option>)}</select></label>
-      {deletedMessage && <p className="dashboard-delete-success" role="status">{deletedMessage}</p>}
+      {filter === "cancelled" && deletedMessage && <p className="dashboard-delete-success" role="status">{deletedMessage}</p>}
       {dataState === "loading" ? <div className="dashboard-empty" role="status"><Clock3 size={30} /><h3>กำลังโหลดใบงาน</h3><p>กำลังรวบรวมข้อมูลภาพรวมของคุณ</p></div>
         : dataState === "error" ? <div className="dashboard-empty" role="alert"><AlertTriangle size={30} /><h3>โหลดข้อมูลไม่สำเร็จ</h3><p>ตรวจสอบการเชื่อมต่อ แล้วเปิด Dashboard อีกครั้งหรือรีเฟรชหน้า</p></div>
         : !shown.length ? <div className="dashboard-empty"><Search size={30} /><h3>{allJobs.length ? "ไม่พบงานที่ตรงกับตัวกรอง" : "ยังไม่มีใบงาน"}</h3><p>{allJobs.length ? "ลองเปลี่ยนคำค้นหา สถานะ หรือเดือน" : "เมื่อมีใบงาน ระบบจะแสดงภาพรวมและรายการงานที่นี่"}</p>{(search || filter !== "all" || month !== "all") && <button onClick={() => { setSearch(""); setMonth("all"); selectFilter("all"); }}>ล้างตัวกรอง</button>}</div>
