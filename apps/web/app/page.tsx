@@ -539,7 +539,7 @@ export default function Home() {
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
 
   return (
-    <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
+    <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"} ${mode === "driver" && driverScreen === "งานวันนี้" ? `driver-today-shell ${landingFont.variable}` : ""}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
@@ -1810,14 +1810,12 @@ function TodayJobs({
   onReportIssue: (job: TransportJob) => void;
 }) {
   return (
-    <section className="screen">
-      <div className="section-title">
-        <div>
-          <h1>งานวันนี้</h1>
-          <p>เลือกใบงานเพื่อดูรายละเอียดและอัปเดตสถานะ</p>
-        </div>
-        <span className="live-dot">{jobs.length} งาน</span>
-      </div>
+    <section className="screen driver-today-screen">
+      <header className="driver-today-hero">
+        <span className="driver-today-eyebrow"><span aria-hidden="true" /> พื้นที่ทำงานคนขับ</span>
+        <div className="driver-today-hero-content"><div><h1>งานวันนี้</h1><p>ดูเส้นทาง ติดต่อจุดรับ–ส่ง และอัปเดตงานของคุณจากที่นี่</p></div><div className="driver-today-total"><strong>{jobs.length.toLocaleString("th-TH")}</strong><span>งานที่ต้องทำ</span></div></div>
+      </header>
+      <div className="driver-today-list-head"><div><span>YOUR ASSIGNMENTS / 01</span><h2>ใบงานที่ได้รับมอบหมาย</h2></div><small>{jobs.length} งาน</small></div>
 
       <div className="job-list">
         {!jobs.length && <div className="driver-history-empty"><CheckCircle2 size={28} /><strong>ไม่มีงานที่ต้องทำตอนนี้</strong><p>งานที่เสร็จแล้วดูได้ในเมนูประวัติงาน</p></div>}
@@ -1831,6 +1829,7 @@ function TodayJobs({
             onOpenWorkflow={onOpenWorkflow}
             onAction={onAction}
             onReportIssue={onReportIssue}
+            driverToday
           />
         ))}
       </div>
@@ -1986,7 +1985,8 @@ function JobSummaryCard({
   onSelect,
   onOpenWorkflow,
   onAction,
-  onReportIssue
+  onReportIssue,
+  driverToday = false
 }: {
   job: TransportJob;
   selected: boolean;
@@ -1995,6 +1995,7 @@ function JobSummaryCard({
   onOpenWorkflow?: () => void;
   onAction?: (status: JobStatus, job?: TransportJob) => void;
   onReportIssue?: (job: TransportJob) => void;
+  driverToday?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nextAction = nextDriverAction(job);
@@ -2010,7 +2011,7 @@ function JobSummaryCard({
   }
 
   return (
-    <article className={`job-summary-card ${selected ? "selected-job" : ""} ${expanded ? "expanded" : ""}`}>
+    <article className={`job-summary-card ${selected ? "selected-job" : ""} ${expanded ? "expanded" : ""} ${driverToday ? "driver-today-card" : ""}`}>
       <button className="job-summary-toggle" type="button" aria-expanded={expanded} onClick={toggleDetails}>
         <span className="job-summary-toggle-icon"><MapPin size={19} /></span>
         <span className="job-summary-topline">
@@ -2021,9 +2022,7 @@ function JobSummaryCard({
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </span>
         <strong className="job-summary-route">
-          <span>{job.pickupLocation}</span>
-          <ArrowRight size={16} aria-hidden="true" />
-          <span>{job.deliveryLocation}</span>
+          {driverToday ? <><span className="driver-today-route-stop"><small>จุดรับสินค้า</small>{job.pickupLocation || "ยังไม่ระบุ"}</span><span className="driver-today-route-line" aria-hidden="true" /><span className="driver-today-route-stop"><small>จุดส่งสินค้า</small>{job.deliveryLocation || "ยังไม่ระบุ"}</span></> : <><span>{job.pickupLocation}</span><ArrowRight size={16} aria-hidden="true" /><span>{job.deliveryLocation}</span></>}
         </strong>
       </button>
 
