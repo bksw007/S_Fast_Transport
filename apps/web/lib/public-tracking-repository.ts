@@ -1,5 +1,6 @@
 import { doc, onSnapshot, type DocumentData, type Unsubscribe } from "firebase/firestore";
 import { db } from "./firebase";
+import { firebaseApp } from "./firebase";
 import type { JobPlace } from "@s-fast-transport/shared";
 
 export type PublicTrackingJob = {
@@ -16,6 +17,58 @@ export type PublicTrackingJob = {
   lastUpdatedAt: string;
   location: { lat: number; lng: number } | null;
 };
+
+export type PublicProof = { photoCount: number; hasSignature: boolean; signerName: string; signedAt: string };
+export type PublicTrackingDetails = {
+  workOrder: string;
+  status: string;
+  customer: string;
+  carrierName: string;
+  jobDate: string;
+  cargoType: string;
+  tripCount: number;
+  driverName: string;
+  driverPhone: string;
+  vehiclePlate: string;
+  vehicleType: string;
+  routeDistanceMeters: number | null;
+  pickupLocation: string;
+  pickupDate: string;
+  pickupTime: string;
+  deliveryLocation: string;
+  deliveryDate: string;
+  deliveryTime: string;
+  eta: string;
+  arrivedDeliveryAt: string;
+  completedAt: string;
+  pickupProof: PublicProof;
+  deliveryProof: PublicProof;
+  issue: { type: string; note: string; reportedAt: string; resolvedAt: string; resolutionNote: string; hasPhoto: boolean } | null;
+};
+
+function publicTrackingAccessUrl(token: string) {
+  const projectId = firebaseApp.options.projectId;
+  if (!projectId) throw new Error("ยังไม่ได้ตั้งค่าโครงการ Firebase");
+  const url = new URL(`https://asia-southeast1-${projectId}.cloudfunctions.net/publicTrackingAccess`);
+  url.searchParams.set("token", token);
+  return url;
+}
+
+export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery", kind: "photo" | "signature", index?: number): string;
+export function publicTrackingAssetUrl(token: string, stage: "issue", kind: "issue"): string;
+export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "issue", kind: "photo" | "signature" | "issue", index = 0) {
+  const url = publicTrackingAccessUrl(token);
+  url.searchParams.set("stage", stage);
+  url.searchParams.set("kind", kind);
+  if (kind === "photo") url.searchParams.set("index", String(index));
+  return url.toString();
+}
+
+export async function fetchPublicTrackingDetails(token: string, signal?: AbortSignal): Promise<PublicTrackingDetails> {
+  const response = await fetch(publicTrackingAccessUrl(token), { cache: "no-store", signal, referrerPolicy: "no-referrer" });
+  if (!response.ok) throw new Error(response.status === 404 ? "ลิงก์หมดอายุหรือไม่พบข้อมูลใบงาน" : "โหลดรายละเอียดงานไม่สำเร็จ");
+  return await response.json() as PublicTrackingDetails;
+}
 
 export function subscribePublicTracking(
   token: string,

@@ -1,7 +1,12 @@
-import type { TransportJob } from "@s-fast-transport/shared";
+import type { StopProof, TransportJob } from "@s-fast-transport/shared";
 import { deliveryLabels, deliveryResult } from "./reports";
 
 export type ReportProof = { photos: string[]; signature?: string };
+export type CompletionReportJob = Pick<TransportJob,
+  "status" | "workOrder" | "customer" | "carrierName" | "jobDate" | "cargoType" | "tripCount" |
+  "pickupLocation" | "pickupDate" | "pickupTime" | "deliveryLocation" | "deliveryDate" | "deliveryTime" |
+  "vehiclePlate" | "vehicleType" | "driverName" | "routeDistanceMeters" | "arrivedDeliveryAt" | "completedAt"
+> & { pickupProof?: Pick<StopProof, "signerName" | "signedAt">; deliveryProof?: Pick<StopProof, "signerName" | "signedAt"> };
 
 const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 const text = (value: unknown) => value === undefined || value === null || value === "" ? "ไม่บันทึก" : escapeHtml(value);
@@ -14,14 +19,14 @@ function detail(label: string, value: unknown) {
   return `<div class="detail"><span>${escapeHtml(label)}</span><strong>${text(value)}</strong></div>`;
 }
 
-function evidence(title: string, location: string, proof: TransportJob["pickupProof"], images: ReportProof) {
+function evidence(title: string, location: string, proof: Pick<StopProof, "signerName" | "signedAt"> | undefined, images: ReportProof) {
   const photoCards = images.photos.length
     ? images.photos.map((url, index) => `<figure class="photo"><img src="${escapeHtml(url)}" alt="${escapeHtml(title)} ภาพ ${index + 1}"><figcaption>ภาพที่ ${index + 1}</figcaption></figure>`).join("")
     : `<p class="missing">ไม่มีภาพหลักฐาน</p>`;
   return `<section class="evidence page-break"><div class="section-label">หลักฐานการขนส่ง</div><h2>${escapeHtml(title)}</h2><p class="location">${escapeHtml(location)}</p><div class="photos">${photoCards}</div><div class="signoff"><div><span>ผู้ลงลายเซ็น</span><strong>${text(proof?.signerName)}</strong><small>ลงนาม ${dateTime(proof?.signedAt)}</small></div>${images.signature ? `<img src="${escapeHtml(images.signature)}" alt="ลายเซ็น ${escapeHtml(proof?.signerName || title)}">` : `<span class="missing">ไม่มีไฟล์ลายเซ็น</span>`}</div></section>`;
 }
 
-export function completionReportHtml(job: TransportJob, pickup: ReportProof, delivery: ReportProof, logoUrl: string, generatedAt = new Date()): string {
+export function completionReportHtml(job: CompletionReportJob, pickup: ReportProof, delivery: ReportProof, logoUrl: string, generatedAt = new Date()): string {
   if (job.status !== "completed") throw new Error("สร้างรายงานลูกค้าได้เฉพาะใบงานที่เสร็จแล้ว");
   const reportDate = dateTime(generatedAt.toISOString());
   const result = deliveryResult(job, generatedAt.getTime());

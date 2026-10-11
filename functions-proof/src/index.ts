@@ -4,6 +4,7 @@ import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 export { permanentlyDeleteCancelledJob } from "./permanent-job-deletion";
+export { publicTrackingAccess } from "./public-tracking";
 
 initializeApp();
 

@@ -59,3 +59,55 @@
 .tracking-route, .tracking-summary { border-radius: 14px; box-shadow: var(--shadow-card); }
 .tracking-map-link { color: var(--on-accent); font-weight: 600; border-radius: 9px; }
 .tracking-live > span { box-shadow: 0 0 0 4px color-mix(in srgb, var(--track-accent) 12%, transparent); }
+
+.tracking-arrivals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: min(100%, 440px); }
+.tracking-eta { min-width: 0; }
+.tracking-eta span { margin: 5px 0; }
+.tracking-eta strong { font-size: 1rem; line-height: 1.45; }
+.tracking-side { display: grid; align-content: start; gap: 18px; min-width: 0; }
+.tracking-driver-card, .tracking-proof-card, .tracking-report { border: 1px solid var(--track-border); border-radius: 14px; background: var(--ui-surface); box-shadow: var(--shadow-card); }
+.tracking-driver-card { padding: 23px; }
+.tracking-driver-card .tracking-section-title { margin-bottom: 20px; }
+.tracking-driver-name, .tracking-driver-phone { display: block; overflow-wrap: anywhere; }
+.tracking-driver-name { font-size: 1.12rem; }
+.tracking-driver-phone { margin-top: 5px; color: var(--track-muted); }
+.tracking-call-button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; margin-top: 19px; border-radius: 9px; color: var(--on-accent); background: var(--track-accent); font-weight: 700; }
+.tracking-call-button:hover, .tracking-map-link:hover { filter: brightness(1.08); }
+.tracking-call-unavailable { display: block; margin-top: 16px; color: var(--track-muted); font-size: .8rem; }
+.tracking-data-error { max-width: 1100px; margin: 0 auto 18px; padding: 12px 16px; border: 1px solid #c9896d; border-radius: 10px; color: #7c321f; background: #fff0e8; }
+.tracking-issue { display: flex; gap: 14px; max-width: 1100px; margin: 18px auto 0; padding: 18px 20px; border: 1px solid #d99b70; border-radius: 14px; color: #74381b; background: #fff0e2; }
+.tracking-issue.is-resolved { border-color: var(--track-border); color: var(--track-ink); background: var(--ui-surface); }
+.tracking-issue > svg { flex: none; margin-top: 2px; }
+.tracking-issue strong { display: block; }
+.tracking-issue p { margin: 5px 0 0; overflow-wrap: anywhere; }
+.tracking-issue small { display: block; margin-top: 7px; opacity: .75; }
+.tracking-issue a { display: inline-block; margin-top: 10px; text-decoration: underline; font-weight: 700; }
+.tracking-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; max-width: 1100px; margin: 18px auto 0; }
+.tracking-proof-card { min-width: 0; padding: clamp(18px, 3vw, 26px); }
+.tracking-proof-card .tracking-section-title { margin-bottom: 18px; }
+.tracking-proof-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tracking-proof-photos a { display: block; min-width: 0; overflow: hidden; border: 1px solid var(--track-border); border-radius: 9px; background: var(--ui-surface-soft); }
+.tracking-proof-photos img { display: block; width: 100%; height: 145px; object-fit: cover; transition: transform .2s ease; }
+.tracking-proof-photos a:hover img { transform: scale(1.04); }
+.tracking-signature { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding: 12px; border: 1px solid var(--track-border); border-radius: 10px; }
+.tracking-signature > div { min-width: 0; }
+.tracking-signature svg { color: var(--track-accent); vertical-align: middle; }
+.tracking-signature span { margin-left: 5px; font-weight: 700; }
+.tracking-signature small { display: block; margin-top: 6px; color: var(--track-muted); }
+.tracking-signature img { max-width: 46%; height: 70px; object-fit: contain; background: white; border-radius: 6px; }
+.tracking-proof-empty { margin: 8px 0; color: var(--track-muted); font-size: .86rem; }
+.tracking-report { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1100px; margin: 18px auto 0; padding: 18px 22px; }
+.tracking-report > div { flex: 1 1 260px; }
+.tracking-report strong, .tracking-report span { display: block; }
+.tracking-report span, .tracking-report small { color: var(--track-muted); font-size: .8rem; }
+.tracking-report button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 9px; color: var(--on-accent); background: var(--track-accent); font-weight: 700; }
+.tracking-report button:disabled { opacity: .55; }
+.tracking-report small { flex-basis: 100%; text-align: right; }
+@media (max-width: 720px) {
+  .tracking-arrivals { width: 100%; }
+  .tracking-evidence-grid { grid-template-columns: 1fr; }
+  .tracking-report button { width: 100%; }
+  .tracking-report small { text-align: left; }
+}
+@media (max-width: 400px) { .tracking-arrivals { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .tracking-proof-photos img { transition: none; } }
