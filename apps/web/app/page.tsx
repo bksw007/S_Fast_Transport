@@ -537,7 +537,6 @@ export default function Home() {
   }
 
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
-  const adminAlertCount = mode === "admin" ? unresolvedIssueCount + (isMainAdmin(profile) ? pendingAccessCount : 0) : 0;
 
   return (
     <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
@@ -566,9 +565,8 @@ export default function Home() {
             <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => value > 1 ? 1 : 0.92)}>
               <TextCursorInput size={18} />
             </button>
-            <button className="theme-action" aria-label={adminAlertCount > 0 ? `เปลี่ยนธีม มี ${adminAlertCount} รายการรอดำเนินการในเมนู` : "เปลี่ยนธีม"} onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+            <button className="theme-action" aria-label="เปลี่ยนธีม" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
               {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-              {adminAlertCount > 0 && <span className="theme-alert-dot" aria-hidden="true" />}
             </button>
             <button
               className="mobile-menu-toggle"

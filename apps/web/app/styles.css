@@ -578,9 +578,7 @@ a {
   right: -5px;
 }
 
-.top-actions .theme-action { position: relative; }
-.theme-alert-dot, .sidebar-alert-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--surface); }
-.theme-alert-dot { position: absolute; top: 3px; right: 3px; }
+.sidebar-alert-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--surface); }
 
 .mobile-menu-toggle,
 .mobile-menu-backdrop {
