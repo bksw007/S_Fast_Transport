@@ -16,7 +16,7 @@
 .customer-portal-header { border-bottom: 1px solid #e8e6df; background: #fbfaf7; }
 .customer-portal-header-inner { max-width: 1240px; min-height: 86px; margin: auto; padding: 14px 30px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .customer-portal-brand { display: flex; align-items: center; gap: 14px; }
-.customer-portal-brand-mark { width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid #d2d9d7; border-radius: 13px; background: #e9efec; color: #294d4b; }
+.customer-portal-brand-mark { width: 46px; height: 46px; display: block; padding: 3px; border: 1px solid #d2d9d7; border-radius: 13px; background: #e9efec; object-fit: contain; }
 .customer-portal-brand strong, .customer-portal-brand span { display: block; }
 .customer-portal-brand strong { font-size: 16px; line-height: 1.15; letter-spacing: -.025em; }
 .customer-portal-brand div span { margin-top: 5px; color: #87908e; font: 600 10px/1.2 var(--font-customer), sans-serif; letter-spacing: .19em; }
