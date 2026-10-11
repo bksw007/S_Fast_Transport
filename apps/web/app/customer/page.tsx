@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bai_Jamjuree } from "next/font/google";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import type { TransportJob } from "@s-fast-transport/shared";
@@ -8,6 +9,8 @@ import CustomerPortal from "../components/CustomerPortal";
 import { auth } from "@/lib/firebase-auth";
 import { db } from "@/lib/firebase";
 import { getUserProfile, hasApprovedAccess, subscribeTodayJobs, type UserProfile } from "@/lib/transport-repository";
+
+const customerFont = Bai_Jamjuree({ subsets: ["thai", "latin"], weight: ["400", "500", "600", "700"], display: "swap", variable: "--font-customer" });
 
 export default function CustomerPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -41,5 +44,5 @@ export default function CustomerPage() {
   }, [profile]);
 
   if (!profile) return <main style={{ padding: 32 }} role="status">{error || "กำลังตรวจสอบสิทธิ์…"}</main>;
-  return <CustomerPortal profile={profile} jobs={jobs} loading={loading} error={error} />;
+  return <div className={customerFont.variable}><CustomerPortal profile={profile} jobs={jobs} loading={loading} error={error} /></div>;
 }
