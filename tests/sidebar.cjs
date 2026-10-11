@@ -13,10 +13,16 @@ let signedOut = false, selected, closed, enteredDriver = false, leftDriver = fal
 const context = { React, ...require('lucide-react'), ...shared.exports, auth: {}, signOut: () => { signedOut = true; }, isMainAdmin: profile => profile.role === 'admin' };
 vm.runInNewContext(compile(code), context);
 function nodes(node) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
-function menu(mode, role) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount: 3, adminScreen: 'Dashboard', driverScreen: 'งานวันนี้', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; }, onEnterDriverMode: () => { enteredDriver = true; }, onLeaveDriverMode: () => { leftDriver = true; } })); }
+function menu(mode, role, pendingAccessCount = 3, unresolvedIssueCount = 2) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount, unresolvedIssueCount, adminScreen: 'Dashboard', driverScreen: 'งานวันนี้', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; }, onEnterDriverMode: () => { enteredDriver = true; }, onLeaveDriverMode: () => { leftDriver = true; } })); }
 let rendered = menu('admin', 'admin');
 let links = rendered.filter(n => n.type === 'button' && n.props.title);
 assert.equal(links.length, shared.exports.adminMenu.length + 2); // Navigation entries, admin driver, and sign out.
+assert.equal(rendered.filter(n => n.props?.className === 'sidebar-alert-dot').length, 2, 'pending issues and access requests each show a red dot');
+assert.ok(links.some(n => n.props['aria-label'] === 'แจ้งเตือน 2 งานรอดำเนินการ'));
+assert.ok(links.some(n => n.props['aria-label'] === 'จัดการผู้ใช้งาน 3 คำขอรออนุมัติ'));
+assert.equal(menu('admin', 'admin', 0, 2).filter(n => n.props?.className === 'sidebar-alert-dot').length, 1, 'issues alone keep their dot');
+assert.equal(menu('admin', 'admin', 3, 0).filter(n => n.props?.className === 'sidebar-alert-dot').length, 1, 'access requests alone keep their dot');
+assert.equal(menu('admin', 'admin', 0, 0).filter(n => n.props?.className === 'sidebar-alert-dot').length, 0, 'resolved items clear their dots');
 links.find(n => n.props.title === 'ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง').props.onClick();
 assert.equal(enteredDriver, true);
 const dataGroup = rendered.find(n => n.type === "section" && n.props?.["aria-label"] === "ข้อมูลและรายงาน");

@@ -429,6 +429,7 @@ export default function Home() {
   );
   const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? emptySelectedJob;
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
+  const unresolvedIssueCount = useMemo(() => jobs.filter(job => job.lastIssue && !job.lastIssue.resolvedAt).length, [jobs]);
   const canWrite = Boolean(profile && hasApprovedAccess(profile));
 
   async function runAction<T>(action: (actor: UserProfile) => Promise<T>): Promise<T | undefined> {
@@ -524,6 +525,7 @@ export default function Home() {
   }
 
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
+  const adminAlertCount = mode === "admin" ? unresolvedIssueCount + (isMainAdmin(profile) ? pendingAccessCount : 0) : 0;
 
   return (
     <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
@@ -552,8 +554,9 @@ export default function Home() {
             <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => value > 1 ? 1 : 0.92)}>
               <TextCursorInput size={18} />
             </button>
-            <button aria-label="เปลี่ยนธีม" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+            <button className="theme-action" aria-label={adminAlertCount > 0 ? `เปลี่ยนธีม มี ${adminAlertCount} รายการรอดำเนินการในเมนู` : "เปลี่ยนธีม"} onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
               {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+              {adminAlertCount > 0 && <span className="theme-alert-dot" aria-hidden="true" />}
             </button>
             <button
               className="mobile-menu-toggle"
@@ -577,7 +580,8 @@ export default function Home() {
           user={user}
           profile={profile}
           statusMessage={busyMessage || firebaseMessage}
-          pendingAccessCount={pendingAccessCount}
+          pendingAccessCount={isMainAdmin(profile) ? pendingAccessCount : 0}
+          unresolvedIssueCount={unresolvedIssueCount}
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
@@ -729,6 +733,7 @@ function SectionMenu({
   profile,
   statusMessage,
   pendingAccessCount,
+  unresolvedIssueCount,
   driverScreen,
   adminScreen,
   onDriverScreenChange,
@@ -743,6 +748,7 @@ function SectionMenu({
   profile: UserProfile;
   statusMessage: string;
   pendingAccessCount: number;
+  unresolvedIssueCount: number;
   driverScreen: DriverScreen;
   adminScreen: AdminScreen;
   onDriverScreenChange: (screen: DriverScreen) => void;
@@ -781,9 +787,11 @@ function SectionMenu({
           <div className="sidebar-menu-list">{group.items.map(item => {
             const Icon = item.icon;
             const selected = activeScreen === item.label;
-            return <button key={item.label} className={selected ? "selected" : ""} aria-current={selected ? "page" : undefined} title={item.description} onClick={() => navigate(item.label)}>
+            const alertCount = item.label === "แจ้งเตือน" ? unresolvedIssueCount : item.label === "User Management" ? pendingAccessCount : 0;
+            const alertDescription = item.label === "แจ้งเตือน" ? `${alertCount} งานรอดำเนินการ` : `${alertCount} คำขอรออนุมัติ`;
+            return <button key={item.label} className={selected ? "selected" : ""} aria-current={selected ? "page" : undefined} aria-label={alertCount > 0 ? `${displayLabels[item.label] || item.label} ${alertDescription}` : undefined} title={item.description} onClick={() => navigate(item.label)}>
               <Icon size={19} aria-hidden="true" /><span>{displayLabels[item.label] || item.label}</span>
-              {item.label === "User Management" && pendingAccessCount > 0 && <span className="sidebar-count" aria-label={`${pendingAccessCount} คำขอรออนุมัติ`}>{pendingAccessCount > 99 ? "99+" : pendingAccessCount}</span>}
+              {alertCount > 0 && <><span className="sidebar-alert-dot" aria-hidden="true" /><span className="sidebar-count" aria-hidden="true">{alertCount > 99 ? "99+" : alertCount}</span></>}
             </button>;
           })}</div>
         </section>)}

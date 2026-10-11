@@ -578,6 +578,10 @@ a {
   right: -5px;
 }
 
+.top-actions .theme-action { position: relative; }
+.theme-alert-dot, .sidebar-alert-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--surface); }
+.theme-alert-dot { position: absolute; top: 3px; right: 3px; }
+
 .mobile-menu-toggle,
 .mobile-menu-backdrop {
   display: none;
@@ -5100,7 +5104,8 @@ textarea:focus {
 .sidebar-menu-list button:hover { color: var(--text); background: var(--surface-2); }
 .sidebar-menu-list button.selected { color: var(--surface); background: var(--accent); border-color: var(--accent); box-shadow: none; }
 .sidebar-menu-list button.selected > span:first-of-type { font-weight: 600; }
-.sidebar-menu-list .sidebar-count { margin-left: auto; min-width: 22px; padding: 2px 5px; border-radius: 5px; background: var(--surface-2); color: var(--text); font-size: .63rem; text-align: center; }
+.sidebar-menu-list .sidebar-alert-dot { flex: none; margin-left: auto; }
+.sidebar-menu-list .sidebar-count { min-width: 22px; padding: 2px 5px; border-radius: 5px; background: var(--surface-2); color: var(--text); font-size: .63rem; text-align: center; }
 .sidebar-footer { flex-shrink: 0; margin-top: auto; border-top: 1px solid var(--border); padding: 12px 16px 16px; background: var(--surface); }
 .sidebar-session { display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: .64rem; line-height: 1.5; margin: 0 0 12px; overflow-wrap: anywhere; }
 .sidebar-session > span { flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); margin-top: 5px; }
