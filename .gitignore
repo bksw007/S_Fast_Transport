@@ -13,4 +13,5 @@ output
 .vercel
 functions/lib/
 functions-line/lib/
+functions-customer/lib/
 functions-proof/lib/
