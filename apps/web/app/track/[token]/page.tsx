@@ -150,7 +150,7 @@ export default function PublicTrackingPage() {
         <ProofCard token={params.token} stage="pickup" title="หลักฐานจากจุดรับ" proof={details?.pickupProof} loading={detailsLoading} />
         <ProofCard token={params.token} stage="delivery" title="หลักฐานจากจุดส่ง" proof={details?.deliveryProof} loading={detailsLoading} />
       </section>
-      <section className="tracking-report"><div><strong>รายงานการขนส่ง</strong><span>ใช้รูปแบบเดียวกับรายงานรายใบงาน พร้อมภาพและลายเซ็นทั้งสองจุด</span></div><button type="button" onClick={openReport} disabled={!canDownloadReport}><Download size={18} /> ดาวน์โหลดรายงานการขนส่ง</button>{!canDownloadReport && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
+      <section className="tracking-report"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็นทั้งสองจุด</span></div><button type="button" onClick={openReport} disabled={!canDownloadReport}><Download size={18} /> ดาวน์โหลดรายงานการขนส่ง</button>{!canDownloadReport && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
       <footer className="tracking-footer">ลิงก์นี้แสดงข้อมูลเฉพาะใบงานนี้ รวมถึงเบอร์ติดต่อคนขับและหลักฐานการส่งมอบ จนกว่าลิงก์จะหมดอายุ</footer>
     </main>
   );
