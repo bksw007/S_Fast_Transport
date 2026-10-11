@@ -3936,9 +3936,13 @@ h2 {
 .driver-proof-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .driver-proof-photo { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 13px; }
 .driver-proof-photos img { width: 100%; height: 110px; object-fit: cover; border-radius: 9px; }
-.driver-proof-photos input { max-width: 100%; font-size: .75rem; }
-.driver-proof-add-photo, .driver-proof-open-signature { min-height: 48px; padding: 0 14px; border: 1px solid var(--border); border-radius: 11px; color: var(--accent); background: var(--surface-2); font-weight: 800; text-align: center; }
-.driver-proof-extra-input { display: none; }
+.driver-proof-photo-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.driver-proof-photo-actions button { min-width: 0; min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px; color: var(--accent); background: var(--surface); font-size: .8rem; font-weight: 800; }
+.driver-proof-photo-actions button:first-child { color: var(--surface); border-color: var(--accent); background: var(--accent); }
+.driver-proof-photo-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.driver-proof-file-input { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; opacity: 0; pointer-events: none; clip-path: inset(50%); }
+.driver-proof-add-photo { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--border); border-radius: 11px; color: var(--accent); background: var(--surface-2); font-weight: 800; }
+.driver-proof-open-signature { min-height: 48px; padding: 0 14px; border: 1px solid var(--border); border-radius: 11px; color: var(--accent); background: var(--surface-2); font-weight: 800; text-align: center; }
 .driver-proof-signer { display: grid; gap: 6px; font-weight: 750; }
 .driver-proof-preview { display: grid; gap: 8px; min-height: 125px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
 .driver-proof-preview strong { color: var(--text); font-size: .8rem; }

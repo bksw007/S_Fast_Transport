@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { Camera, FolderOpen } from "lucide-react";
 import { deleteDriverProofDraft, loadDriverProofDraft, saveDriverProofDraft, type DriverProofDraft } from "@/lib/driver-proof-draft";
 
 const proofDrafts = new Map<string, DriverProofDraft>();
@@ -19,7 +20,10 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const extraPhotoRef = useRef<HTMLInputElement>(null);
+  const cameraInputs = useRef<(HTMLInputElement | null)[]>([]);
+  const fileInputs = useRef<(HTMLInputElement | null)[]>([]);
+  const extraCameraRef = useRef<HTMLInputElement>(null);
+  const extraFileRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
   const [photos, setPhotos] = useState<(File | null)[]>(() => proofDrafts.get(draftKey)?.photos ?? [null, null]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -107,6 +111,12 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
   }, [signatureOpen]);
 
   const selectedPhotos = photos.filter((file): file is File => file !== null);
+  function selectPhoto(index: number, file: File | undefined) {
+    if (file) setPhotos(current => current.map((photo, slot) => slot === index ? file : photo));
+  }
+  function addPhoto(file: File | undefined) {
+    if (file) setPhotos(current => [...current, file]);
+  }
   function removePhoto(index: number) {
     setPhotos(current => index < 2 ? current.map((file, slot) => slot === index ? null : file) : current.filter((_, slot) => slot !== index));
   }
@@ -201,11 +211,20 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     <div className="driver-proof-photos">{photos.map((file, index) => <div className="driver-proof-photo" key={index}>
       <span>รูปสินค้า {index + 1} {photos[index] ? "✓" : "· ยังไม่มีรูป"}</span>
       {previews[index] && photos[index] && <Image unoptimized src={previews[index]} alt={`รูปสินค้า ${index + 1}`} width={320} height={220} />}
-      <input type="file" accept="image/*" capture="environment" disabled={busy} onChange={event => setPhotos(current => current.map((file, slot) => slot === index ? event.target.files?.[0] ?? file : file))} />
+      <div className="driver-proof-photo-actions">
+        <button type="button" disabled={busy} aria-label={`ถ่ายรูปสินค้า ${index + 1}`} onClick={() => cameraInputs.current[index]?.click()}><Camera size={18} /> กล้อง</button>
+        <button type="button" disabled={busy} aria-label={`เลือกรูปสินค้า ${index + 1} จากแกลอรี่หรือไฟล์`} onClick={() => fileInputs.current[index]?.click()}><FolderOpen size={18} /> ไฟล์</button>
+      </div>
+      <input ref={node => { cameraInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+      <input ref={node => { fileInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
       {file && <button type="button" disabled={busy} onClick={() => removePhoto(index)}>ลบรูปนี้</button>}
     </div>)}</div>
-    <button type="button" className="driver-proof-add-photo" disabled={busy || !photos[0] || !photos[1]} onClick={() => extraPhotoRef.current?.click()}>＋ เพิ่มรูป (ไม่บังคับ)</button>
-    <input ref={extraPhotoRef} className="driver-proof-extra-input" type="file" accept="image/*" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) setPhotos(current => [...current, file]); event.currentTarget.value = ""; }} />
+    <div className="driver-proof-add-photo"><span>เพิ่มรูป (ไม่บังคับ)</span><div className="driver-proof-photo-actions">
+      <button type="button" disabled={busy || !photos[0] || !photos[1]} onClick={() => extraCameraRef.current?.click()}><Camera size={18} /> กล้อง</button>
+      <button type="button" disabled={busy || !photos[0] || !photos[1]} onClick={() => extraFileRef.current?.click()}><FolderOpen size={18} /> ไฟล์</button>
+    </div></div>
+    <input ref={extraCameraRef} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+    <input ref={extraFileRef} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
     <label className="driver-proof-signer">ชื่อผู้เซ็น<input value={signerName} maxLength={100} disabled={busy} placeholder={stage === "pickup" ? "ชื่อผู้ส่งสินค้า" : "ชื่อผู้รับสินค้า"} onChange={event => setSignerName(event.target.value)} /></label>
     <div className="driver-proof-preview"><strong>พรีวิวลายเซ็น</strong>{signaturePreview ? <Image unoptimized src={signaturePreview} alt="ลายเซ็นที่ยืนยันแล้ว" width={500} height={180} /> : <span>ยังไม่มีลายเซ็นที่ยืนยัน</span>}</div>
     <button type="button" className="driver-proof-open-signature" disabled={busy} onClick={() => { setError(""); setDraftSigned(false); setSignatureOpen(true); }}>{signature ? "✓ ยืนยันลายเซ็นแล้ว · เซ็นใหม่" : "เปิดหน้าจอเซ็นชื่อ"}</button>
