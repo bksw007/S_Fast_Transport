@@ -4829,6 +4829,20 @@ textarea:focus {
 .dashboard-job-alert { padding: 9px 10px; margin-bottom: 12px; font-size: .72rem; color: var(--dashboard-warning); background: color-mix(in srgb, var(--dashboard-warning) 8%, var(--surface)); border-radius: 8px; }
 .dashboard-job-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; font-size: .71rem; color: var(--muted); }
 .dashboard-job-footer > span:last-child { color: var(--accent); font-weight: 600; flex-shrink: 0; }
+.dashboard-detail-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; }
+.dashboard-delete-area { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border); }
+.dashboard-delete-success { margin: 0 0 12px; color: #19604a; font-size: .8rem; font-weight: 600; }
+.dashboard-delete-button { display: inline-flex; align-items: center; gap: 7px; color: #a33e32; font-size: .76rem; font-weight: 600; }
+.dashboard-delete-confirm { display: grid; gap: 9px; padding: 12px; border: 1px solid #d8a39a; border-radius: 9px; background: color-mix(in srgb, #a33e32 5%, var(--surface)); }
+.dashboard-delete-confirm strong { font-size: .82rem; }
+.dashboard-delete-confirm p { margin: 0; color: var(--muted); font-size: .73rem; line-height: 1.5; }
+.dashboard-delete-confirm p[role="alert"] { color: #a33e32; }
+.dashboard-delete-confirm label { display: grid; gap: 5px; color: var(--text); font-size: .73rem; }
+.dashboard-delete-confirm input { width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); }
+.dashboard-delete-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+.dashboard-delete-confirm > div button { padding: 8px 11px; border-radius: 7px; font-size: .73rem; }
+.dashboard-delete-confirm > div button.danger { background: #a33e32; color: white; }
+.dashboard-delete-confirm > div button:disabled { opacity: .5; cursor: not-allowed; }
 .dashboard-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; font-size: .72rem; color: var(--muted); }
 .dashboard-pagination > div { display: flex; align-items: center; gap: 10px; }
 .dashboard-pagination button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); }

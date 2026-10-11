@@ -10,7 +10,7 @@ import DriverHistory from "./components/DriverHistory";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { saveDriverProofDraft } from "@/lib/driver-proof-draft";
-import { resolveDriverIssue } from "@/lib/job-detail-repository";
+import { permanentlyDeleteCancelledJob, resolveDriverIssue } from "@/lib/job-detail-repository";
 import JobDetail from "./components/JobDetail";
 import AdminDashboard from "./components/AdminDashboard";
 import PwaInstallButton, { preparePwaInstallPromptCapture } from "./components/PwaInstallButton";
@@ -603,6 +603,7 @@ export default function Home() {
               appearance={appearance}
               jobsState={jobsState}
               allJobs={jobs}
+              deletedJobs={deletedJobs}
               profile={profile}
               screen={adminScreen}
               activeJobs={activeJobs}
@@ -610,6 +611,7 @@ export default function Home() {
               selectedJobId={selectedJob.id}
               onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard"); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
+              onPermanentlyDelete={permanentlyDeleteCancelledJob}
               canWrite={canWrite}
               onProfileUpdated={refreshCurrentProfile}
             />
@@ -636,7 +638,7 @@ export default function Home() {
               ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
-            <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} />
+            <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} onPermanentlyDelete={permanentlyDeleteCancelledJob} />
           ) : adminScreen === "แจ้งเตือน" ? (
             <DriverIssuesScreen jobs={jobs} actor={profile} />
           ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (
@@ -859,6 +861,7 @@ function AdminMobileScreen({
   appearance,
   jobsState,
   allJobs,
+  deletedJobs,
   profile,
   screen,
   activeJobs,
@@ -866,12 +869,14 @@ function AdminMobileScreen({
   selectedJobId,
   onSelectJob,
   onCreateJob,
+  onPermanentlyDelete,
   canWrite,
   onProfileUpdated
 }: {
   appearance: AppearanceSettings;
   jobsState: "loading" | "ready" | "error";
   allJobs: TransportJob[];
+  deletedJobs: TransportJob[];
   profile: UserProfile;
   screen: AdminScreen;
   activeJobs: TransportJob[];
@@ -879,11 +884,12 @@ function AdminMobileScreen({
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => Promise<string | undefined>;
+  onPermanentlyDelete: (job: TransportJob) => Promise<void>;
   canWrite: boolean;
   onProfileUpdated: () => Promise<void>;
 }) {
   if (screen === "Dashboard") {
-    return <AdminDashboard jobs={allJobs} dataState={jobsState} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />;
+    return <AdminDashboard jobs={allJobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJobId} onSelectJob={onSelectJob} onPermanentlyDelete={onPermanentlyDelete} />;
   }
 
   if (screen === "Jobs / ใบงาน") {

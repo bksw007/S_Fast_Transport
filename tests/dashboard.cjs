@@ -7,7 +7,7 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const compile = text => ts.transpileModule(text, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
 const shared = { exports: {} };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
-let slots = [], cursor = 0, selected;
+let slots = [], cursor = 0, selected, permanentlyDeleted;
 const context = { React, exports: {}, require: name => {
   if (name === 'react') return { ...React, useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = value; }]; } };
   if (name === '@s-fast-transport/shared') return shared.exports;
@@ -17,7 +17,7 @@ vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboa
 const makeJob = (id, status, alerts = []) => ({ id, status, alerts, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
 const jobs = [makeJob('active', 'assigned'), makeJob('problem', 'problem'), makeJob('done', 'completed', ['Old alert']), makeJob('cancel', 'cancelled')];
 let tree;
-function render(data = jobs, dataState = 'ready') { cursor = 0; tree = context.exports.default({ jobs: data, dataState, selectedJobId: '', onSelectJob: id => { selected = id; } }); }
+function render(data = jobs, dataState = 'ready', deletedJobs = []) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', onSelectJob: id => { selected = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 function cardIds() { return nodes().filter(n => n.props?.['aria-haspopup'] === 'dialog').map(n => n.props['aria-label']); }
@@ -34,6 +34,21 @@ slots = []; render(Array.from({ length: 13 }, (_, i) => makeJob(String(i), 'assi
 find(n => n.props?.['aria-label'] === 'หน้าถัดไป').props.onClick(); render(Array.from({ length: 13 }, (_, i) => makeJob(String(i), 'assigned'))); assert.equal(cardIds().length, 1);
 slots = []; render(jobs, 'loading'); assert.equal(cardIds().length, 0);
 render(jobs, 'error'); assert.ok(find(n => n.props?.role === 'alert'));
+slots = []; render();
+const cancelFilter = nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('ยกเลิก'));
+cancelFilter.props.onClick(); render();
+find(n => n.props?.className === 'dashboard-delete-button').props.onClick(); render();
+let confirmButton = find(n => n.props?.className === 'danger');
+assert.equal(confirmButton.props.disabled, true, 'permanent deletion requires the work order');
+find(n => n.type === 'input' && n.props?.placeholder === 'WO-cancel').props.onChange({ target: { value: 'WO-cancel' } }); render();
+confirmButton = find(n => n.props?.className === 'danger');
+assert.equal(confirmButton.props.disabled, false);
+confirmButton.props.onClick();
+assert.equal(permanentlyDeleted, 'cancel');
+slots = []; render(jobs, 'ready', [makeJob('soft-deleted', 'cancelled')]);
+nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('ยกเลิก')).props.onClick();
+render(jobs, 'ready', [makeJob('soft-deleted', 'cancelled')]);
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-delete-button').length, 2, 'soft-deleted jobs also offer permanent deletion');
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const file = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -47,6 +62,7 @@ function visit(node) {
 visit(file);
 let received, opened;
 const navigation = { React, adminScreen: 'Dashboard', mode: 'admin', jobs, deletedJobs: [], activeJobs: jobs.slice(0, 2), jobsState: 'ready', selectedJob: jobs[2], selectedJobId: 'done', jobDetailOpen: true, canWrite: true, profile: {},
+  permanentlyDeleteCancelledJob: async () => {},
   setSelectedJobId: id => { selected = id; }, setJobDetailOpen: value => { opened = value; },
   AdminDashboard: props => { received = props; return React.createElement('div'); },
   JobDetailModal: props => props.children, JobDetail: props => React.createElement('div', null, props.job.id), GoogleLiveMap: () => null,

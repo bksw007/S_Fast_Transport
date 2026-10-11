@@ -1,11 +1,18 @@
 import { collection, deleteField, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where, writeBatch, type DocumentData } from "firebase/firestore";
 import { db } from "./firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { firebaseApp } from "./firebase";
 import { canReceiveDriverJobs, hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
 import type { TransportJob } from "@s-fast-transport/shared";
 import { coordinateFingerprint } from "./google-routes-distance";
 import { validateJobEditDraft, type JobEditDraft } from "./job-edit";
 
 export type JobRecord = { id: string; data: DocumentData };
+export async function permanentlyDeleteCancelledJob(job: Pick<TransportJob, "id" | "workOrder">) {
+  const callable = httpsCallable<{ jobId: string; workOrder: string }, { deleted: boolean }>(getFunctions(firebaseApp, "asia-southeast1"), "permanentlyDeleteCancelledJob");
+  const response = await callable({ jobId: job.id, workOrder: job.workOrder });
+  if (!response.data.deleted) throw new Error("ลบใบงานไม่สำเร็จ กรุณาลองใหม่");
+}
 export type JobSettings = { driverPhone: string; eta: string; notes: string };
 export function subscribeJobRecords(jobId: string, kind: "proofs" | "events" | "locations", next: (rows: JobRecord[]) => void, fail: (error: Error) => void) {
   const source = kind === "locations"
