@@ -2,7 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 import "./theme.css";
+import "./admin-theme.css";
+import "./public-theme.css";
 import DatePickerBehavior from "./components/DatePickerBehavior";
+import { siteFont } from "./site-font";
 
 export const metadata: Metadata = {
   title: "S Fast Transport",
@@ -25,8 +28,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0d2b45" },
-    { media: "(prefers-color-scheme: dark)", color: "#091925" }
+    { media: "(prefers-color-scheme: light)", color: "#20383b" },
+    { media: "(prefers-color-scheme: dark)", color: "#172222" }
   ],
   width: "device-width",
   initialScale: 1
@@ -35,7 +38,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th">
-      <body><DatePickerBehavior />{children}</body>
+      <body className={siteFont.variable}><DatePickerBehavior />{children}</body>
     </html>
   );
 }

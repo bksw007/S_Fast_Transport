@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Bai_Jamjuree } from "next/font/google";
+import { siteFont } from "./site-font";
 import ContactBook from "./components/ContactBook";
 import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
@@ -133,13 +133,6 @@ import {
   stopPwaJobTracking
 } from "@/lib/pwa-location";
 import { registerPwaServiceWorker, subscribeToTrackingAlerts } from "@/lib/pwa-push";
-
-const landingFont = Bai_Jamjuree({
-  subsets: ["thai", "latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-landing"
-});
 
 const statusOrder: JobStatus[] = [
   "assigned",
@@ -539,7 +532,7 @@ export default function Home() {
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
 
   return (
-    <main className={`app-shell ${mode === "driver" ? `driver-shell driver-premium-shell ${landingFont.variable}` : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
+    <main className={`app-shell ${mode === "driver" ? "driver-shell driver-premium-shell" : "admin-shell admin-premium-shell"} ${siteFont.variable}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
@@ -1322,7 +1315,7 @@ function EmptyState({ title, description }: { title: string; description: string
 
 function SessionLoadingScreen() {
   return (
-    <main className={`landing-page ${landingFont.variable}`} aria-busy="true" aria-live="polite">
+    <main className={`landing-page ${siteFont.variable}`} aria-busy="true" aria-live="polite">
       <div className="landing-photo" aria-hidden="true" />
       <div className="landing-shade" aria-hidden="true" />
       <header className="landing-header"><span className="landing-kicker">S FAST TRANSPORTATION</span></header>
@@ -1368,7 +1361,7 @@ function LoginScreen() {
   }
 
   return (
-    <main className={`landing-page ${landingFont.variable}`}>
+    <main className={`landing-page ${siteFont.variable}`}>
       <div className="landing-photo" aria-hidden="true" />
       <div className="landing-shade" aria-hidden="true" />
       <header className="landing-header">

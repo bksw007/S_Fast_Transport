@@ -1,0 +1,141 @@
+/* Admin workspace: the same ivory, forest, and muted brass used in the driver and customer areas. */
+.app-shell.admin-premium-shell {
+  --ui-surface: #fbfaf7;
+  --ui-surface-soft: #eeeee9;
+  --ui-ink: #21313a;
+  --ui-muted: #69757a;
+  --ui-border: #dedfd9;
+  --ui-accent: #264b49;
+  --on-accent: #fff;
+  --success: #456c61;
+  --warning: #926f4f;
+  --danger: #a3544c;
+  --success-soft: #e9f0eb;
+  --warning-soft: #f3eee5;
+  --danger-soft: #f8ece9;
+  --shadow-card: 0 3px 12px #27383408;
+  background: #f1f2ed;
+  font-family: var(--font-landing), "Noto Sans Thai", sans-serif;
+}
+.admin-premium-shell .phone-frame,
+.admin-premium-shell .desktop-panel { border-color: #dfe4dc; background: #f7f6f2; box-shadow: 0 16px 42px #243d3611; backdrop-filter: none; }
+.admin-premium-shell .phone-frame { border-radius: 22px; }
+.admin-premium-shell .desktop-panel { border-radius: 22px; }
+.admin-premium-shell .topbar { border-bottom: 1px solid #e4e6df; background: #fbfaf7; color: #21313a; }
+.admin-premium-shell .brand span { color: #8a9691; }
+.admin-premium-shell .brand-logo { border-color: #d2d9d7; background: #e9efec; }
+.admin-premium-shell .top-actions button { border: 1px solid #dfe4dc; color: #526761; background: transparent; box-shadow: none; }
+.admin-premium-shell .top-actions button:hover { color: #21313a; background: #f0f2ed; }
+.admin-premium-shell .top-actions .install-action { border-color: #cfddd2; color: #264b49; background: #e9f0eb; }
+.admin-premium-shell .sidebar-workspace { border-color: #dce4d9; background: #f1f4ee; }
+.admin-premium-shell .sidebar-menu-group h2 { color: #927b5e; letter-spacing: .09em; }
+.admin-premium-shell .sidebar-menu-list button { border-radius: 9px; }
+.admin-premium-shell .sidebar-menu-list button.selected { border-color: #264b49; color: #fff; background: #264b49; }
+.admin-premium-shell .sidebar-menu-list button:hover:not(.selected) { background: #ebf0e9; }
+.admin-premium-shell .sidebar-footer { border-color: #e2e6df; background: #fbfaf7; }
+.admin-premium-shell .mobile-menu-toggle[aria-expanded="true"] { border-color: #264b49; color: #fff; background: #264b49; }
+.admin-premium-shell .desktop-panel > :is(.screen, .admin-wide) { background: #f7f6f2; }
+.admin-premium-shell .mobile-primary-content > .screen { background: #f7f6f2; }
+
+.admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) {
+  position: relative;
+  overflow: hidden;
+  min-height: 150px;
+  margin: 0 0 22px;
+  padding: 27px 28px;
+  border: 1px solid #294145;
+  border-radius: 18px;
+  background: #20383b;
+  color: #fff;
+  box-shadow: 0 12px 28px #193c3a16;
+}
+.admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head)::after {
+  position: absolute; top: -105px; right: -70px; width: 245px; height: 245px;
+  border: 1px solid #ffffff21; border-radius: 50%;
+  box-shadow: 0 0 0 42px #ffffff08, 0 0 0 86px #ffffff04;
+  content: ""; pointer-events: none;
+}
+.admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) > * { position: relative; z-index: 1; }
+.admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) h1 { margin: 4px 0; color: #fff; font-size: clamp(1.7rem, 2.7vw, 2.35rem); font-weight: 600; letter-spacing: -.04em; line-height: 1.3; }
+.admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) p { margin: 7px 0 0; color: #c5d1cc; font-size: .78rem; line-height: 1.65; }
+.admin-premium-shell :is(.dashboard-eyebrow, .eyebrow) { color: #927b5e; }
+.admin-premium-shell :is(.dashboard-header, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) :is(.dashboard-eyebrow, .eyebrow) { color: #d7c3a2; }
+.admin-premium-shell .dashboard-connection { border-color: #ffffff38; color: #dce7df; background: #ffffff19; }
+.admin-premium-shell .dashboard-connection.is-ready > span { background: #a9d4b5; }
+.admin-premium-shell .resource-page-head .resource-primary-button,
+.admin-premium-shell .access-page-head button,
+.admin-premium-shell .report-header button { border-color: #c8ddd0; color: #20383b; background: #e4eee6; }
+.admin-premium-shell .profile-page-head { margin-bottom: 0; }
+.admin-premium-shell .profile-hero-avatar { border-color: #d4ded7; background-color: #e9efec; box-shadow: 0 9px 26px #071b1b52; }
+
+.admin-premium-shell :is(.dashboard-metric, .dashboard-progress, .dashboard-job, .dispatch-form, .resource-form, .fleet-card, .organization-card, .access-card, .customer-card, .report-metrics article, .report-insight, .report-export, .report-completion-list article, .settings-panel, .profile-panel, .location-list-section, .location-library-form, .location-library-grid article, .driver-issue-card, .compact-job-card, .job-summary-card, .resource-metrics article, .job-contacts section, .map-card) {
+  border-color: #e2e6df; border-radius: 14px; background: #fff; box-shadow: 0 3px 12px #27383408;
+}
+.admin-premium-shell :is(.dashboard-metric, .dashboard-job, .fleet-card, .customer-card, .access-card):hover { border-color: #b8c9c1; }
+.admin-premium-shell .dashboard-metric[aria-pressed="true"],
+.admin-premium-shell .dashboard-job[data-selected="true"] { border-color: #b9c7bc; background: #f5f8f3; box-shadow: inset 0 3px 0 #456c61; }
+.admin-premium-shell .dashboard-metric-top svg,
+.admin-premium-shell .dashboard-job-route svg { color: #456c61; }
+.admin-premium-shell .dashboard-progress { background: #f2f5f0; }
+.admin-premium-shell .dashboard-filters button[aria-pressed="true"],
+.admin-premium-shell .dashboard-empty button { color: #fff; background: #264b49; }
+.admin-premium-shell .dashboard-job-footer > span:last-child,
+.admin-premium-shell .dashboard-detail-link { color: #2d5b52; }
+.admin-premium-shell .dashboard-search { border-color: #dce5dc; background: #fff; }
+.admin-premium-shell .dispatch-form-hero,
+.admin-premium-shell .resource-form > header { border-bottom: 1px solid #e2e6df; color: #21313a; background: #f2f5f0; }
+.admin-premium-shell .dispatch-form-hero :is(span, p),
+.admin-premium-shell .resource-form > header :is(small, p) { color: #69757a; }
+.admin-premium-shell .dispatch-form-hero h2,
+.admin-premium-shell .resource-form > header h2 { color: #21313a; font-weight: 600; }
+.admin-premium-shell :is(.resource-primary-button, .resource-save-button, .profile-save-bar button, .save-job-button, .dispatch-submit, .upload-button, .primary-button, .access-card-actions button:not(.danger-button):not(.secondary-button), .customer-form button[type="submit"], .settings-save button) { border-color: #264b49; color: #fff; background: #264b49; box-shadow: none; font-weight: 600; }
+.admin-premium-shell :is(.resource-primary-button, .resource-save-button, .profile-save-bar button, .save-job-button, .dispatch-submit, .upload-button, .primary-button):hover { background: #1a3937; box-shadow: none; }
+.admin-premium-shell :is(.customer-tabs button.active, .resource-tabs button.selected, .access-filter-tabs button.selected, .report-tabs button[aria-selected="true"], .access-filter button.selected) { border-color: #264b49; color: #fff; background: #264b49; }
+.admin-premium-shell :is(.customer-tabs, .resource-tabs, .access-filter-tabs, .report-tabs) { border-color: #e2e6df; }
+.admin-premium-shell :is(.customer-tabs, .resource-tabs, .access-filter-tabs, .report-tabs) button:not(.active):not(.selected):not([aria-selected="true"]) { color: #526761; background: #eef2ec; }
+.admin-premium-shell :is(.customer-screen input, .customer-screen select, .settings-panel input, .settings-panel select) { border-color: #dce3d9; background: #fff; }
+.admin-premium-shell .report-table-wrap { border-color: #e2e6df; background: #fff; }
+.admin-premium-shell .report-table-wrap th { color: #526761; background: #edf2ec; }
+.admin-premium-shell .report-completion-list article button { color: #fff; background: #264b49; }
+.admin-premium-shell .settings-save { background: #f2f5f0; }
+.admin-premium-shell .location-list-head button,
+.admin-premium-shell .location-library-form button[type="submit"] { border-color: #264b49; color: #fff; background: #264b49; }
+.admin-premium-shell .driver-issue-card.open { border-color: #c99b89; }
+.admin-premium-shell .driver-issue-resolution button { background: #a3544c; }
+.admin-premium-shell .empty-state { color: #69757a; background: #f7f6f2; }
+.admin-premium-shell .empty-state-icon { color: #456c61; background: #eaf0ed; }
+
+.app-shell.admin-premium-shell[data-theme="dark"] {
+  --ui-surface: #1d292a; --ui-surface-soft: #2a3939; --ui-ink: #edf1ed;
+  --ui-muted: #adbcb5; --ui-border: #3e504b; --ui-accent: #b9d1c1;
+  --on-accent: #20383b; --success: #9bc6ad; --warning: #d6b690;
+  --danger: #e3aaa0; --success-soft: #2b4139; --warning-soft: #473e32;
+  --danger-soft: #493431; --shadow-card: 0 3px 14px #00000019;
+  --surface: var(--ui-surface); --surface-2: var(--ui-surface-soft);
+  --text: var(--ui-ink); --muted: var(--ui-muted);
+  --border: var(--ui-border); --accent: var(--ui-accent);
+  background: #172222;
+}
+.admin-premium-shell[data-theme="dark"] :is(.phone-frame, .desktop-panel, .desktop-panel > .screen, .desktop-panel > .admin-wide, .mobile-primary-content > .screen, .topbar, .sidebar-footer) { border-color: #3e504b; color: #edf1ed; background: #1d292a; }
+.admin-premium-shell[data-theme="dark"] :is(.dashboard-metric, .dashboard-progress, .dashboard-job, .dispatch-form, .resource-form, .fleet-card, .organization-card, .access-card, .customer-card, .report-metrics article, .report-insight, .report-export, .report-completion-list article, .settings-panel, .profile-panel, .location-list-section, .location-library-form, .location-library-grid article, .driver-issue-card, .compact-job-card, .job-summary-card, .resource-metrics article, .job-contacts section, .map-card) { border-color: #3e504b; color: #edf1ed; background: #263534; }
+.admin-premium-shell[data-theme="dark"] .dashboard-progress,
+.admin-premium-shell[data-theme="dark"] .settings-save { background: #293b33; }
+.admin-premium-shell[data-theme="dark"] .dashboard-metric[aria-pressed="true"],
+.admin-premium-shell[data-theme="dark"] .dashboard-job[data-selected="true"] { border-color: #6d8d79; background: #30423a; }
+.admin-premium-shell[data-theme="dark"] .sidebar-workspace,
+.admin-premium-shell[data-theme="dark"] .dispatch-form-hero,
+.admin-premium-shell[data-theme="dark"] .resource-form > header { border-color: #3e504b; color: #edf1ed; background: #263534; }
+.admin-premium-shell[data-theme="dark"] .dispatch-form-hero h2,
+.admin-premium-shell[data-theme="dark"] .resource-form > header h2 { color: #edf1ed; }
+.admin-premium-shell[data-theme="dark"] .sidebar-menu-list button.selected { color: #fff; background: #365e56; border-color: #365e56; }
+.admin-premium-shell[data-theme="dark"] .report-table-wrap { border-color: #3e504b; background: #263534; }
+.admin-premium-shell[data-theme="dark"] .report-table-wrap th { color: #c0d4c6; background: #30423a; }
+.admin-premium-shell[data-theme="dark"] .customer-screen :is(input, select),
+.admin-premium-shell[data-theme="dark"] .settings-panel :is(input, select) { border-color: #3e504b; color: #edf1ed; background: #1d292a; }
+.admin-premium-shell[data-theme="dark"] .top-actions button { border-color: #3e504b; color: #d6e3db; background: #2a3939; }
+.admin-premium-shell[data-theme="dark"] .brand span { color: #adc0b6; }
+
+@media (max-width: 700px) {
+  .admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) { min-height: 135px; padding: 22px 20px; }
+  .admin-premium-shell .report-header { align-items: stretch; }
+}

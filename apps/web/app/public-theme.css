@@ -1,0 +1,92 @@
+/* Public tracking and shared profile pages use the same calm palette as the signed-in portals. */
+body :is(.tracking-shell, .tracking-state, .public-driver-shell, .public-driver-state, .public-vehicle-shell, .public-vehicle-state) {
+  --ui-surface: #fbfaf7;
+  --ui-surface-soft: #eeeee9;
+  --ui-ink: #21313a;
+  --ui-muted: #69757a;
+  --ui-border: #dedfd9;
+  --ui-accent: #264b49;
+  --on-accent: #fff;
+  --shadow-card: 0 3px 12px #27383408;
+  color: #21313a;
+  background: #f7f6f2;
+  font-family: var(--font-landing), "Noto Sans Thai", sans-serif;
+}
+body :is(.tracking-header, .public-driver-header, .public-vehicle-header) { padding-bottom: 18px; border-bottom: 1px solid #dce3db; }
+body :is(.tracking-brand, .public-driver-brand, .public-vehicle-brand) strong { color: #21313a; font-weight: 600; }
+body :is(.tracking-brand, .public-driver-brand, .public-vehicle-brand) img { border-color: #d8e1d8; background: #f3f6f1; }
+body :is(.tracking-live, .public-driver-status, .public-vehicle-status) { color: #456c61; font-weight: 600; }
+body :is(.tracking-hero, .public-driver-hero, .public-vehicle-hero) {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #294145;
+  border-radius: 18px;
+  color: #fff;
+  background: #20383b;
+  box-shadow: 0 12px 28px #193c3a16;
+}
+body :is(.tracking-hero, .public-driver-hero, .public-vehicle-hero)::after {
+  position: absolute; top: -130px; right: -55px; width: 310px; height: 310px;
+  border: 1px solid #ffffff21; border-radius: 50%;
+  box-shadow: 0 0 0 54px #ffffff08, 0 0 0 108px #ffffff04;
+  content: ""; pointer-events: none;
+}
+body :is(.tracking-hero, .public-driver-hero, .public-vehicle-hero) > * { position: relative; z-index: 1; }
+body :is(.tracking-hero, .public-driver-hero, .public-vehicle-hero) h1 { color: #fff; font-weight: 600; letter-spacing: -.045em; }
+body :is(.tracking-hero, .public-driver-hero, .public-vehicle-hero) p { color: #c5d1cc; }
+body :is(.tracking-kicker, .public-driver-hero > div > span, .public-vehicle-hero > div > span) { color: #d7c3a2; font-weight: 600; }
+body .tracking-eta { border-color: #ffffff37; color: #fff; background: #ffffff19; }
+body .tracking-eta span { color: #c5d1cc; opacity: 1; }
+body .tracking-eta strong { color: #fff; }
+body .public-driver-photo { border-color: #d8e1d8; background: #eaf0ed; }
+body .public-driver-status, body .public-vehicle-status { color: #e4eee6; background: #ffffff22; }
+body :is(.tracking-route, .tracking-summary, .tracking-driver-card, .tracking-proof-card, .tracking-report, .public-driver-facts article, .public-driver-section, .public-vehicle-facts article, .public-vehicle-section) { border-color: #e2e6df; border-radius: 14px; background: #fff; box-shadow: 0 3px 12px #27383408; }
+body :is(.public-driver-section, .public-vehicle-section) > header { border-color: #e2e6df; background: #f2f5f0; }
+body :is(.public-driver-section, .public-vehicle-section) > header span { color: #927b5e; font-weight: 600; }
+body :is(.public-driver-section, .public-vehicle-section) > header svg,
+body :is(.public-driver-facts, .public-vehicle-facts) svg,
+body .tracking-section-title svg { color: #456c61; }
+body :is(.public-driver-document, .public-vehicle-document) { border-color: #dfe6dc; background: #f8faf6; }
+body :is(.public-driver-document-preview, .public-vehicle-document-preview) { color: #456c61; background: #eaf0ed; }
+body .tracking-stop > span { border-color: #b49a70; }
+body .tracking-stop .destination { border-color: #456c61; background: #456c61; }
+body .tracking-line { background: repeating-linear-gradient(#bdcac0 0 6px, transparent 6px 11px); }
+body :is(.tracking-map-link, .tracking-call-button, .tracking-report button) { color: #fff; background: #264b49; font-weight: 600; }
+body .tracking-issue { border-color: #e4ccb7; color: #7f5b45; background: #f8f0e8; }
+body .tracking-issue.is-resolved { border-color: #dce5dc; color: #365a4e; background: #eef5ed; }
+body .tracking-signature { border-color: #e2e6df; background: #fbfaf7; }
+
+body .login-shell {
+  --surface: #fbfaf7; --surface-2: #eeeee9; --text: #21313a;
+  --muted: #69757a; --border: #dedfd9; --accent: #264b49;
+  --on-accent: #fff;
+  color: #21313a;
+  background: #f7f6f2;
+  font-family: var(--font-landing), "Noto Sans Thai", sans-serif;
+}
+body .login-shell .login-card {
+  --surface: #fbfaf7; --surface-2: #eeeee9; --text: #21313a;
+  --muted: #69757a; --border: #dedfd9; --accent: #264b49;
+  --on-accent: #fff;
+  border-color: #dfe4dc; color: #21313a; background: #fbfaf7;
+  box-shadow: 0 18px 50px #1a2b2b12;
+}
+body .login-shell .pending-head { padding: 3px 0 17px; border-bottom: 1px solid #e2e6df; }
+body .login-shell .pending-head .eyebrow { color: #927b5e; }
+body .login-shell .pending-head h1 { color: #21313a; font-weight: 600; }
+body .login-shell .pending-profile-avatar, body .login-shell .pending-icon { border-color: #d2d9d7; color: #456c61; background: #e9efec; }
+body .login-shell .access-request-form :is(input, select, textarea) { border-color: #dce3d9; color: #21313a; background: #fff; }
+body .login-shell .pending-submitted { border-color: #d9e5dc; background: #eef5ed; }
+body .login-shell .pending-submitted > span, body .login-shell .access-request-submit { color: #fff; background: #264b49; }
+body .login-shell .pending-notice { border-color: #e2e6df; color: #69757a; background: #f2f5f0; }
+body .login-shell .pending-notice.danger { border-color: #ead8d2; color: #9b5d4e; background: #faf1ed; }
+
+@media print {
+  body :is(.public-driver-shell, .public-vehicle-shell) { color: #21313a; background: #fff; }
+  body :is(.public-driver-hero, .public-vehicle-hero) { border-color: #cbd6ce; color: #21313a; background: #fff; box-shadow: none; }
+  body :is(.public-driver-hero, .public-vehicle-hero)::after { display: none; }
+  body :is(.public-driver-hero, .public-vehicle-hero) h1 { color: #21313a; }
+  body :is(.public-driver-hero, .public-vehicle-hero) p,
+  body :is(.public-driver-hero > div > span, .public-vehicle-hero > div > span) { color: #69757a; }
+  body :is(.public-driver-status, .public-vehicle-status) { color: #365a4e; background: #eaf0ed; }
+}

@@ -367,6 +367,12 @@ button, input, select, textarea { font-family: inherit; }
   --success-soft: #2b4139;
   --warning-soft: #473e32;
   --danger-soft: #493431;
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-soft);
+  --text: var(--ui-ink);
+  --muted: var(--ui-muted);
+  --border: var(--ui-border);
+  --accent: var(--ui-accent);
   background: #172222;
 }
 .driver-premium-shell[data-theme="dark"] .phone-frame, .driver-premium-shell[data-theme="dark"] .driver-today-screen { background: #172222; }
