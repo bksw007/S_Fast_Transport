@@ -41,6 +41,14 @@ service firebase.storage {
       return activeUser() && job(jobId).data.assignedDriverUid == request.auth.uid;
     }
 
+    function isJobCustomer(jobId) {
+      return activeUser()
+        && profile().data.role == "customer"
+        && profile().data.customerId is string
+        && profile().data.customerId.size() > 0
+        && job(jobId).data.customerId == profile().data.customerId;
+    }
+
     function userProfile(uid) {
       return firestore.get(/databases/(default)/documents/users/$(uid));
     }
@@ -68,7 +76,7 @@ service firebase.storage {
     }
 
     match /proof_of_delivery/{jobId}/{uid}/{fileName} {
-      allow read: if isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId);
+      allow read: if isMainAdmin() || sameOrganization(jobId) || isAssignedDriver(jobId) || isJobCustomer(jobId);
       allow write: if activeUser()
         && uid == request.auth.uid
         && (isMainAdmin() || isSubcontractAdmin() || isAssignedDriver(jobId))

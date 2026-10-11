@@ -1,9 +1,10 @@
 import { addDoc, collection, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { canManageOrganizationLists, type UserProfile } from "./transport-repository";
+import { resolveCustomerId } from "./customer-repository";
 
 export type ContactDraft = { name: string; phone: string; company: string; location: string; notes: string };
-export type SavedContact = ContactDraft & { id: string; active: boolean };
+export type SavedContact = ContactDraft & { id: string; active: boolean; customerId?: string };
 export const emptyContact: ContactDraft = { name: "", phone: "", company: "", location: "", notes: "" };
 export function validateContact(draft: ContactDraft): ContactDraft {
   const clean = Object.fromEntries(Object.entries(emptyContact).map(([key]) => [key, String(draft[key as keyof ContactDraft] ?? "").trim()])) as ContactDraft;
@@ -18,7 +19,9 @@ export function subscribeContacts(orgId: string, onItems: (items: SavedContact[]
 export async function saveContact(draft: ContactDraft, id: string | undefined, actor: UserProfile) {
   const orgId = actor.organizationId ?? "main";
   if (!canManageOrganizationLists(actor, orgId)) throw new Error("ไม่มีสิทธิ์จัดการสมุดรายชื่อ");
-  const data = { ...validateContact(draft), organizationId: orgId, updatedAt: serverTimestamp(), updatedBy: actor.uid };
+  const clean = validateContact(draft);
+  const customerId = orgId === "main" && clean.company ? await resolveCustomerId(clean.company, actor) : null;
+  const data = { ...clean, ...(customerId ? { customerId } : {}), organizationId: orgId, updatedAt: serverTimestamp(), updatedBy: actor.uid };
   if (id) { await updateDoc(doc(db, "organizations", orgId, "contacts", id), data); return id; }
   return (await addDoc(collection(db, "organizations", orgId, "contacts"), { ...data, active: true, createdAt: serverTimestamp() })).id;
 }

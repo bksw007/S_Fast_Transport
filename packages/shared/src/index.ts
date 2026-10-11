@@ -46,6 +46,7 @@ export type TransportJob = {
   id: string;
   workOrder: string;
   customer: string;
+  customerId?: string;
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;

@@ -25,6 +25,7 @@ async function check(fileName, functionName) {
   await update(job, 'arrived_delivery', actor);
   assert.equal(data.arrivedDeliveryAt, arrival, 'Stale client and repeated button press must preserve first arrival');
   assert.equal(Object.hasOwn(writes[1], 'arrivedDeliveryAt'), false);
+  data.deliveryProof = { photoPaths: ['proof-1', 'proof-2'], signaturePath: 'signature', signerName: 'Receiver' };
   await update(job, 'completed', actor);
   const completed = data.completedAt;
   assert.ok(completed);

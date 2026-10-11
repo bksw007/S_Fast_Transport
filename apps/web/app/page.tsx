@@ -87,6 +87,7 @@ import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
 import { LocationPicker } from "@/app/components/LocationPicker";
 import { ReportsScreen } from "@/app/components/ReportsScreen";
 import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
+import { reconcileCustomerReferences, subscribeCustomers, type Customer } from "@/lib/customer-repository";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
 import { subscribeDrivers, type TransportDriver, subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
 import {
@@ -119,6 +120,7 @@ import {
   updateUserAccess,
   uploadProof,
   type JobDraft,
+  type CreatedJob,
   type DriverIssueType,
   type UserAccessUpdate,
   type UserProfile
@@ -345,6 +347,8 @@ export default function Home() {
         if (!nextUser) clearDriverProofDrafts();
         setUser(nextUser);
         setProfile(null);
+        setJobs([]);
+        setJobsState("loading");
         setDeletedJobs([]);
         setAdminDriverMode(false);
         setAuthReady(false);
@@ -384,7 +388,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!user || !profile) {
+    if (!user || !profile || profile.role === "customer") {
       return;
     }
 
@@ -404,6 +408,10 @@ export default function Home() {
       setDeletedJobs
     );
   }, [user, profile]);
+
+  useEffect(() => {
+    if (authReady && profile?.role === "customer" && profile.customerId && hasApprovedAccess(profile)) window.location.replace("/customer");
+  }, [authReady, profile]);
 
   useEffect(() => {
     if (!profile || !hasApprovedAccess(profile) || !isMainAdmin(profile)) return;
@@ -520,8 +528,12 @@ export default function Home() {
     return <LoginScreen />;
   }
 
-  if (!profile || !hasApprovedAccess(profile)) {
+  if (!profile || !hasApprovedAccess(profile) || (profile.role === "customer" && !profile.customerId)) {
     return <PendingAccessScreen user={user} profile={profile} />;
+  }
+
+  if (profile.role === "customer") {
+    return <SessionLoadingScreen />;
   }
 
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
@@ -899,7 +911,7 @@ function AdminMobileScreen({
   selectedJob: TransportJob;
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
-  onCreateJob: (draft: JobDraft) => Promise<string | undefined>;
+  onCreateJob: (draft: JobDraft) => Promise<CreatedJob | undefined>;
   onPermanentlyDelete: (job: TransportJob) => Promise<void>;
   canWrite: boolean;
   onProfileUpdated: () => Promise<void>;
@@ -1000,19 +1012,21 @@ function DriverIssuesScreen({ jobs, actor }: { jobs: TransportJob[]; actor: User
   </section>;
 }
 
-type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId">;
+type AccessDraft = Pick<UserAccessUpdate, "role" | "organizationId" | "customerId"> & { accessGroup: string };
 
 const accessRoleLabels: Record<UserProfile["role"], string> = {
   owner: "เจ้าของระบบ",
   admin: "แอดมินบริษัทหลัก",
   dispatcher: "เจ้าหน้าที่จัดงาน",
   subcontract_admin: "แอดมินบริษัทรอง",
-  driver: "คนขับ"
+  driver: "คนขับ",
+  customer: "ลูกค้า"
 };
 
 function AccessManagementScreen({ actor }: { actor: UserProfile }) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [organizations, setOrganizations] = useState<SubcontractOrganization[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [drafts, setDrafts] = useState<Record<string, AccessDraft>>({});
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [expandedUserId, setExpandedUserId] = useState("");
@@ -1033,10 +1047,14 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
     (error) => setMessage(`โหลดรายชื่อบริษัทไม่สำเร็จ: ${error}`)
   ), []);
 
+  useEffect(() => subscribeCustomers(setCustomers, (error) => setMessage(`โหลดรายชื่อลูกค้าไม่สำเร็จ: ${error}`)), []);
+
   function draftFor(user: UserProfile): AccessDraft {
     return drafts[user.uid] ?? {
       role: user.role,
-      organizationId: user.organizationId ?? "main"
+      organizationId: user.organizationId ?? "main",
+      customerId: user.customerId,
+      accessGroup: user.role === "customer" ? "customer" : user.organizationId ?? "main"
     };
   }
 
@@ -1046,10 +1064,12 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
 
   async function saveAccess(user: UserProfile, suspended = false) {
     const draft = draftFor(user);
-    const selectedOrganization = draft.organizationId === "main"
+    const selectedCustomer = customers.find(item => item.id === draft.customerId && item.active);
+    if (draft.accessGroup === "customer" && !selectedCustomer && !suspended) { setMessage("กรุณาเลือกลูกค้าที่เปิดใช้งาน"); return; }
+    const selectedOrganization = draft.accessGroup === "main" || draft.accessGroup === "customer"
       ? null
-      : organizations.find((item) => item.id === draft.organizationId);
-    if (draft.organizationId !== "main" && !selectedOrganization) {
+      : organizations.find((item) => item.id === draft.accessGroup);
+    if (draft.accessGroup !== "main" && draft.accessGroup !== "customer" && !selectedOrganization) {
       setMessage("กรุณาเลือกบริษัทที่ถูกต้อง");
       return;
     }
@@ -1057,12 +1077,14 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
     setBusyUid(user.uid);
     setMessage(`กำลังอัปเดต ${user.accessRequestName || user.displayName}...`);
     try {
+      if (draft.accessGroup === "customer" && !suspended) await reconcileCustomerReferences(actor);
       await updateUserAccess(user.uid, {
-        role: draft.role,
-        organizationId: draft.organizationId,
-        organizationType: draft.organizationId === "main" ? "main" : "subcontract",
-        organizationName: draft.organizationId === "main" ? "S Fast Transport" : selectedOrganization?.name ?? "",
-        organizationLogoUrl: draft.organizationId === "main" ? "" : selectedOrganization?.logoUrl ?? "",
+        role: draft.accessGroup === "customer" ? "customer" : draft.role,
+        organizationId: draft.accessGroup === "customer" ? null : draft.accessGroup,
+        organizationType: draft.accessGroup === "customer" ? null : draft.accessGroup === "main" ? "main" : "subcontract",
+        organizationName: draft.accessGroup === "customer" ? selectedCustomer?.name ?? user.organizationName : draft.accessGroup === "main" ? "S Fast Transport" : selectedOrganization?.name ?? "",
+        organizationLogoUrl: draft.accessGroup === "main" || draft.accessGroup === "customer" ? "" : selectedOrganization?.logoUrl ?? "",
+        customerId: draft.accessGroup === "customer" ? draft.customerId : null,
         active: !suspended,
         approvalStatus: suspended ? "suspended" : "approved"
       }, actor);
@@ -1083,10 +1105,10 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
   function changeOrganization(user: UserProfile, organizationId: string) {
     const current = draftFor(user);
     const mainRoles: UserProfile["role"][] = ["owner", "admin", "dispatcher"];
-    const role = organizationId === "main"
-      ? current.role === "subcontract_admin" ? "dispatcher" : current.role
-      : mainRoles.includes(current.role) ? "subcontract_admin" : current.role;
-    updateDraft(user, { organizationId, role });
+    const role = organizationId === "customer" ? "customer" : organizationId === "main"
+      ? current.role === "subcontract_admin" || current.role === "customer" ? "dispatcher" : current.role
+      : mainRoles.includes(current.role) || current.role === "customer" ? "subcontract_admin" : current.role;
+    updateDraft(user, { accessGroup: organizationId, organizationId: organizationId === "customer" ? null : organizationId, customerId: organizationId === "customer" ? current.customerId : null, role });
   }
 
   function changeFilter(nextFilter: "pending" | "all") {
@@ -1101,7 +1123,9 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
       ...current,
       [user.uid]: {
         role: user.role,
-        organizationId: user.organizationId ?? "main"
+        organizationId: user.organizationId ?? "main",
+        customerId: user.customerId,
+        accessGroup: user.role === "customer" ? "customer" : user.organizationId ?? "main"
       }
     }));
     setExpandedUserId(user.uid);
@@ -1142,7 +1166,9 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
         {shownUsers.map((user) => {
           const draft = draftFor(user);
           const isPending = user.approvalStatus === "pending";
-          const roleOptions = draft.organizationId === "main"
+          const roleOptions = draft.accessGroup === "customer"
+            ? [{ value: "customer", label: "ลูกค้า · ดูงานของบริษัท" }]
+            : draft.accessGroup === "main"
             ? [
                 { value: "driver", label: "คนขับบริษัทหลัก" },
                 { value: "dispatcher", label: "เจ้าหน้าที่จัดงาน" },
@@ -1157,7 +1183,7 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
           const expanded = !compact || expandedUserId === user.uid;
           const editing = !compact || editingUserId === user.uid;
           const displayName = user.fullName || user.accessRequestName || user.displayName || "ยังไม่ได้แจ้งชื่อ";
-          const organizationName = user.organizationId === "main" || !user.organizationId
+          const organizationName = user.role === "customer" ? user.organizationName : user.organizationId === "main" || !user.organizationId
             ? "S Fast Transport · บริษัทหลัก"
             : user.organizationName || organizations.find((item) => item.id === user.organizationId)?.name || "ไม่พบบริษัทต้นสังกัด";
           const approvalLabel = user.approvalStatus === "pending" ? "รออนุมัติ" : user.approvalStatus === "approved" ? "ใช้งานอยู่" : "ระงับ";
@@ -1198,7 +1224,8 @@ function AccessManagementScreen({ actor }: { actor: UserProfile }) {
 
                   {editing ? (
                     <div className="access-decision-grid">
-                      <label><span>บริษัท</span><select value={draft.organizationId ?? "main"} onChange={(event) => changeOrganization(user, event.target.value)}><option value="main">S Fast Transport · บริษัทหลัก</option>{organizations.map((item) => <option key={item.id} value={item.id} disabled={!item.active}>{item.name}{item.active ? "" : " · ระงับ"}</option>)}</select></label>
+                      <label><span>ประเภทบัญชี</span><select value={draft.accessGroup} onChange={(event) => changeOrganization(user, event.target.value)}><option value="main">S Fast Transport · บริษัทหลัก</option><option value="customer">บริษัทลูกค้า</option>{organizations.map((item) => <option key={item.id} value={item.id} disabled={!item.active}>{item.name}{item.active ? "" : " · ระงับ"}</option>)}</select></label>
+                      {draft.accessGroup === "customer" && <label><span>บริษัทลูกค้า</span><select value={draft.customerId ?? ""} onChange={(event) => updateDraft(user, { customerId: event.target.value })}><option value="">เลือกบริษัทลูกค้า</option>{customers.filter(item => item.active).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
                       <label><span>บทบาท</span><select value={draft.role} onChange={(event) => updateDraft(user, { role: event.target.value as UserProfile["role"] })}>{roleOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                     </div>
                   ) : (
@@ -2305,13 +2332,13 @@ function AdminView({
   activeJobs: TransportJob[];
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
-  onCreateJob: (draft: JobDraft) => Promise<string | undefined>;
+  onCreateJob: (draft: JobDraft) => Promise<CreatedJob | undefined>;
   canWrite: boolean;
   compact?: boolean;
 }) {
   const [draft, setDraft] = useState<JobDraft>(createEmptyJobDraft);
   const [formVersion, setFormVersion] = useState(0);
-  const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrder: string } | { kind: "clear" } | null>(null);
+  const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrder: string; link: string } | { kind: "clear" } | null>(null);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
   const [driverProfiles, setDriverProfiles] = useState<UserProfile[]>([]);
   const [driverError, setDriverError] = useState("");
@@ -2351,10 +2378,10 @@ function AdminView({
       deliveryLocation: draft.deliveryLocation || "จุดส่งสินค้า",
       eta: draft.deliveryTime || draft.eta || "วันนี้"
     };
-    const workOrder = await onCreateJob(nextDraft);
-    if (workOrder) {
+    const created = await onCreateJob(nextDraft);
+    if (created) {
       resetJobForm();
-      setFormNotice({ kind: "saved", workOrder });
+      setFormNotice({ kind: "saved", workOrder: created.workOrder, link: `https://sfasttransport.vercel.app/track/${created.trackingToken}` });
     }
   }
 
@@ -2462,18 +2489,29 @@ function DispatchFormNotice({
   onClose,
   onConfirmClear
 }: {
-  notice: { kind: "saved"; workOrder: string } | { kind: "clear" };
+  notice: { kind: "saved"; workOrder: string; link: string } | { kind: "clear" };
   onClose: () => void;
   onConfirmClear: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const isClear = notice.kind === "clear";
+  const [qr, setQr] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     dialog?.showModal();
     return () => dialog?.close();
   }, []);
+
+  useEffect(() => {
+    if (notice.kind !== "saved") return;
+    let active = true;
+    void import("qrcode").then(QRCode => QRCode.toDataURL(notice.link, { width: 240, margin: 2 })).then(dataUrl => {
+      if (active) setQr(dataUrl);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [notice]);
 
   return (
     <dialog
@@ -2495,6 +2533,14 @@ function DispatchFormNotice({
             : <>สร้างเลขที่ใบแจ้งงาน <strong>{notice.workOrder}</strong> เรียบร้อยแล้ว</>}
           </p>
         </div>
+        {notice.kind === "saved" && <div className="dispatch-notice-share">
+          <label>ลิงก์ติดตามสถานะ<input readOnly value={notice.link} onFocus={event => event.target.select()} /></label>
+          {qr && <><Image unoptimized src={qr} width={240} height={240} alt={`QR ติดตามใบงาน ${notice.workOrder}`} /><a download={`tracking-${notice.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}
+          <div className="dispatch-notice-share-actions">
+            <button type="button" onClick={() => void navigator.clipboard.writeText(notice.link).then(() => setCopied(true))}>{copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}</button>
+            <a href={notice.link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a>
+          </div>
+        </div>}
         <div className="dispatch-notice-actions">
           {isClear ? <>
             <button type="button" autoFocus onClick={onClose}>ยกเลิก</button>

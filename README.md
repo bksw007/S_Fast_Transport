@@ -116,6 +116,8 @@ This step is required before Google login can be tested on an Android device.
 
 Tracking is tied to a job/work order, not only a driver. The latest location lives on `today_jobs/{jobId}.currentLocation` for fast dashboards, while detailed route history is written under `job_locations/{jobId}/points`.
 
+Creating a job saves its customer tracking link in the same Firestore transaction. The success dialog shows the URL and QR code immediately. New jobs trigger `notifyLineGroupOfNewJob` in the `functions-line` Firebase codebase, which sends that same URL with the work order, driver, and route to the internal LINE group. Set the `LINE_CHANNEL_ACCESS_TOKEN` Firebase Secret before deploying this function. The destination group and production site URL are configured in `functions-line/src/index.ts`; the existing LINE webhook URL is not changed. The function stores its delivery state in `line_job_notifications/{jobId}` and uses a LINE retry key to avoid duplicate pushes during retries. The job detail Share button reuses the active automatically created link.
+
 ## Reports
 
 The Reports menu now contains working punctuality, job-status, resource-performance, and export views on desktop and mobile. It uses the existing authorized `today_jobs` subscription, including completed and cancelled jobs. The default period is the current month in Bangkok time; select all dates to include legacy jobs without `jobDate`.

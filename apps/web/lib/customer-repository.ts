@@ -1,14 +1,87 @@
-import { collection, doc, onSnapshot, runTransaction, serverTimestamp, Timestamp, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, runTransaction, serverTimestamp, Timestamp, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
-import { isMainCompanyAdmin } from "./resource-repository";
 import type { UserProfile } from "./transport-repository";
 
 export type CustomerDraft = { name: string; contactName: string; phone: string; email: string; taxId: string; address: string; notes: string };
 export type Customer = CustomerDraft & { id: string; active: boolean; aliases: string[] };
 export type CustomerLink = { id: string; jobId: string; workOrder: string; customerName: string; enabled: boolean; expiresAt: number };
 export const normalizeCustomerName = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase("th-TH");
+export async function resolveCustomerId(name: string, actor: UserProfile): Promise<string> {
+  assertAccess(actor);
+  const cleanName = name.trim().replace(/\s+/g, " ");
+  const normalized = normalizeCustomerName(cleanName);
+  if (!normalized || cleanName.length > 200) throw new Error("กรุณาระบุบริษัทผู้ว่าจ้างให้ถูกต้อง");
+  const nameRef = doc(db, "customer_names", encodeURIComponent(normalized));
+  const existingName = await getDoc(nameRef);
+  if (existingName.exists()) return String(existingName.data().customerId);
+  const customers = await getDocs(collection(db, "customers"));
+  const matches = customers.docs.filter(item => {
+    const data = item.data();
+    return [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])].some(value => normalizeCustomerName(String(value ?? "")) === normalized);
+  });
+  if (matches.length > 1) throw new Error("พบบริษัทลูกค้าชื่อซ้ำ กรุณาตรวจสอบในเมนูลูกค้าก่อนบันทึก");
+  const matchedCustomerId = matches[0]?.id;
+  const customerRef = doc(collection(db, "customers"));
+  return runTransaction(db, async tx => {
+    const matched = await tx.get(nameRef);
+    if (matched.exists()) return String(matched.data().customerId);
+    if (matchedCustomerId) {
+      tx.set(nameRef, { customerId: matchedCustomerId });
+      return matchedCustomerId;
+    }
+    tx.set(nameRef, { customerId: customerRef.id });
+    tx.set(customerRef, {
+      name: cleanName, aliases: [cleanName], contactName: "", phone: "", email: "",
+      taxId: "", address: "", notes: "", active: true, organizationId: "main",
+      createdAt: serverTimestamp(), createdByUid: actor.uid, updatedAt: serverTimestamp(), updatedByUid: actor.uid
+    });
+    tx.set(doc(db, "organizations", "main", "list_options", `customer--${encodeURIComponent(normalized)}`), {
+      organizationId: "main", field: "customer", value: cleanName, normalizedValue: normalized,
+      createdByUid: actor.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    }, { merge: true });
+    return customerRef.id;
+  });
+}
+export async function reconcileCustomerReferences(actor: UserProfile): Promise<{ jobs: number; contacts: number; unmatched: number }> {
+  assertAccess(actor);
+  const [customerDocs, jobDocs, contactDocs] = await Promise.all([
+    getDocs(collection(db, "customers")),
+    getDocs(collection(db, "today_jobs")),
+    getDocs(collection(db, "organizations", "main", "contacts"))
+  ]);
+  const byName = new Map<string, Set<string>>();
+  for (const item of customerDocs.docs) {
+    const data = item.data();
+    for (const name of [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])]) {
+      const key = normalizeCustomerName(String(name ?? ""));
+      if (!key) continue;
+      const ids = byName.get(key) ?? new Set<string>();
+      ids.add(item.id);
+      byName.set(key, ids);
+    }
+  }
+  const changes: Array<{ ref: typeof jobDocs.docs[number]["ref"]; customerId: string }> = [];
+  let jobs = 0, contacts = 0, unmatched = 0;
+  for (const [items, field, kind] of [[jobDocs.docs, "customer", "job"], [contactDocs.docs, "company", "contact"]] as const) {
+    for (const item of items) {
+      if (item.data().customerId) continue;
+      const ids = byName.get(normalizeCustomerName(String(item.data()[field] ?? "")));
+      if (!ids || ids.size !== 1) { unmatched++; continue; }
+      changes.push({ ref: item.ref, customerId: [...ids][0] });
+      if (kind === "job") jobs++; else contacts++;
+    }
+  }
+  for (let index = 0; index < changes.length; index += 400) {
+    const batch = writeBatch(db);
+    for (const change of changes.slice(index, index + 400)) batch.update(change.ref, { customerId: change.customerId });
+    await batch.commit();
+  }
+  return { jobs, contacts, unmatched };
+}
 function assertAccess(actor: UserProfile) {
-  if (!isMainCompanyAdmin(actor)) throw new Error("เฉพาะผู้ดูแลบริษัทหลักเท่านั้นที่จัดการลูกค้าได้");
+  if (!actor.active || actor.approvalStatus !== "approved" || actor.organizationId !== "main" || actor.organizationType !== "main" || !["owner", "admin", "dispatcher"].includes(actor.role)) {
+    throw new Error("เฉพาะผู้ดูแลบริษัทหลักเท่านั้นที่จัดการลูกค้าได้");
+  }
 }
 export function subscribeCustomers(onData: (items: Customer[]) => void, onError: (message: string) => void) {
   return onSnapshot(collection(db, "customers"), snapshot => onData(snapshot.docs.map(item => {

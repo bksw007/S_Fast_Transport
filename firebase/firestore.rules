@@ -104,7 +104,11 @@ service cloud.firestore {
     }
 
     function canReadJob(data) {
-      return isMainAdmin() || sameOrganization(data) || data.assignedDriverUid == request.auth.uid;
+      return isMainAdmin() || sameOrganization(data) || data.assignedDriverUid == request.auth.uid
+        || (role() == "customer"
+          && profile().data.customerId is string
+          && profile().data.customerId.size() > 0
+          && data.customerId == profile().data.customerId);
     }
 
     function validProfilePhoto(data) {
@@ -266,7 +270,8 @@ service cloud.firestore {
     match /today_jobs/{jobId} {
       allow read: if activeUser() && canReadJob(resource.data);
       allow create: if isMainAdmin()
-        || (isSubcontractAdmin() && sameOrganization(request.resource.data));
+        || (isSubcontractAdmin() && sameOrganization(request.resource.data)
+          && !request.resource.data.keys().hasAny(["customerId"]));
       allow delete: if isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(resource.data));
       allow update: if isMainAdmin()
@@ -274,6 +279,13 @@ service cloud.firestore {
           isSubcontractAdmin()
           && sameOrganization(resource.data)
           && request.resource.data.organizationId == resource.data.organizationId
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(["customerId"])
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasAll(["customer", "customerId"])
+              && !request.resource.data.keys().hasAny(["customerId"])
+            )
+          )
         )
         || (
           isAssignedDriver(jobId)
@@ -306,7 +318,7 @@ service cloud.firestore {
     }
 
     match /jobs/{jobId} {
-      allow read: if activeUser() && canReadJob(resource.data);
+      allow read: if activeUser() && role() != "customer" && canReadJob(resource.data);
       allow write: if isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
@@ -327,18 +339,18 @@ service cloud.firestore {
     }
 
     match /job_events/{eventId} {
-      allow read: if activeUser()
+      allow read: if activeUser() && role() != "customer"
         && canReadJob(get(/databases/$(database)/documents/today_jobs/$(resource.data.jobId)).data);
-      allow create: if activeUser()
+      allow create: if activeUser() && role() != "customer"
         && canReadJob(get(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data);
       allow update, delete: if isMainAdmin();
     }
 
     match /driver_live_status/{driverUid} {
       allow read: if isMainAdmin()
-        || driverUid == request.auth.uid
+        || (role() != "customer" && driverUid == request.auth.uid)
         || (isSubcontractAdmin() && sameOrganization(resource.data));
-      allow write: if driverUid == request.auth.uid
+      allow write: if (role() != "customer" && driverUid == request.auth.uid)
         || isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
@@ -374,9 +386,9 @@ service cloud.firestore {
     }
 
     match /proof_of_delivery/{podId} {
-      allow read: if activeUser()
+      allow read: if activeUser() && role() != "customer"
         && canReadJob(get(/databases/$(database)/documents/today_jobs/$(resource.data.jobId)).data);
-      allow create: if activeUser()
+      allow create: if activeUser() && role() != "customer"
         && request.resource.data.uploadedByUid == request.auth.uid
         && canReadJob(get(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data);
       allow update, delete: if isMainAdmin()
@@ -462,7 +474,7 @@ service cloud.firestore {
     }
 
     match /locations/{docId} {
-      allow read: if activeUser();
+      allow read: if activeUser() && role() != "customer";
       allow write: if isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
     }
@@ -473,7 +485,7 @@ service cloud.firestore {
         || isMainAdmin()
         || sameOrganization(resource.data)
       );
-      allow create: if activeUser();
+      allow create: if activeUser() && role() != "customer";
       allow update, delete: if isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(resource.data));
     }

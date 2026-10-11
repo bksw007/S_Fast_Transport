@@ -13,7 +13,7 @@ vm.runInNewContext(output, context);
 const { currentDriverStep, driverProgress, driverSteps } = context.exports;
 const expected = {
   assigned: 'accepted', accepted: 'arrived_pickup', to_pickup: 'arrived_pickup',
-  arrived_pickup: 'loading', loading: 'to_delivery', to_delivery: 'arrived_delivery',
+  arrived_pickup: 'to_delivery', loading: 'to_delivery', to_delivery: 'arrived_delivery',
   arrived_delivery: 'ready_to_close', unloading: 'ready_to_close', ready_to_close: 'completed'
 };
 
@@ -24,8 +24,8 @@ assert.equal(currentDriverStep({ status: 'completed' }), null);
 assert.equal(currentDriverStep({ status: 'cancelled' }), null);
 assert.equal(currentDriverStep({ status: 'problem', issuePreviousStatus: 'to_delivery' }).nextStatus, 'arrived_delivery');
 assert.equal(currentDriverStep({ status: 'problem' }), null);
-assert.equal(currentDriverStep({ status: 'accepted' }).photoStage, 'pickup');
-assert.equal(currentDriverStep({ status: 'to_delivery' }).photoStage, 'delivery');
+assert.equal(currentDriverStep({ status: 'arrived_pickup' }).photoStage, 'pickup');
+assert.equal(currentDriverStep({ status: 'arrived_delivery' }).photoStage, 'delivery');
 assert.equal(driverProgress({ status: 'assigned' }), 0);
 assert.equal(driverProgress({ status: 'completed' }), driverSteps.length);
 assert.equal(driverSteps.filter(step => step.photoStage).length, 2);

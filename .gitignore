@@ -12,4 +12,5 @@ firestore-debug.log
 output
 .vercel
 functions/lib/
+functions-line/lib/
 functions-proof/lib/

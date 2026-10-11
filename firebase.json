@@ -9,6 +9,11 @@
       "source": "functions-proof",
       "codebase": "proof-cleanup",
       "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+    },
+    {
+      "source": "functions-line",
+      "codebase": "line-notifications",
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
     }
   ],
   "firestore": {

@@ -22,12 +22,13 @@ import {
 import { getDownloadURL, ref, uploadBytes, uploadBytesResumable, type UploadTask } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { loadCompanySettings } from "./settings-repository";
+import { resolveCustomerId } from "./customer-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
 import { coordinateFingerprint } from "./google-routes-distance";
 import { requestJobRoadDistance } from "./job-road-distance-client";
 import { statusLabels, type DriverIssueType, type JobPlace, type JobStatus, type StopProof, type TransportJob } from "@s-fast-transport/shared";
 
-export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
+export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver" | "customer";
 export type OrganizationType = "main" | "subcontract";
 export type ApprovalStatus = "pending" | "approved" | "suspended";
 export type { DriverIssueType } from "@s-fast-transport/shared";
@@ -71,6 +72,7 @@ export type UserProfile = {
   organizationType: OrganizationType | null;
   organizationName: string;
   organizationLogoUrl: string;
+  customerId: string | null;
   approvalStatus: ApprovalStatus;
   accessRequestName: string;
   accessRequestMessage: string;
@@ -79,7 +81,7 @@ export type UserProfile = {
 
 export type UserAccessUpdate = Pick<
   UserProfile,
-  "role" | "organizationId" | "organizationType" | "organizationName" | "organizationLogoUrl" | "approvalStatus" | "active"
+  "role" | "organizationId" | "organizationType" | "organizationName" | "organizationLogoUrl" | "customerId" | "approvalStatus" | "active"
 >;
 
 export type JobDraft = {
@@ -112,6 +114,8 @@ export type JobDraft = {
   eta: string;
   notes: string;
 };
+
+export type CreatedJob = { workOrder: string; trackingToken: string };
 
 export type ListOptionField =
   | "customer"
@@ -192,6 +196,8 @@ export function subscribeTodayJobs(
   const jobsRef = collection(db, "today_jobs");
   const jobsQuery = profile.role === "driver"
     ? query(jobsRef, where("assignedDriverUid", "==", profile.uid))
+    : profile.role === "customer"
+      ? query(jobsRef, where("customerId", "==", profile.customerId || "__unassigned__"))
     : profile.role === "subcontract_admin" && profile.organizationId
       ? query(jobsRef, where("organizationId", "==", profile.organizationId))
       : jobsRef;
@@ -211,23 +217,25 @@ export function subscribeTodayJobs(
     emitJobs();
   }
 
-  function useSavedJobIdentity() {
+  function emitSavedJobIdentity() {
     identitiesReady = true;
     emitJobs();
   }
 
-  const stopProfiles = profile.role === "driver"
+  const stopProfiles = profile.role === "customer"
+    ? (emitSavedJobIdentity(), () => {})
+    : profile.role === "driver"
     ? onSnapshot(
       doc(db, "users", profile.uid),
       (snapshot) => receiveProfiles(snapshot.exists() ? [{ id: snapshot.id, data: () => snapshot.data() }] : []),
-      useSavedJobIdentity
+      emitSavedJobIdentity
     )
     : onSnapshot(
       profile.role === "subcontract_admin" && profile.organizationId
         ? query(collection(db, "users"), where("organizationId", "==", profile.organizationId))
         : collection(db, "users"),
       (snapshot) => receiveProfiles(snapshot.docs),
-      useSavedJobIdentity
+      emitSavedJobIdentity
     );
 
   const stopJobs = onSnapshot(
@@ -237,7 +245,7 @@ export function subscribeTodayJobs(
       currentJobs = visibleDocs
         .map((jobDoc) => toTransportJob(jobDoc.id, jobDoc.data()))
         .sort((a, b) => b.id.localeCompare(a.id));
-      if (profile.role !== "driver") onDeletedJobs?.(snapshot.docs
+      if (profile.role !== "driver" && profile.role !== "customer") onDeletedJobs?.(snapshot.docs
         .filter((jobDoc) => Boolean(jobDoc.data().deletedAt))
         .map((jobDoc) => toTransportJob(jobDoc.id, jobDoc.data()))
         .sort((a, b) => b.id.localeCompare(a.id)));
@@ -284,9 +292,10 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     role: data.role ?? "driver",
     active: data.active ?? true,
     organizationId: data.organizationId ?? null,
-    organizationType: data.organizationType ?? (data.role === "subcontract_admin" ? "subcontract" : "main"),
+    organizationType: data.organizationType ?? (data.role === "customer" ? null : data.role === "subcontract_admin" ? "subcontract" : "main"),
     organizationName: data.organizationName ?? "S Fast Transport",
     organizationLogoUrl: data.organizationLogoUrl ?? "",
+    customerId: data.customerId ?? null,
     approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved"),
     accessRequestName: data.accessRequestName ?? "",
     accessRequestMessage: data.accessRequestMessage ?? "",
@@ -325,6 +334,7 @@ export async function ensureAccessProfile(uid: string, email: string, displayNam
       organizationType: null,
       organizationName: "",
       organizationLogoUrl: "",
+      customerId: null,
       accessRequestName: "",
       accessRequestMessage: "",
       authProvider: "google.com",
@@ -413,8 +423,12 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       throw new Error(`กรุณาระบุชื่อและเบอร์โทรผู้ติดต่อ${side === "pickup" ? "จุดรับ" : "จุดส่ง"}ให้ครบถ้วน`);
     }
   }
+  const customerId = organizationId === "main" ? await resolveCustomerId(draft.customer, actor) : null;
   const { pickupPlace, deliveryPlace, ...jobFields } = draft;
   const jobRef = doc(collection(db, "today_jobs"));
+  const trackingToken = crypto.randomUUID().replaceAll("-", "");
+  const trackingLinkRef = doc(db, "tracking_share_links", trackingToken);
+  const trackingExpiresAt = Timestamp.fromDate(new Date(Date.now() + companySettings.trackingLinkDays * 86400000));
   const counterRef = doc(db, "job_counters", dateKey);
   const workOrder = await runTransaction(db, async (transaction) => {
     const counterSnapshot = await transaction.get(counterRef);
@@ -430,6 +444,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     });
     transaction.set(jobRef, {
       ...jobFields,
+      ...(customerId ? { customerId } : {}),
       ...(pickupPlace ? { pickupPlace } : {}),
       ...(deliveryPlace ? { deliveryPlace } : {}),
       workOrder: nextWorkOrder,
@@ -437,6 +452,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       driverName: assignedUser.fullName || driver.name,
       driverPhone: assignedUser.phone || driver.phone || "",
       organizationId,
+      trackingShareToken: trackingToken,
       carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
       status: "assigned",
       trackingStatus: "not_started",
@@ -444,6 +460,28 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       lastUpdatedMinutes: 0,
       currentLocation: { ...defaultLocation, updatedAt: now },
       alerts: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    transaction.set(trackingLinkRef, {
+      jobId: jobRef.id,
+      organizationId,
+      enabled: true,
+      expiresAt: trackingExpiresAt,
+      workOrder: nextWorkOrder,
+      customerName: draft.customer,
+      statusLabel: statusLabels.assigned,
+      pickupLocation: draft.pickupLocation,
+      deliveryLocation: draft.deliveryLocation,
+      ...(pickupPlace ? { pickupPlace } : {}),
+      ...(deliveryPlace ? { deliveryPlace } : {}),
+      vehicleLabel: draft.vehiclePlate,
+      carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
+      eta: draft.eta,
+      lastUpdatedAt: now,
+      currentLocation: { lat: defaultLocation.lat, lng: defaultLocation.lng },
+      createdByUid: actor.uid,
+      source: "job_created",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -458,7 +496,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       // The job is already saved; its details screen can retry the distance calculation later.
     }
   }
-  return workOrder;
+  return { workOrder, trackingToken } satisfies CreatedJob;
 }
 
 export async function saveJobRouteDistance(jobId: string, distanceMeters: number, fingerprint: string, actor: UserProfile) {
@@ -550,6 +588,7 @@ export async function createListOption(
 
   const optionRef = doc(listOptionsCollection(organizationId), listOptionId(field, cleanValue));
   if ((await getDoc(optionRef)).exists()) throw new Error("มีรายการนี้อยู่แล้ว");
+  if (field === "customer" && organizationId === "main") await resolveCustomerId(cleanValue, actor);
 
   await setDoc(optionRef, {
     organizationId,
@@ -857,6 +896,17 @@ export async function uploadProof(job: TransportJob, file: File, actor: UserProf
 }
 
 export async function createTrackingShareLink(job: TransportJob, actor: UserProfile, expiry?: Date) {
+  if (!expiry) {
+    const automaticLinks = await getDocs(query(
+      collection(db, "tracking_share_links"),
+      where("jobId", "==", job.id)
+    ));
+    const activeLink = automaticLinks.docs.find(link => link.data().organizationId === (job.organizationId ?? actor.organizationId ?? "main")
+      && ["line_job_created", "job_created"].includes(link.data().source)
+      && link.data().enabled === true
+      && (link.data().expiresAt?.toMillis?.() ?? 0) > Date.now());
+    if (activeLink) return activeLink.id;
+  }
   const companySettings = await loadCompanySettings(job.organizationId ?? actor.organizationId ?? "main");
   expiry = expiry ?? new Date(Date.now() + companySettings.trackingLinkDays * 86400000);
   if (!Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now()) throw new Error("กรุณาเลือกวันหมดอายุในอนาคต");
@@ -923,6 +973,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     id,
     workOrder: data.workOrder ?? id,
     customer: data.customer ?? "-",
+    customerId: data.customerId ?? undefined,
     driverName: data.driverName ?? "-",
     driverPhone: data.driverPhone ?? "-",
     vehiclePlate: data.vehiclePlate ?? "-",
@@ -1042,6 +1093,7 @@ export function subscribeUserProfiles(
           organizationType: data.organizationType ?? null,
           organizationName: data.organizationName ?? "",
           organizationLogoUrl: data.organizationLogoUrl ?? "",
+          customerId: data.customerId ?? null,
           approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved"),
           accessRequestName: data.accessRequestName ?? "",
           accessRequestMessage: data.accessRequestMessage ?? "",
@@ -1088,6 +1140,7 @@ export function subscribeOrganizationUserProfiles(
           organizationType: data.organizationType ?? null,
           organizationName: data.organizationName ?? "",
           organizationLogoUrl: data.organizationLogoUrl ?? "",
+          customerId: data.customerId ?? null,
           approvalStatus: data.approvalStatus ?? (data.active === false ? "pending" : "approved"),
           accessRequestName: data.accessRequestName ?? "",
           accessRequestMessage: data.accessRequestMessage ?? "",

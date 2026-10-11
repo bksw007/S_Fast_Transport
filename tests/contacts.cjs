@@ -7,7 +7,7 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 let writes = [], canWrite = true;
 const firestore = { collection: (_, ...p) => p.join('/'), doc: (_, ...p) => p.join('/'), serverTimestamp: () => 'NOW', addDoc: async (path, data) => { writes.push({ path, data }); return { id: 'new-contact' }; }, updateDoc: async (path, data) => writes.push({ path, data }) };
-const ctx = { exports: {}, require: name => name === 'firebase/firestore' ? firestore : name === './transport-repository' ? { canManageOrganizationLists: () => canWrite } : { db: {} } };
+const ctx = { exports: {}, require: name => name === 'firebase/firestore' ? firestore : name === './transport-repository' ? { canManageOrganizationLists: () => canWrite } : name === './customer-repository' ? { resolveCustomerId: async () => 'customer-1' } : { db: {} } };
 vm.runInNewContext(compile('apps/web/lib/contact-repository.ts'), ctx);
 const api = ctx.exports;
 const profileCtx = { exports: {}, require: () => ({}) };
@@ -18,6 +18,7 @@ const actor = { uid: 'admin', organizationId: 'main' };
 (async () => {
   assert.equal(await api.saveContact(draft, undefined, actor), 'new-contact');
   assert.equal(writes[0].path, 'organizations/main/contacts'); assert.equal(writes[0].data.name, 'Contact'); assert.equal(writes[0].data.active, true);
+  assert.equal(writes[0].data.customerId, 'customer-1', 'contact is linked to its customer invisibly');
   await api.saveContact({ ...draft, phone: '089-999-9999' }, 'existing', actor);
   assert.equal(writes[1].path, 'organizations/main/contacts/existing');
   assert.equal(writes[1].data.active, undefined, 'editing must preserve inactive status');

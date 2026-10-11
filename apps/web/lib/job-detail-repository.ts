@@ -6,6 +6,7 @@ import { canReceiveDriverJobs, hasApprovedAccess, isMainAdmin, type UserProfile 
 import type { TransportJob } from "@s-fast-transport/shared";
 import { coordinateFingerprint } from "./google-routes-distance";
 import { validateJobEditDraft, type JobEditDraft } from "./job-edit";
+import { resolveCustomerId } from "./customer-repository";
 
 export type JobRecord = { id: string; data: DocumentData };
 export async function permanentlyDeleteCancelledJob(job: Pick<TransportJob, "id" | "workOrder">) {
@@ -124,6 +125,7 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
   const initial = initialSnapshot.data();
   assertCurrentJobAccess(initial, actor);
   const organizationId = String(initial.organizationId ?? "main");
+  const customerId = actor.organizationId === "main" ? await resolveCustomerId(values.customer, actor) : null;
   if (!values.driverId && !initial.assignedDriverUid) throw new Error("กรุณาเลือกพนักงานขับรถ");
   const assignment = values.driverId && values.driverId !== initial.driverId
     ? await loadDriverAssignment(values.driverId, organizationId)
@@ -139,6 +141,8 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
     const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(values.pickupPlace, values.deliveryPlace);
     transaction.update(jobRef, {
       customer: values.customer,
+      ...(customerId ? { customerId } : {}),
+      ...(!customerId && current.customerId && current.customer !== values.customer ? { customerId: deleteField() } : {}),
       jobDate: values.jobDate,
       cargoType: values.cargoType,
       vehicleType: values.vehicleType,

@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const compile = source => ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
 let document = {}, write;
-const firestore = { doc: (...args) => args.slice(1).join('/'), getDoc: async () => ({ data: () => document }), serverTimestamp: () => 'SERVER_TIME', setDoc: async (...args) => { write = args; }, Timestamp: { fromDate: d => d } };
+const firestore = { doc: (...args) => args.slice(1).join('/'), collection: () => ({}), where: () => ({}), query: () => ({}), getDocs: async () => ({ docs: [] }), getDoc: async () => ({ data: () => document }), serverTimestamp: () => 'SERVER_TIME', setDoc: async (...args) => { write = args; }, Timestamp: { fromDate: d => d } };
 const context = { exports: {}, URL, require: name => name === 'firebase/firestore' ? firestore : { db: {} } };
 vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/settings-repository.ts', 'utf8')), context);
 const api = context.exports;

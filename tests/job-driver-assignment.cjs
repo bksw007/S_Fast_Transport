@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+const { webcrypto } = require('node:crypto');
 let records, writes, roadRequests, roadError;
 const firestore = {
   doc: (...parts) => { const path = parts.length === 1 ? `${parts[0]}/auto-job` : parts.slice(1).join('/'); return { id: path.split('/').at(-1), path }; }, collection: (_, ...parts) => parts.join('/'),
@@ -13,9 +14,12 @@ const firestore = {
   }),
   serverTimestamp: () => 'SERVER_TIME'
 };
-const context = { exports: {}, require: name => {
+firestore.Timestamp = { fromDate: date => date };
+const context = { exports: {}, crypto: webcrypto, require: name => {
   if (name === 'firebase/firestore') return firestore;
-  if (name === './settings-repository') return { loadCompanySettings: async () => ({ name: 'Company' }) };
+  if (name === './settings-repository') return { loadCompanySettings: async () => ({ name: 'Company', trackingLinkDays: 7 }) };
+  if (name === './customer-repository') return { resolveCustomerId: async () => 'customer-1' };
+  if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
   if (name === './google-routes-distance') return { coordinateFingerprint: (from, to) => from && to && Number.isFinite(from.lat) && Number.isFinite(from.lng) && Number.isFinite(to.lat) && Number.isFinite(to.lng) ? `${from.lat},${from.lng}>${to.lat},${to.lng}` : null };
   if (name === './job-road-distance-client') return { requestJobRoadDistance: async (...args) => { roadRequests.push(args); if (roadError) throw roadError; return 24567; } };
   return { db: {}, storage: {} };
@@ -35,10 +39,17 @@ function reset() {
 }
 (async () => {
   assert.equal(context.exports.formatJobDateKey(new Date('2026-09-20T18:00:00.000Z')), '20260921', 'job dates use Bangkok time');
-  reset(); const firstWorkOrder = await context.exports.createJob(draft, actor);
+  reset(); const firstCreated = await context.exports.createJob(draft, actor);
+  const firstWorkOrder = firstCreated.workOrder;
   const firstJob = writes.find(write => write.path.startsWith('today_jobs/'));
+  const firstLink = writes.find(write => write.path.startsWith('tracking_share_links/'));
   assert.match(firstWorkOrder, /^JN-\d{8}001$/);
+  assert.equal(firstCreated.trackingToken, firstJob.data.trackingShareToken);
+  assert.equal(firstLink.path, `tracking_share_links/${firstCreated.trackingToken}`);
+  assert.equal(firstLink.data.jobId, firstJob.path.split('/').at(-1));
+  assert.equal(firstLink.data.workOrder, firstWorkOrder);
   assert.equal(firstJob.data.workOrder, firstWorkOrder);
+  assert.equal(firstJob.data.customerId, 'customer-1', 'job links to the customer without an extra form field');
   assert.equal(firstJob.data.assignedDriverUid, 'user-b');
   assert.equal(firstJob.data.driverId, 'driver-b');
   assert.equal(firstJob.data.driverName, 'Same name');
@@ -47,18 +58,18 @@ function reset() {
   const deliveryPlace = { lat: 13.65, lng: 100.65 };
   reset(); const calculatedOrder = await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace }, actor);
   const calculatedJob = writes.find(write => write.path.startsWith('today_jobs/'));
-  assert.equal(calculatedJob.data.workOrder, calculatedOrder);
+  assert.equal(calculatedJob.data.workOrder, calculatedOrder.workOrder);
   assert.deepEqual(roadRequests[0].slice(1), [pickupPlace, deliveryPlace]);
   assert.equal(records[calculatedJob.path].routeDistanceMeters, 24567, 'road distance is saved before creation returns');
   assert.equal(records[calculatedJob.path].routeDistanceProvider, 'google_routes');
   reset(); roadError = new Error('routing unavailable');
   const createdWithoutDistance = await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace }, actor);
-  assert.match(createdWithoutDistance, /^JN-\d{8}001$/, 'route failures do not discard a created job');
+  assert.match(createdWithoutDistance.workOrder, /^JN-\d{8}001$/, 'route failures do not discard a created job');
   assert.equal(records['today_jobs/auto-job'].routeDistanceMeters, undefined);
   reset(); await context.exports.createJob(draft, actor);
   assert.equal(roadRequests.length, 0, 'missing coordinates do not request a route');
   const secondWorkOrder = await context.exports.createJob(draft, actor);
-  assert.equal(secondWorkOrder, `${firstWorkOrder.slice(0, -3)}002`, 'daily sequence increments atomically');
+  assert.equal(secondWorkOrder.workOrder, `${firstWorkOrder.slice(0, -3)}002`, 'daily sequence increments atomically');
   reset(); records['users/user-b'].phone = ''; await context.exports.createJob(draft, actor);
   assert.equal(writes.find(write => write.path.startsWith('today_jobs/')).data.driverPhone, '222');
   reset(); records['drivers/driver-b'].userUid = 'admin'; records['users/admin'] = { organizationId: 'main', fullName: 'Admin Driver', role: 'admin', active: true, approvalStatus: 'approved' };

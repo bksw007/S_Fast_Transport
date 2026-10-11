@@ -1713,10 +1713,11 @@ h2 {
 }
 
 .dispatch-notice-modal {
-  width: min(390px, calc(100vw - 28px));
+  width: min(440px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
   margin: auto;
   padding: 0;
-  overflow: visible;
+  overflow-y: auto;
   color: var(--text);
   background: transparent;
   border: 0;
@@ -1778,6 +1779,20 @@ h2 {
   color: var(--text);
   white-space: nowrap;
 }
+
+.dispatch-notice-share {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dispatch-notice-share label { display: grid; gap: 5px; font-size: .8rem; font-weight: 700; }
+.dispatch-notice-share input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text); }
+.dispatch-notice-share img { justify-self: center; max-width: 100%; height: auto; }
+.dispatch-notice-share > a { justify-self: center; font-size: .8rem; }
+.dispatch-notice-share-actions { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.dispatch-notice-share-actions button { padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
 
 .dispatch-notice-actions {
   grid-column: 1 / -1;
