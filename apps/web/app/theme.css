@@ -273,8 +273,8 @@ button, input, select, textarea { font-family: inherit; }
 .contact-picker-expanded { display: grid; gap: 12px; padding-top: 8px; }
 
 
-/* Driver review: the Today screen adopts the customer portal's quiet editorial palette. */
-.app-shell.driver-shell.driver-today-shell {
+/* Driver area adopts the customer portal's quiet editorial palette. */
+.app-shell.driver-shell.driver-premium-shell {
   --ui-surface: #fbfaf7;
   --ui-surface-soft: #eeeee9;
   --ui-ink: #21313a;
@@ -292,17 +292,17 @@ button, input, select, textarea { font-family: inherit; }
   background: #f7f6f2;
   font-family: var(--font-landing), "Noto Sans Thai", sans-serif;
 }
-.driver-today-shell .phone-frame { border-color: #e3e5df; background: #f7f6f2; box-shadow: 0 18px 50px #1a2b2b12; }
-.driver-today-shell .topbar { border-bottom: 1px solid #e4e6df; background: #fbfaf7; color: #21313a; }
-.driver-today-shell .brand span { color: #8a9691; }
-.driver-today-shell .brand-logo { background: #e9efec; border-color: #d2d9d7; }
-.driver-today-shell .top-actions button { color: #526761; background: transparent; border: 1px solid #dfe4dc; box-shadow: none; }
-.driver-today-shell .top-actions button:hover { color: #21313a; background: #f0f2ed; }
-.driver-today-shell .top-actions .install-action { color: #264b49; background: #e9f0eb; border-color: #cfddd2; box-shadow: none; }
-.driver-today-shell .sidebar-navigation { color: var(--text); }
-.driver-today-shell .sidebar-workspace { border-color: #e0e4dc; background: #f5f5f0; }
-.driver-today-shell .sidebar-menu-list button.selected { color: #fff; background: #264b49; border-color: #264b49; }
-.driver-today-shell .mobile-menu-toggle[aria-expanded="true"] { color: #fff; background: #264b49; border-color: #264b49; }
+.driver-premium-shell .phone-frame { border-color: #e3e5df; background: #f7f6f2; box-shadow: 0 18px 50px #1a2b2b12; }
+.driver-premium-shell .topbar { border-bottom: 1px solid #e4e6df; background: #fbfaf7; color: #21313a; }
+.driver-premium-shell .brand span { color: #8a9691; }
+.driver-premium-shell .brand-logo { background: #e9efec; border-color: #d2d9d7; }
+.driver-premium-shell .top-actions button { color: #526761; background: transparent; border: 1px solid #dfe4dc; box-shadow: none; }
+.driver-premium-shell .top-actions button:hover { color: #21313a; background: #f0f2ed; }
+.driver-premium-shell .top-actions .install-action { color: #264b49; background: #e9f0eb; border-color: #cfddd2; box-shadow: none; }
+.driver-premium-shell .sidebar-navigation { color: var(--text); }
+.driver-premium-shell .sidebar-workspace { border-color: #e0e4dc; background: #f5f5f0; }
+.driver-premium-shell .sidebar-menu-list button.selected { color: #fff; background: #264b49; border-color: #264b49; }
+.driver-premium-shell .mobile-menu-toggle[aria-expanded="true"] { color: #fff; background: #264b49; border-color: #264b49; }
 .driver-today-screen { padding: 18px 18px 30px; background: #f7f6f2; }
 .driver-today-hero { position: relative; overflow: hidden; padding: 27px 26px 25px; border: 1px solid #294145; border-radius: 18px; background: #20383b; color: #fff; box-shadow: 0 12px 28px #193c3a16; }
 .driver-today-hero::after { position: absolute; top: -105px; right: -74px; width: 245px; height: 245px; border: 1px solid #ffffff21; border-radius: 50%; box-shadow: 0 0 0 42px #ffffff08, 0 0 0 86px #ffffff04; content: ""; pointer-events: none; }
@@ -319,41 +319,41 @@ button, input, select, textarea { font-family: inherit; }
 .driver-today-list-head h2 { margin: 5px 0 0; color: #21313a; font-size: 1.08rem; font-weight: 600; letter-spacing: -.03em; }
 .driver-today-list-head > small { flex: none; padding: 5px 9px; border: 1px solid #d7dfd5; border-radius: 999px; color: #60736e; font-size: .66rem; }
 .driver-today-screen .job-list { gap: 13px; }
-.driver-today-shell .driver-today-card { border: 1px solid #e2e6df; border-radius: 14px; background: #fff; box-shadow: 0 3px 12px #27383408; }
-.driver-today-shell .driver-today-card:hover { transform: translateY(-2px); border-color: #b8c9c1; box-shadow: 0 13px 26px #27383412; }
-.driver-today-shell .driver-today-card.selected-job { border-color: #b9c7bc; box-shadow: 0 0 0 1px #b9c7bc, 0 8px 24px #27383410; }
-.driver-today-shell .driver-today-card .job-summary-toggle { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 14px 8px; padding: 19px 19px 18px; }
-.driver-today-shell .driver-today-card .job-summary-toggle:hover { background: #f9faf6; }
-.driver-today-shell .driver-today-card .job-summary-toggle-icon { display: none; }
-.driver-today-shell .driver-today-card .job-summary-topline { grid-column: 1; gap: 7px; }
-.driver-today-shell .driver-today-card .job-summary-topline > small { color: #2c4545; font-size: .76rem; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-summary-toggle .status { color: #426158; background: #eaf0ed; font-size: .63rem; white-space: normal; text-align: center; }
-.driver-today-shell .driver-today-card .job-summary-toggle .status.danger { color: #9b5d4e; background: #faf1ed; }
-.driver-today-shell .driver-today-card .job-summary-toggle-chevron { grid-column: 2; grid-row: 1; color: #879a91; }
-.driver-today-shell .driver-today-card .job-summary-route { grid-column: 1 / -1; display: grid; gap: 0; padding: 15px 0 0; border-top: 1px solid #edf0eb; font-size: .78rem; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-summary-route .driver-today-route-stop { position: relative; display: block; padding-left: 23px; line-height: 1.5; overflow-wrap: anywhere; }
+.driver-premium-shell .driver-today-card { border: 1px solid #e2e6df; border-radius: 14px; background: #fff; box-shadow: 0 3px 12px #27383408; }
+.driver-premium-shell .driver-today-card:hover { transform: translateY(-2px); border-color: #b8c9c1; box-shadow: 0 13px 26px #27383412; }
+.driver-premium-shell .driver-today-card.selected-job { border-color: #b9c7bc; box-shadow: 0 0 0 1px #b9c7bc, 0 8px 24px #27383410; }
+.driver-premium-shell .driver-today-card .job-summary-toggle { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 14px 8px; padding: 19px 19px 18px; }
+.driver-premium-shell .driver-today-card .job-summary-toggle:hover { background: #f9faf6; }
+.driver-premium-shell .driver-today-card .job-summary-toggle-icon { display: none; }
+.driver-premium-shell .driver-today-card .job-summary-topline { grid-column: 1; gap: 7px; }
+.driver-premium-shell .driver-today-card .job-summary-topline > small { color: #2c4545; font-size: .76rem; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-summary-toggle .status { color: #426158; background: #eaf0ed; font-size: .63rem; white-space: normal; text-align: center; }
+.driver-premium-shell .driver-today-card .job-summary-toggle .status.danger { color: #9b5d4e; background: #faf1ed; }
+.driver-premium-shell .driver-today-card .job-summary-toggle-chevron { grid-column: 2; grid-row: 1; color: #879a91; }
+.driver-premium-shell .driver-today-card .job-summary-route { grid-column: 1 / -1; display: grid; gap: 0; padding: 15px 0 0; border-top: 1px solid #edf0eb; font-size: .78rem; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-summary-route .driver-today-route-stop { position: relative; display: block; padding-left: 23px; line-height: 1.5; overflow-wrap: anywhere; }
 .driver-today-route-stop::before { position: absolute; top: 6px; left: 1px; width: 11px; height: 11px; border: 3px solid #b49a70; border-radius: 50%; content: ""; }
 .driver-today-route-stop:last-child::before { border-color: #456c61; border-radius: 2px; background: #456c61; }
-.driver-today-shell .driver-today-route-stop small { display: block; margin-bottom: 2px; color: #8a9693; font-size: .63rem; font-weight: 400; }
-.driver-today-shell .driver-today-route-line { width: 1px; height: 21px; margin: 4px 0 4px 6px; background: repeating-linear-gradient(#bdcac0 0 4px, transparent 4px 8px); }
-.driver-today-shell .driver-today-card .job-summary-expanded { padding: 0 18px 18px; border-color: #edf0eb; background: #fff; }
-.driver-today-shell .driver-today-card .job-driver, .driver-today-shell .driver-today-card .vehicle-plate { border-color: #e3e8e0; background: #fbfaf7; color: #3d5953; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-summary-facts > div { background: #f6f7f3; }
-.driver-today-shell .driver-today-card .job-distance { border-color: #dde8de; background: #f2f7f3; color: #3b665b; }
-.driver-today-shell .driver-today-card .job-stop-card { border-color: #e2e7df; background: #fbfaf7; }
-.driver-today-shell .driver-today-card .job-stop-card.current, .driver-today-shell .driver-today-card .job-stop-card.delivery.current { box-shadow: inset 3px 0 0 #b49a70; }
-.driver-today-shell .driver-today-card .job-stop-card > header > span, .driver-today-shell .driver-today-card .job-stop-card.delivery > header > span { color: #456c61; }
-.driver-today-shell .driver-today-card .job-stop-card.delivery > header > span { color: #927b5e; }
-.driver-today-shell .driver-today-card .job-map-action { border-color: #d6e3d8; background: #f0f6f1; color: #2d6457; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-stop-contact > a { background: #264b49; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-next-step { border-color: #dce7dc; background: #f4f7f2; }
-.driver-today-shell .driver-today-card .job-next-step small { color: #7c806d; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-next-step strong { color: #21313a; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-next-action { border-radius: 9px; background: #264b49; color: #fff; box-shadow: none; font-weight: 600; }
-.driver-today-shell .driver-today-card .job-next-action:hover { background: #1a3937; }
-.driver-today-shell .driver-today-card .job-report-issue { border-color: #ead8d2; background: #faf1ed; color: #9b5d4e; font-weight: 600; }
-.driver-today-shell .driver-history-empty { border-color: #dce3db; background: #fbfaf7; }
-.app-shell.driver-shell.driver-today-shell[data-theme="dark"] {
+.driver-premium-shell .driver-today-route-stop small { display: block; margin-bottom: 2px; color: #8a9693; font-size: .63rem; font-weight: 400; }
+.driver-premium-shell .driver-today-route-line { width: 1px; height: 21px; margin: 4px 0 4px 6px; background: repeating-linear-gradient(#bdcac0 0 4px, transparent 4px 8px); }
+.driver-premium-shell .driver-today-card .job-summary-expanded { padding: 0 18px 18px; border-color: #edf0eb; background: #fff; }
+.driver-premium-shell .driver-today-card .job-driver, .driver-premium-shell .driver-today-card .vehicle-plate { border-color: #e3e8e0; background: #fbfaf7; color: #3d5953; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-summary-facts > div { background: #f6f7f3; }
+.driver-premium-shell .driver-today-card .job-distance { border-color: #dde8de; background: #f2f7f3; color: #3b665b; }
+.driver-premium-shell .driver-today-card .job-stop-card { border-color: #e2e7df; background: #fbfaf7; }
+.driver-premium-shell .driver-today-card .job-stop-card.current, .driver-premium-shell .driver-today-card .job-stop-card.delivery.current { box-shadow: inset 3px 0 0 #b49a70; }
+.driver-premium-shell .driver-today-card .job-stop-card > header > span, .driver-premium-shell .driver-today-card .job-stop-card.delivery > header > span { color: #456c61; }
+.driver-premium-shell .driver-today-card .job-stop-card.delivery > header > span { color: #927b5e; }
+.driver-premium-shell .driver-today-card .job-map-action { border-color: #d6e3d8; background: #f0f6f1; color: #2d6457; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-stop-contact > a { background: #264b49; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-next-step { border-color: #dce7dc; background: #f4f7f2; }
+.driver-premium-shell .driver-today-card .job-next-step small { color: #7c806d; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-next-step strong { color: #21313a; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-next-action { border-radius: 9px; background: #264b49; color: #fff; box-shadow: none; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-next-action:hover { background: #1a3937; }
+.driver-premium-shell .driver-today-card .job-report-issue { border-color: #ead8d2; background: #faf1ed; color: #9b5d4e; font-weight: 600; }
+.driver-premium-shell .driver-history-empty { border-color: #dce3db; background: #fbfaf7; }
+.app-shell.driver-shell.driver-premium-shell[data-theme="dark"] {
   --ui-surface: #1d292a;
   --ui-surface-soft: #2a3939;
   --ui-ink: #edf1ed;
@@ -369,28 +369,165 @@ button, input, select, textarea { font-family: inherit; }
   --danger-soft: #493431;
   background: #172222;
 }
-.driver-today-shell[data-theme="dark"] .phone-frame, .driver-today-shell[data-theme="dark"] .driver-today-screen { background: #172222; }
-.driver-today-shell[data-theme="dark"] .topbar { border-color: #3e504b; background: #1d292a; color: #edf1ed; }
-.driver-today-shell[data-theme="dark"] .brand span { color: #adc0b6; }
-.driver-today-shell[data-theme="dark"] .top-actions button { border-color: #3e504b; color: #d6e3db; background: #2a3939; }
-.driver-today-shell[data-theme="dark"] .sidebar-workspace { border-color: #3e504b; background: #263534; }
-.driver-today-shell[data-theme="dark"] .sidebar-menu-list button.selected { background: #365e56; border-color: #365e56; }
-.driver-today-shell[data-theme="dark"] .driver-today-list-head { border-color: #3e504b; }
-.driver-today-shell[data-theme="dark"] .driver-today-list-head h2 { color: #edf1ed; }
-.driver-today-shell[data-theme="dark"] .driver-today-list-head > small { border-color: #4b6256; color: #c0d4c6; }
-.driver-today-shell[data-theme="dark"] .driver-today-card, .driver-today-shell[data-theme="dark"] .driver-today-card .job-summary-expanded { border-color: #3e504b; background: #1d292a; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-summary-toggle:hover { background: #273534; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-summary-toggle .status.danger { color: #e3aaa0; background: #493431; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-summary-route { border-color: #3e504b; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-summary-topline > small, .driver-today-shell[data-theme="dark"] .driver-today-card .job-next-step strong { color: #edf1ed; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-driver, .driver-today-shell[data-theme="dark"] .driver-today-card .vehicle-plate, .driver-today-shell[data-theme="dark"] .driver-today-card .job-stop-card, .driver-today-shell[data-theme="dark"] .driver-today-card .job-summary-facts > div { border-color: #3e504b; background: #263534; color: #d8e7dc; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-next-step { border-color: #4b6256; background: #293b33; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-distance { border-color: #4b6256; background: #293b33; color: #b5d7c1; }
-.driver-today-shell[data-theme="dark"] .driver-today-card .job-map-action { border-color: #4b6256; background: #293b33; color: #b5d7c1; }
+.driver-premium-shell[data-theme="dark"] .phone-frame, .driver-premium-shell[data-theme="dark"] .driver-today-screen { background: #172222; }
+.driver-premium-shell[data-theme="dark"] .topbar { border-color: #3e504b; background: #1d292a; color: #edf1ed; }
+.driver-premium-shell[data-theme="dark"] .brand span { color: #adc0b6; }
+.driver-premium-shell[data-theme="dark"] .top-actions button { border-color: #3e504b; color: #d6e3db; background: #2a3939; }
+.driver-premium-shell[data-theme="dark"] .sidebar-workspace { border-color: #3e504b; background: #263534; }
+.driver-premium-shell[data-theme="dark"] .sidebar-menu-list button.selected { background: #365e56; border-color: #365e56; }
+.driver-premium-shell[data-theme="dark"] .driver-today-list-head { border-color: #3e504b; }
+.driver-premium-shell[data-theme="dark"] .driver-today-list-head h2 { color: #edf1ed; }
+.driver-premium-shell[data-theme="dark"] .driver-today-list-head > small { border-color: #4b6256; color: #c0d4c6; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card, .driver-premium-shell[data-theme="dark"] .driver-today-card .job-summary-expanded { border-color: #3e504b; background: #1d292a; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-summary-toggle:hover { background: #273534; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-summary-toggle .status.danger { color: #e3aaa0; background: #493431; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-summary-route { border-color: #3e504b; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-summary-topline > small, .driver-premium-shell[data-theme="dark"] .driver-today-card .job-next-step strong { color: #edf1ed; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-driver, .driver-premium-shell[data-theme="dark"] .driver-today-card .vehicle-plate, .driver-premium-shell[data-theme="dark"] .driver-today-card .job-stop-card, .driver-premium-shell[data-theme="dark"] .driver-today-card .job-summary-facts > div { border-color: #3e504b; background: #263534; color: #d8e7dc; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-next-step { border-color: #4b6256; background: #293b33; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-distance { border-color: #4b6256; background: #293b33; color: #b5d7c1; }
+.driver-premium-shell[data-theme="dark"] .driver-today-card .job-map-action { border-color: #4b6256; background: #293b33; color: #b5d7c1; }
 @media (max-width: 520px) {
   .driver-today-hero { padding: 25px 21px; }
   .driver-today-hero-content { align-items: end; }
   .driver-today-hero p { font-size: .7rem; }
-  .driver-today-shell .driver-today-card .job-summary-topline { align-items: start; }
-  .driver-today-shell .driver-today-card .job-summary-toggle .status { max-width: 132px; }
+  .driver-premium-shell .driver-today-card .job-summary-topline { align-items: start; }
+  .driver-premium-shell .driver-today-card .job-summary-toggle .status { max-width: 132px; }
+}
+
+/* The remaining driver destinations share the same typography, header, and surfaces. */
+.driver-premium-shell .screen:not(.driver-today-screen) { background: #f7f6f2; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title,
+.driver-premium-shell .profile-page-head {
+  position: relative;
+  overflow: hidden;
+  min-height: 144px;
+  margin: 0 0 6px;
+  padding: 25px 24px;
+  border: 1px solid #294145;
+  border-radius: 18px;
+  background: #20383b;
+  color: #fff;
+  box-shadow: 0 12px 28px #193c3a16;
+}
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title::after,
+.driver-premium-shell .profile-page-head::after { position: absolute; top: -110px; right: -75px; width: 245px; height: 245px; border: 1px solid #ffffff21; border-radius: 50%; box-shadow: 0 0 0 42px #ffffff08, 0 0 0 86px #ffffff04; content: ""; pointer-events: none; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title > div,
+.driver-premium-shell .profile-page-head > div { position: relative; z-index: 1; min-width: 0; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title > div::before { display: block; margin-bottom: 11px; color: #d7dfd9; content: "พื้นที่ทำงานคนขับ"; font-size: .68rem; font-weight: 600; letter-spacing: .04em; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title h1,
+.driver-premium-shell .profile-page-head h1 { margin: 0; color: #fff; font-size: clamp(1.65rem, 5vw, 2.1rem); font-weight: 600; letter-spacing: -.04em; line-height: 1.35; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title p,
+.driver-premium-shell .profile-page-head p { margin: 7px 0 0; color: #c5d1cc; font-size: .74rem; line-height: 1.6; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title > .status,
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title > .live-dot { position: relative; z-index: 1; align-self: start; flex: none; color: #e2eee7; background: #ffffff24; font-size: .65rem; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title > .status.danger { color: #ffe0d8; background: #a3544c77; }
+.driver-premium-shell .profile-page-head .eyebrow { display: block; margin-bottom: 11px; color: #d7dfd9; font-size: .66rem; letter-spacing: .14em; }
+.driver-premium-shell .profile-hero-avatar { position: relative; z-index: 1; flex: 0 0 auto; border: 2px solid #d4ded7; background-color: #e9efec; box-shadow: 0 9px 26px #071b1b52; }
+.driver-premium-shell .screen:not(.driver-today-screen) > .section-title + :is(.map-card, .compact-job-card, .driver-history-filters, .driver-current-action) { margin-top: 15px; }
+
+.driver-premium-shell :is(.driver-current-action, .driver-stop-proof, .driver-proof-editor, .compact-job-card, .privacy-card, .progress-card, .map-card, .driver-history-filters, .driver-history-card, .profile-panel, .driver-history-empty) { border-color: #e2e6df; border-radius: 14px; background: #fff; box-shadow: 0 3px 12px #27383408; }
+.driver-premium-shell .driver-current-action { border-left: 3px solid #b49a70; }
+.driver-premium-shell .driver-current-action small { color: #927b5e; font-weight: 600; }
+.driver-premium-shell .driver-current-action strong { color: #21313a; font-size: 1.12rem; font-weight: 600; line-height: 1.45; }
+.driver-premium-shell .driver-current-action button,
+.driver-premium-shell .driver-proof-submit { color: #fff; background: #264b49; font-weight: 600; }
+.driver-premium-shell .driver-current-action button.driver-action-accept,
+.driver-premium-shell .driver-current-action button.driver-action-finish { color: #fff; background: #264b49; }
+.driver-premium-shell .driver-step-actions > *, .driver-premium-shell .driver-step-call { border-color: #d9e1d9; color: #2d5b52; background: #fbfaf7; font-weight: 600; }
+.driver-premium-shell .driver-step-actions .driver-step-navigation { color: #fff; border-color: #264b49; background: #264b49; }
+.driver-premium-shell .job-report-issue { border-color: #ead8d2; color: #9b5d4e; background: #faf1ed; font-weight: 600; }
+.driver-premium-shell .driver-proof-editor summary { color: #294e46; font-weight: 600; }
+.driver-premium-shell .driver-proof-editor-photo label,
+.driver-premium-shell .driver-proof-photo-actions button:first-child { color: #fff; border-color: #264b49; background: #264b49; font-weight: 600; }
+.driver-premium-shell .driver-proof-photo-actions button:not(:first-child),
+.driver-premium-shell .driver-proof-open-signature,
+.driver-premium-shell .driver-proof-add-photo { border-color: #dce5dc; color: #2d5b52; background: #f2f6f0; font-weight: 600; }
+.driver-premium-shell .driver-proof-photo { border-color: #e2e6df; background: #fbfaf7; }
+.driver-premium-shell .driver-proof-draft-state.saved { color: #456c61; }
+.driver-premium-shell .driver-proof-preview { border-color: #e2e6df; }
+.driver-premium-shell .driver-waiting-admin { border-color: #e7d9c6; color: #806747; background: #f6f0e8; }
+.driver-premium-shell .job-card.primary { background: #fff; }
+.driver-premium-shell .compact-job-toggle { padding: 17px; }
+.driver-premium-shell .compact-job-icon { color: #456c61; background: #eaf0ed; }
+.driver-premium-shell .compact-job-copy small { color: #927b5e; font-weight: 600; }
+.driver-premium-shell .compact-job-copy strong { color: #21313a; font-weight: 600; }
+.driver-premium-shell .compact-job-status { color: #426158; background: #eaf0ed; font-weight: 600; }
+.driver-premium-shell .compact-job-details { border-color: #e2e6df; }
+.driver-premium-shell .route-point svg { color: #456c61; }
+.driver-premium-shell .progress-card { padding: 16px; }
+.driver-premium-shell .progress-card .done { background: #456c61; }
+.driver-premium-shell .privacy-card { color: #456c61; background: #f2f6f0; }
+.driver-premium-shell .privacy-card strong { color: #21313a; font-weight: 600; }
+.driver-premium-shell .map-card { min-height: 315px; background: #edf1e9; }
+.driver-premium-shell .map-card.has-real-map { padding: 0; }
+.driver-premium-shell .map-message { color: #21313a; background: #fbfaf7ed; }
+.driver-premium-shell .proof-card-content .upload-button { color: #fff; background: #264b49; }
+
+.driver-premium-shell .driver-history-screen > .section-title { flex: 0 0 auto; }
+.driver-premium-shell .driver-history-filters { gap: 12px; padding: 14px; }
+.driver-premium-shell .driver-history-filter-status { background: #f2f4ef; }
+.driver-premium-shell .driver-history-filter-status button { font-weight: 600; }
+.driver-premium-shell .driver-history-filter-status button.selected { color: #fff; background: #264b49; }
+.driver-premium-shell .driver-history-filter-month { border-color: #dce5dc; color: #456c61; }
+.driver-premium-shell .driver-history-toggle { background: #fff; }
+.driver-premium-shell .driver-history-toggle:hover { background: #f9faf6; }
+.driver-premium-shell .driver-history-icon { color: #456c61; background: #eaf0ed; }
+.driver-premium-shell .driver-history-heading small { color: #927b5e; font-weight: 600; }
+.driver-premium-shell .driver-history-heading strong { color: #21313a; font-weight: 600; }
+.driver-premium-shell .driver-history-status.completed { color: #456c61; background: #eaf0ed; }
+.driver-premium-shell .driver-history-status.cancelled { color: #9b5d4e; background: #faf1ed; }
+.driver-premium-shell .driver-history-proof-status { background: #f4f6f1; }
+.driver-premium-shell .driver-history-proof { border-color: #e2e6df; }
+.driver-premium-shell .driver-history-proof-caption small { color: #456c61; }
+
+.driver-premium-shell .profile-panel > header { color: #456c61; }
+.driver-premium-shell .profile-panel > header h2 { font-weight: 600; }
+.driver-premium-shell .profile-upload-row { background: #f3f6f1; }
+.driver-premium-shell .profile-field-grid label > span { font-weight: 600; }
+.driver-premium-shell .document-upload-card { border-color: #cbd9cf; background: #f7f9f5; }
+.driver-premium-shell .document-upload-card > :is(label, button) { color: #2d5b52; background: #eaf0e9; font-weight: 600; }
+.driver-premium-shell .profile-save-bar { border-color: #dce5dc; background: #fbfaf7f5; }
+.driver-premium-shell .profile-save-bar button { color: #fff; background: #264b49; font-weight: 600; }
+.driver-premium-shell .empty-state { display: grid; place-content: center; justify-items: center; gap: 10px; min-height: 300px; padding: 34px 24px; text-align: center; }
+.driver-premium-shell .empty-state-icon { color: #456c61; background: #eaf0ed; }
+.driver-premium-shell .empty-state h1 { color: #21313a; font-size: 1.3rem; font-weight: 600; }
+
+.driver-premium-shell[data-theme="dark"] .screen:not(.driver-today-screen) { background: #172222; }
+.driver-premium-shell[data-theme="dark"] :is(.driver-current-action, .driver-stop-proof, .driver-proof-editor, .compact-job-card, .privacy-card, .progress-card, .map-card, .driver-history-filters, .driver-history-card, .profile-panel, .driver-history-empty) { border-color: #3e504b; background: #1d292a; }
+.driver-premium-shell[data-theme="dark"] .driver-current-action strong,
+.driver-premium-shell[data-theme="dark"] .compact-job-copy strong,
+.driver-premium-shell[data-theme="dark"] .driver-history-heading strong,
+.driver-premium-shell[data-theme="dark"] .privacy-card strong,
+.driver-premium-shell[data-theme="dark"] .empty-state h1 { color: #edf1ed; }
+.driver-premium-shell[data-theme="dark"] .driver-step-actions > *, .driver-premium-shell[data-theme="dark"] .driver-step-call { border-color: #3e504b; color: #c0d4c6; background: #263534; }
+.driver-premium-shell[data-theme="dark"] .driver-step-actions .driver-step-navigation { color: #fff; background: #365e56; }
+.driver-premium-shell[data-theme="dark"] .job-report-issue { border-color: #684b44; color: #e3aaa0; background: #493431; }
+.driver-premium-shell[data-theme="dark"] .driver-proof-photo,
+.driver-premium-shell[data-theme="dark"] .driver-history-proof,
+.driver-premium-shell[data-theme="dark"] .document-upload-card,
+.driver-premium-shell[data-theme="dark"] .profile-upload-row,
+.driver-premium-shell[data-theme="dark"] .driver-history-proof-status,
+.driver-premium-shell[data-theme="dark"] .driver-history-filter-status { border-color: #3e504b; background: #263534; }
+.driver-premium-shell[data-theme="dark"] .driver-proof-add-photo,
+.driver-premium-shell[data-theme="dark"] .driver-proof-open-signature,
+.driver-premium-shell[data-theme="dark"] .driver-proof-photo-actions button:not(:first-child),
+.driver-premium-shell[data-theme="dark"] .document-upload-card > :is(label, button) { border-color: #4b6256; color: #c0d4c6; background: #293b33; }
+.driver-premium-shell[data-theme="dark"] .driver-history-toggle,
+.driver-premium-shell[data-theme="dark"] .job-card.primary,
+.driver-premium-shell[data-theme="dark"] .profile-save-bar { border-color: #3e504b; background: #1d292a; }
+.driver-premium-shell[data-theme="dark"] .driver-proof-preview { border-color: #3e504b; background: #fff; }
+.driver-premium-shell[data-theme="dark"] .driver-proof-preview strong { color: #21313a; }
+.driver-premium-shell[data-theme="dark"] .driver-history-filter-status button.selected { color: #fff; background: #365e56; }
+.driver-premium-shell[data-theme="dark"] .driver-history-status.completed,
+.driver-premium-shell[data-theme="dark"] .compact-job-status { color: #b5d7c1; background: #293b33; }
+.driver-premium-shell[data-theme="dark"] .driver-waiting-admin { border-color: #655640; color: #d6b690; background: #473e32; }
+.driver-premium-shell[data-theme="dark"] .privacy-card { background: #293b33; }
+.driver-premium-shell[data-theme="dark"] .map-message { color: #edf1ed; background: #263534ee; }
+@media (max-width: 520px) {
+  .driver-premium-shell .screen:not(.driver-today-screen) > .section-title,
+  .driver-premium-shell .profile-page-head { min-height: 132px; padding: 23px 20px; }
+  .driver-premium-shell .driver-history-toggle { flex-wrap: wrap; }
+  .driver-premium-shell .driver-history-heading { flex-basis: calc(100% - 75px); }
+  .driver-premium-shell .driver-history-status { margin-left: 54px; }
 }

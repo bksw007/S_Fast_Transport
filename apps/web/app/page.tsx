@@ -539,7 +539,7 @@ export default function Home() {
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
 
   return (
-    <main className={`app-shell ${mode === "driver" ? "driver-shell" : "admin-shell"} ${mode === "driver" && driverScreen === "งานวันนี้" ? `driver-today-shell ${landingFont.variable}` : ""}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
+    <main className={`app-shell ${mode === "driver" ? `driver-shell driver-premium-shell ${landingFont.variable}` : "admin-shell"}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">
@@ -869,7 +869,7 @@ function DriverMobileScreen({
   if (screen === "แผนที่งานของฉัน") {
     const currentJobs = jobs.filter(job => !["completed", "cancelled"].includes(job.status));
     const currentJob = currentJobs.find(job => job.id === selectedJobId) ?? currentJobs[0];
-    return currentJob ? <MapScreen jobs={currentJobs} selectedJob={currentJob} selectedJobId={currentJob.id} onSelectJob={onSelectJob} /> : <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="แผนที่จะปรากฏเมื่อเริ่มงานขนส่ง" />;
+    return currentJob ? <MapScreen jobs={currentJobs} selectedJob={currentJob} selectedJobId={currentJob.id} onSelectJob={onSelectJob} driverView /> : <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="แผนที่จะปรากฏเมื่อเริ่มงานขนส่ง" />;
   }
 
   if (screen === "อัปเดตหลักฐาน") {
@@ -1841,18 +1841,20 @@ function MapScreen({
   jobs,
   selectedJob,
   selectedJobId,
-  onSelectJob
+  onSelectJob,
+  driverView = false
 }: {
   jobs: TransportJob[];
   selectedJob: TransportJob;
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
+  driverView?: boolean;
 }) {
   return (
     <section className="screen">
       <div className="section-title">
         <div>
-          <h1>Live Tracking</h1>
+          <h1>{driverView ? "แผนที่งานของฉัน" : "Live Tracking"}</h1>
           <p>{selectedJob.workOrder} · {selectedJob.vehiclePlate}</p>
         </div>
         <span className={selectedJob.alerts.length ? "status danger" : "status"}>{statusLabels[selectedJob.status]}</span>
