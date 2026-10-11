@@ -23,6 +23,8 @@ import { getDownloadURL, ref, uploadBytes, uploadBytesResumable, type UploadTask
 import { db, storage } from "./firebase";
 import { loadCompanySettings } from "./settings-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
+import { coordinateFingerprint } from "./google-routes-distance";
+import { requestJobRoadDistance } from "./job-road-distance-client";
 import { statusLabels, type DriverIssueType, type JobPlace, type JobStatus, type StopProof, type TransportJob } from "@s-fast-transport/shared";
 
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver";
@@ -447,7 +449,36 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     });
     return nextWorkOrder;
   });
+  const fingerprint = coordinateFingerprint(pickupPlace, deliveryPlace);
+  if (fingerprint && pickupPlace && deliveryPlace) {
+    try {
+      const distanceMeters = await requestJobRoadDistance(jobRef.id, pickupPlace, deliveryPlace);
+      await saveJobRouteDistance(jobRef.id, distanceMeters, fingerprint, actor);
+    } catch {
+      // The job is already saved; its details screen can retry the distance calculation later.
+    }
+  }
   return workOrder;
+}
+
+export async function saveJobRouteDistance(jobId: string, distanceMeters: number, fingerprint: string, actor: UserProfile) {
+  if (!hasApprovedAccess(actor)) throw new Error("ไม่มีสิทธิ์แก้ไขงาน");
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0 || distanceMeters > 10_000_000) throw new Error("ระยะทางไม่ถูกต้อง");
+  const jobRef = doc(db, "today_jobs", jobId);
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const current = snapshot.data();
+    if (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId)) throw new Error("ไม่มีสิทธิ์แก้ไขงานนี้");
+    if (coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== fingerprint) throw new Error("พิกัดใบงานมีการเปลี่ยนแปลง");
+    transaction.update(jobRef, {
+      routeDistanceMeters: Math.round(distanceMeters),
+      routeDistanceFingerprint: fingerprint,
+      routeDistanceProvider: "google_routes",
+      routeDistanceCalculatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  });
 }
 
 function listOptionsCollection(organizationId: string) {

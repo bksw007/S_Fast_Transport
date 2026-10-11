@@ -7,12 +7,12 @@ let slots = [], cursor = 0, updated, deleted, savedDistance, uploaded, links = 0
 const JobEditorStub = () => null;
 const repository = {
   createTrackingShareLink: async () => { links++; return 'job-token'; },
+  saveJobRouteDistance: async (...args) => { savedDistance = args; },
   uploadProof: async (...args) => { uploaded = args; }
 };
 const detailRepository = {
   canAdministerJob: () => true,
   deleteJob: async (...args) => { deleted = args; },
-  saveJobRouteDistance: async (...args) => { savedDistance = args; },
   updateJobDetails: async (...args) => { updated = args; },
   recordTime: () => 0,
   subscribeJobRecords: () => () => {}
@@ -21,6 +21,7 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
   if (name === 'react') return { ...React, useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; }, useEffect: () => {} };
   if (name === '@/lib/transport-repository') return repository;
   if (name === '@/lib/job-detail-repository') return detailRepository;
+  if (name === '@/lib/job-road-distance-client') return { requestJobRoadDistance: async () => 24567 };
   if (name === '@/lib/firebase-auth') return { auth: { currentUser: null } };
   if (name === '@/lib/google-routes-distance') return {
     coordinateFingerprint: (origin, destination) => origin && destination ? `${Number(origin.lat).toFixed(6)},${Number(origin.lng).toFixed(6)}>${Number(destination.lat).toFixed(6)},${Number(destination.lng).toFixed(6)}` : null

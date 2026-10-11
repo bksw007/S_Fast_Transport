@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type DriverIssueType, type TransportJob } from "@s-fast-transport/shared";
-import { createTrackingShareLink, uploadProof, type UserProfile } from "@/lib/transport-repository";
-import { recordTime, saveJobRouteDistance, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
+import { createTrackingShareLink, saveJobRouteDistance, uploadProof, type UserProfile } from "@/lib/transport-repository";
+import { recordTime, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
-import { auth } from "@/lib/firebase-auth";
 import { coordinateFingerprint } from "@/lib/google-routes-distance";
+import { requestJobRoadDistance } from "@/lib/job-road-distance-client";
 import JobEditor from "./JobEditor";
 import JobRouteHistory from "./JobRouteHistory";
 import { canAdministerJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
@@ -64,8 +64,6 @@ function approximateDistanceState(job: TransportJob): DistanceState {
 async function requestRoadDistance(job: TransportJob) {
   const fingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
   if (!fingerprint || !job.pickupPlace || !job.deliveryPlace) throw new Error("ไม่มีพิกัดสำหรับคำนวณระยะทาง");
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("กรุณาเข้าสู่ระบบอีกครั้ง");
   const requestKey = `${job.id}:${fingerprint}`;
   if (sessionDistanceResults.has(requestKey)) {
     const saved = sessionDistanceResults.get(requestKey);
@@ -74,17 +72,7 @@ async function requestRoadDistance(job: TransportJob) {
   }
   const existing = pendingDistanceRequests.get(requestKey);
   if (existing) return existing;
-  const pending = (async () => {
-    const response = await fetch("/api/maps/distance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await currentUser.getIdToken()}` },
-      body: JSON.stringify({ jobId: job.id, origin: job.pickupPlace, destination: job.deliveryPlace })
-    });
-    const payload = await response.json() as { distanceMeters?: unknown; error?: string };
-    const distanceMeters = Number(payload.distanceMeters);
-    if (!response.ok || !Number.isFinite(distanceMeters) || distanceMeters <= 0) throw new Error(payload.error || "คำนวณระยะทางไม่สำเร็จ");
-    return Math.round(distanceMeters);
-  })().then(distanceMeters => {
+  const pending = requestJobRoadDistance(job.id, job.pickupPlace, job.deliveryPlace).then(distanceMeters => {
     sessionDistanceResults.set(requestKey, distanceMeters);
     return distanceMeters;
   }, error => {
@@ -141,7 +129,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
     let active = true;
     void requestRoadDistance(job).then(distanceMeters => {
       if (active) setRequestedDistance({ fingerprint, meters: distanceMeters, source: "road" });
-      if (canWrite) void saveJobRouteDistance(job, distanceMeters, fingerprint, actor).catch(() => undefined);
+      if (canWrite) void saveJobRouteDistance(job.id, distanceMeters, fingerprint, actor).catch(() => undefined);
     }).catch(() => {
       if (active) setRequestedDistance({ fingerprint, ...approximateDistanceState(job) });
     });
