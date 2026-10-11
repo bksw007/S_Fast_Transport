@@ -1281,16 +1281,17 @@ function EmptyState({ title, description }: { title: string; description: string
 
 function SessionLoadingScreen() {
   return (
-    <main className="login-shell" aria-busy="true" aria-live="polite">
-      <div className="login-backdrop" aria-hidden="true" />
-      <section className="login-card session-loading-card">
-        <Image className="login-logo" src="/icons/truck-logo.png" alt="S Fast Transport" width={72} height={72} priority />
-        <span className="session-loading-indicator" aria-hidden="true" />
-        <div className="login-copy">
-          <h1>กำลังเปิดระบบ</h1>
-          <p>กำลังตรวจสอบการเข้าสู่ระบบที่บันทึกไว้...</p>
-        </div>
+    <main className="landing-page" aria-busy="true" aria-live="polite">
+      <div className="landing-photo" aria-hidden="true" />
+      <div className="landing-shade" aria-hidden="true" />
+      <header className="landing-header"><span className="landing-kicker">S FAST TRANSPORTATION</span></header>
+      <section className="landing-content landing-loading-content">
+        <Image className="landing-logo" src="/s-fast-transportation-logo.png" alt="โลโก้ S Fast Transportation" width={5905} height={3327} priority />
+        <h1>ขับเคลื่อนทุกการขนส่ง<br />ด้วยความมั่นใจ</h1>
+        <p className="landing-description">กำลังตรวจสอบการเข้าสู่ระบบ...</p>
       </section>
+      <div className="landing-loading-indicator" aria-label="กำลังโหลด" />
+      <footer className="landing-footer"><span>TRUSTED TRANSPORTATION</span><span>© S Fast Transportation</span></footer>
     </main>
   );
 }
@@ -1298,10 +1299,12 @@ function SessionLoadingScreen() {
 function LoginScreen() {
   const [message, setMessage] = useState("");
   const [signingIn, setSigningIn] = useState(false);
+  const [loginAction, setLoginAction] = useState<"login" | "register">("login");
 
-  async function signInWithGoogle() {
+  async function signInWithGoogle(action: "login" | "register") {
     if (signingIn) return;
 
+    setLoginAction(action);
     setSigningIn(true);
     setMessage("กำลังเปิด Google...");
     try {
@@ -1324,33 +1327,33 @@ function LoginScreen() {
   }
 
   return (
-    <main className="login-shell">
-      <div className="login-backdrop" aria-hidden="true" />
-      <section className="login-card">
-        <div className="login-brand">
-          <Image className="login-logo" src="/icons/truck-logo.png" alt="S Fast Transport" width={72} height={72} priority />
-          <div>
-            <strong>S Fast Transport</strong>
-            <span>Transport Control Center</span>
-          </div>
-        </div>
-
-        <div className="login-copy">
-          <h1>เข้าสู่ระบบด้วย Google</h1>
-          <p>บัญชีและสิทธิ์ใช้งานควบคุมโดยผู้ดูแล S Fast Transport</p>
-        </div>
-
-        <div className="login-form">
-          <button className="google-button" type="button" onClick={signInWithGoogle} disabled={signingIn}>
+    <main className="landing-page">
+      <div className="landing-photo" aria-hidden="true" />
+      <div className="landing-shade" aria-hidden="true" />
+      <header className="landing-header">
+        <span className="landing-kicker">S FAST TRANSPORTATION</span>
+        <span className="landing-header-note">TRANSPORT OPERATIONS PLATFORM</span>
+      </header>
+      <section className="landing-content" aria-labelledby="landing-title">
+        <Image className="landing-logo" src="/s-fast-transportation-logo.png" alt="โลโก้ S Fast Transportation" width={5905} height={3327} priority />
+        <p className="landing-overline">S FAST TRANSPORTATION</p>
+        <h1 id="landing-title">ขับเคลื่อนทุกการขนส่ง<br />ด้วยความมั่นใจ</h1>
+        <p className="landing-description">พื้นที่ทำงานสำหรับทีมขนส่ง ติดตามงาน จัดการรถและคนขับ<br className="landing-desktop-break" /> พร้อมเชื่อมทุกการส่งมอบไว้ในที่เดียว</p>
+      </section>
+      <section className="landing-access" aria-label="เข้าสู่ระบบและลงทะเบียน">
+        <div className="landing-actions">
+          <button className="landing-google-button" type="button" onClick={() => void signInWithGoogle("login")} disabled={signingIn}>
             <GoogleLogo />
-            {signingIn ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบด้วย Google"}
+            {signingIn && loginAction === "login" ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบด้วย Google"}
+          </button>
+          <button className="landing-register-button" type="button" onClick={() => void signInWithGoogle("register")} disabled={signingIn}>
+            {signingIn && loginAction === "register" ? "กำลังลงทะเบียน..." : "ลงทะเบียนขอสิทธิ์"}
+            <ArrowRight size={18} />
           </button>
         </div>
-
-        <div className="login-footnote">
-          {message || "บัญชีใหม่ต้องรอแอดมินบริษัทหลักอนุมัติก่อนเข้าใช้งาน"}
-        </div>
+        <p className="landing-access-note" role={message ? "status" : undefined}>{message || "บัญชีใหม่ลงทะเบียนด้วย Google แล้วส่งข้อมูลให้แอดมินอนุมัติและกำหนดบทบาท"}</p>
       </section>
+      <footer className="landing-footer"><span>TRUSTED TRANSPORTATION</span><span>© S Fast Transportation</span></footer>
     </main>
   );
 }
