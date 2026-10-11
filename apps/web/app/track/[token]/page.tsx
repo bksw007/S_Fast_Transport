@@ -6,15 +6,9 @@ import { useParams } from "next/navigation";
 import { AlertTriangle, Camera, CheckCircle2, Clock3, Download, MapPin, Navigation, PackageCheck, PenLine, Phone, Truck, UserRound } from "lucide-react";
 import { statusLabels, type JobStatus } from "@s-fast-transport/shared";
 import { completionReportHtml, type CompletionReportJob, type ReportProof } from "@/lib/job-completion-report";
+import { driverIssueLabels } from "@/lib/driver-issue-labels";
 import { fetchPublicTrackingDetails, publicTrackingAssetUrl, subscribePublicTracking, type PublicProof, type PublicTrackingDetails, type PublicTrackingJob } from "@/lib/public-tracking-repository";
 import "./tracking.css";
-
-const issueLabels: Record<string, string> = {
-  accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย",
-  road_closed: "ถนนปิดหรือเส้นทางใช้ไม่ได้", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอรับหรือส่งสินค้านาน",
-  customer_absent: "ลูกค้าไม่อยู่ที่จุดนัดหมาย", signature_refused: "ลูกค้าปฏิเสธการเซ็นชื่อ",
-  photo_unavailable: "ไม่สามารถถ่ายรูปสินค้าได้", goods_damaged: "สินค้าชำรุดหรือเสียหาย", other: "ปัญหาอื่น ๆ"
-};
 
 function thaiDateTime(value: string) {
   const date = new Date(value);
@@ -144,7 +138,7 @@ export default function PublicTrackingPage() {
         </aside>
       </section>
       {details?.issue && <section className={`tracking-issue ${details.issue.resolvedAt ? "is-resolved" : ""}`} role="status">
-        <AlertTriangle size={22} /><div><strong>{details.issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{issueLabels[details.issue.type] || "ปัญหาการขนส่ง"}{details.issue.note ? ` · ${details.issue.note}` : ""}</p><small>แจ้งเมื่อ {thaiDateTime(details.issue.reportedAt)}{details.issue.resolvedAt ? ` · ดำเนินการแล้ว ${thaiDateTime(details.issue.resolvedAt)}` : ""}</small>{details.issue.resolutionNote && <p>การดำเนินการ: {details.issue.resolutionNote}</p>}{details.issue.hasPhoto && <a href={publicTrackingAssetUrl(params.token, "issue", "issue")} target="_blank" rel="noreferrer">ดูภาพประกอบปัญหา</a>}</div>
+        <AlertTriangle size={22} /><div><strong>{details.issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{driverIssueLabels[details.issue.type] || "ปัญหาการขนส่ง"}{details.issue.note ? ` · ${details.issue.note}` : ""}</p><small>แจ้งเมื่อ {thaiDateTime(details.issue.reportedAt)}{details.issue.resolvedAt ? ` · ดำเนินการแล้ว ${thaiDateTime(details.issue.resolvedAt)}` : ""}</small>{details.issue.resolutionNote && <p>การดำเนินการ: {details.issue.resolutionNote}</p>}{details.issue.hasPhoto && <a href={publicTrackingAssetUrl(params.token, "issue", "issue")} target="_blank" rel="noreferrer">ดูภาพประกอบปัญหา</a>}</div>
       </section>}
       <section className="tracking-evidence-grid" aria-label="หลักฐานการขนส่ง">
         <ProofCard token={params.token} stage="pickup" title="หลักฐานจากจุดรับ" proof={details?.pickupProof} loading={detailsLoading} />
