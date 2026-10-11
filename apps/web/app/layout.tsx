@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import "leaflet/dist/leaflet.css";
 import "./styles.css";
 import "./theme.css";
 import DatePickerBehavior from "./components/DatePickerBehavior";

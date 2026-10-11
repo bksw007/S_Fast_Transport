@@ -4700,6 +4700,23 @@ textarea:focus {
 .job-records time { font-size: .72rem; }
 .job-records strong { font-size: .9rem; font-weight: 600; }
 .job-records p { font-size: .8rem; color: var(--muted); }
+.job-route-history { display: grid; gap: 15px; }
+.job-route-history-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px 16px; }
+.job-route-history-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .98rem; }
+.job-route-history-heading h3 svg { color: var(--accent); }
+.job-route-history-heading p { margin: 5px 0 0; color: var(--muted); font-size: .76rem; }
+.job-route-gap-count { padding: 6px 9px; border-radius: 8px; background: color-mix(in srgb, var(--danger) 10%, var(--surface)); color: var(--danger); font-size: .73rem; font-weight: 650; }
+.job-route-history-map { width: 100%; height: clamp(300px, 48vh, 520px); border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.job-route-map-message { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--muted); font-size: .82rem; }
+.job-route-history-note { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+.job-route-history-note .route-dot { display: inline-block; width: 9px; height: 9px; margin-left: 5px; border-radius: 50%; background: #277c55; }
+.job-route-history-note .route-dot.end { background: #d35b3f; }
+.job-route-history-points { border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+.job-route-history-points summary { display: flex; align-items: center; gap: 8px; padding: 14px 16px; cursor: pointer; color: var(--text); font-size: .82rem; font-weight: 650; }
+.job-route-history-points summary::marker { content: ""; }
+.job-route-history-points[open] summary { border-bottom: 1px solid var(--border); }
+.job-route-history-points .job-records { max-height: 370px; overflow-y: auto; padding: 12px; }
+.job-route-history-points .job-records article small { display: block; margin-top: 5px; color: var(--muted); font-size: .72rem; }
 .job-records-events { gap: 0; padding-left: 10px; }
 .job-records-events article { position: relative; border: 0; border-left: 1px solid var(--border); border-radius: 0; background: transparent; padding: 0 0 24px 24px; }
 .job-records-events article::before { content: ""; position: absolute; left: -5px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--surface); }

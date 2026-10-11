@@ -29,6 +29,7 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
   if (name === './JobContacts') return () => null;
   if (name === './JobEditor') return JobEditorStub;
+  if (name === './JobRouteHistory') return () => null;
   if (name === 'next/image') return 'img';
   return require(name);
 }};
@@ -69,7 +70,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   for (let i = 0; i < 5; i++) { find(n => n.props?.id === `job-tab-${i}`).props.onClick(); render(); assert.equal(find(n => n.props?.role === 'tabpanel').props['aria-labelledby'], `job-tab-${i}`); }
   find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' Share')).props.onClick(); await flush(); render();
   assert.equal(copied, 'https://example.test/track/job-token');
-  find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' QR')).props.onClick(); for (let i = 0; i < 100 && !slots[5]; i++) await new Promise(resolve => setTimeout(resolve, 10)); render();
+  find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' QR')).props.onClick(); for (let i = 0; i < 100 && !slots[6]; i++) await new Promise(resolve => setTimeout(resolve, 10)); render();
   assert.equal(links, 1, 'Share and QR reuse the same link');
   assert.ok(find(n => n.props?.alt?.startsWith('QR')).props.src.startsWith('data:image/png;base64,'));
   find(n => n.props?.['aria-label'] === 'แก้ไขใบงาน').props.onClick(); render();

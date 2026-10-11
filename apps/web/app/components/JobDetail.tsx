@@ -10,6 +10,7 @@ import { formatPhoneNumber } from "@/lib/profile-repository";
 import { auth } from "@/lib/firebase-auth";
 import { coordinateFingerprint } from "@/lib/google-routes-distance";
 import JobEditor from "./JobEditor";
+import JobRouteHistory from "./JobRouteHistory";
 import { canAdministerJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
@@ -103,13 +104,13 @@ function Records({ job, kind }: { job: TransportJob; kind: "proofs" | "events" |
   const visibleRows = kind === "proofs" ? rows.filter(({ data }) => !["photo", "photo_revision"].includes(String(data.proofKind)) || currentPaths.includes(String(data.storagePath))) : rows;
   if (state) return <p className="job-detail-empty" role="status">{state}</p>;
   if (!visibleRows.length) return <p className="job-detail-empty">ยังไม่มี{kind === "proofs" ? "หลักฐาน" : kind === "events" ? "เหตุการณ์ที่บันทึก" : "ประวัติตำแหน่ง"}สำหรับใบงานนี้</p>;
+  if (kind === "locations") return <JobRouteHistory rows={visibleRows} />;
   return <div className={`job-records job-records-${kind}`}>
-    {kind === "locations" && <p>ตำแหน่งที่บันทึกจริง ล่าสุดไม่เกิน 500 จุด เรียงจากใหม่ไปเก่า</p>}
     {visibleRows.map(({ id, data }) => <article key={id}>
       <time>{dateLabel(recordTime(data))}</time>
       {kind === "proofs" ? <><strong>{data.proofStage === "pickup" ? "จุดรับสินค้า" : data.proofStage === "delivery" ? "จุดส่งสินค้า" : "หลักฐานทั่วไป"} · {data.proofKind === "signature" ? "ลายเซ็น" : data.proofKind === "photo" || data.proofKind === "photo_revision" ? "รูปสินค้า" : data.fileName || "หลักฐาน"}</strong><p>{data.proofKind === "signature" ? `ผู้เซ็น ${data.signerName || "—"} · ` : ""}อัปโหลดโดย {data.uploadedByName || "—"}</p>{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
         : kind === "events" ? <><strong>{data.message || data.type || "เหตุการณ์"}</strong><p>{data.actorName || "ระบบ"}</p></>
-        : <><strong>{Number(data.speed || 0).toFixed(1)} กม./ชม.</strong>{validPoint(data.lat, data.lng) ? <a href={mapUrl(data.lat, data.lng)} target="_blank" rel="noreferrer">{data.lat.toFixed(6)}, {data.lng.toFixed(6)} · เปิดแผนที่</a> : <p>ไม่มีพิกัดที่ใช้งานได้</p>}</>}
+        : null}
     </article>)}
   </div>;
 }
