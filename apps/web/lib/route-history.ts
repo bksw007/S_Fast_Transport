@@ -55,6 +55,7 @@ export function buildRecordedRoute(records: RouteLocationRecord[]) {
   }).sort((a, b) => a.recordedAt - b.recordedAt || a.id.localeCompare(b.id));
 
   const segments: RoutePoint[][] = [];
+  const gaps: [RoutePoint, RoutePoint][] = [];
   for (const point of points) {
     const current = segments[segments.length - 1];
     const previous = current?.[current.length - 1];
@@ -65,11 +66,12 @@ export function buildRecordedRoute(records: RouteLocationRecord[]) {
         : distanceKm(previous, point) > 0.2
     );
     if (!current || elapsed > MAX_ROUTE_GAP_MS || implausibleJump) {
+      if (previous) gaps.push([previous, point]);
       segments.push([point]);
     } else {
       current.push(point);
     }
   }
 
-  return { points, segments, gapCount: Math.max(0, segments.length - 1) };
+  return { points, segments, gaps, gapCount: gaps.length };
 }

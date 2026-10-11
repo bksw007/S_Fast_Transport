@@ -33,11 +33,20 @@ export default function JobRouteHistory({ rows }: { rows: JobRecord[] }) {
       }
       routeLayersRef.current?.clearLayers();
 
+      const addRouteLine = (positions: [number, number][], approximate: boolean) => {
+        const style = {
+          opacity: 1, dashArray: approximate ? "12 10" : undefined,
+          lineCap: "round" as const, lineJoin: "round" as const, interactive: false
+        };
+        leaflet.polyline(positions, { ...style, color: "#ffffff", weight: approximate ? 9 : 10 }).addTo(routeLayersRef.current!);
+        leaflet.polyline(positions, { ...style, color: approximate ? "#2563eb" : "#0758d3", weight: approximate ? 6 : 7 }).addTo(routeLayersRef.current!);
+      };
+      for (const [before, after] of route.gaps) {
+        addRouteLine([[before.lat, before.lng], [after.lat, after.lng]], true);
+      }
       for (const segment of route.segments) {
         if (segment.length > 1) {
-          leaflet.polyline(segment.map(point => [point.lat, point.lng] as [number, number]), {
-            color: "#087f78", opacity: 0.95, weight: 5
-          }).addTo(routeLayersRef.current!);
+          addRouteLine(segment.map(point => [point.lat, point.lng] as [number, number]), false);
         }
       }
 
@@ -48,7 +57,7 @@ export default function JobRouteHistory({ rows }: { rows: JobRecord[] }) {
         }).addTo(routeLayersRef.current!);
       };
       for (const segment of route.segments) {
-        if (segment.length === 1) addPoint(segment[0].lat, segment[0].lng, "#087f78", 6);
+        if (segment.length === 1) addPoint(segment[0].lat, segment[0].lng, "#0758d3", 6);
       }
       const first = route.points[0];
       const last = route.points[route.points.length - 1];
@@ -84,7 +93,7 @@ export default function JobRouteHistory({ rows }: { rows: JobRecord[] }) {
     {route.points.length > 0 && <>
       <div ref={mapElementRef} className="job-route-history-map" role="img" aria-label={`แผนที่เส้นทาง GPS ที่บันทึก ${route.points.length} จุด`} />
       {mapError && <p className="job-route-map-message" role="status">{mapError} · ยังดูพิกัดในรายการด้านล่างได้</p>}
-      <p className="job-route-history-note"><span className="route-dot start" /> จุดแรกในช่วงที่แสดง <span className="route-dot end" /> จุดล่าสุด · เส้นเชื่อมจุด GPS ที่บันทึก ไม่ใช่เส้นทางนำทางที่คำนวณใหม่{route.gapCount > 0 ? " · ไม่ลากเส้นข้ามช่วง GPS ขาดหรือพิกัดกระโดดผิดปกติ" : ""}</p>
+      <p className="job-route-history-note"><span className="route-line-key solid" /> เส้นทึบ: GPS ที่บันทึกต่อเนื่อง{route.gapCount > 0 && <><span className="route-line-key gap" /> เส้นประ: เส้นตรงเชื่อมช่วง GPS ขาด/ผิดปกติ ไม่ยืนยันถนนที่วิ่งจริง</>}<span className="route-dot start" /> จุดแรก <span className="route-dot end" /> จุดล่าสุด</p>
       <details className="job-route-history-points"><summary><MapPin size={16} /> ดูพิกัดที่บันทึกทั้งหมด ({route.points.length})</summary><div className="job-records job-records-locations">{[...route.points].reverse().map(point => <article key={point.id}><time>{dateLabel(point.recordedAt)}</time><strong>{(point.speed ?? 0).toFixed(1)} กม./ชม.</strong><a href={mapLink(point.lat, point.lng)} target="_blank" rel="noreferrer">{point.lat.toFixed(6)}, {point.lng.toFixed(6)} · เปิดแผนที่</a>{point.accuracy !== null && <small>ความแม่นยำประมาณ {Math.round(point.accuracy)} เมตร</small>}</article>)}</div></details>
     </>}
   </div>;

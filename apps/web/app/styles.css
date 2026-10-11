@@ -4709,6 +4709,8 @@ textarea:focus {
 .job-route-history-map { width: 100%; height: clamp(300px, 48vh, 520px); border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
 .job-route-map-message { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--muted); font-size: .82rem; }
 .job-route-history-note { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+.job-route-history-note .route-line-key { display: inline-block; width: 26px; margin-left: 8px; border-top: 5px solid #0758d3; border-radius: 3px; }
+.job-route-history-note .route-line-key.gap { border-top-color: #2563eb; border-top-style: dashed; }
 .job-route-history-note .route-dot { display: inline-block; width: 9px; height: 9px; margin-left: 5px; border-radius: 50%; background: #277c55; }
 .job-route-history-note .route-dot.end { background: #d35b3f; }
 .job-route-history-points { border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
