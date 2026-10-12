@@ -13,6 +13,7 @@ import {
 import type { JobPlace } from "@s-fast-transport/shared";
 import { db } from "./firebase";
 import { canManageOrganizationLists, type UserProfile } from "./transport-repository";
+import { isAllowedGoogleMapsUrl } from "./google-maps-link";
 
 export type SavedLocation = JobPlace & {
   id: string;
@@ -36,12 +37,11 @@ function cleanText(value: string, maximum: number) {
 function validateDraft(draft: LocationDraft) {
   const name = cleanText(draft.name, 160);
   if (!name) throw new Error("กรุณาตั้งชื่อสถานที่");
-  if (!Number.isFinite(draft.lat) || Math.abs(draft.lat) > 90 || !Number.isFinite(draft.lng) || Math.abs(draft.lng) > 180) {
+  if (!Number.isFinite(draft.lat) || Math.abs(draft.lat) > 90 || !Number.isFinite(draft.lng) || Math.abs(draft.lng) > 180 || (draft.lat === 0 && draft.lng === 0)) {
     throw new Error("พิกัดสถานที่ไม่ถูกต้อง");
   }
   for (const url of [draft.originalMapsUrl, draft.navigationUrl]) {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") throw new Error("ลิงก์แผนที่ต้องเป็น HTTPS");
+    if (!isAllowedGoogleMapsUrl(url)) throw new Error("ลิงก์แผนที่ต้องเป็น HTTPS จาก Google Maps");
   }
   return {
     name,

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Link2, ListFilter, LoaderCircle, MapPinned, Pencil, Plus, Power, Save, Search } from "lucide-react";
-import { resolveGoogleMapsLink } from "@/lib/google-maps-link";
+import { extractGoogleMapsUrl, resolveGoogleMapsLink } from "@/lib/google-maps-link";
+import LocationPinPicker from "./LocationPinPicker";
 import {
   createSavedLocation,
   filterSavedLocations,
@@ -26,14 +27,26 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
   const [message, setMessage] = useState("กำลังโหลดคลังสถานที่…");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LocationStatusFilter>("all");
+  const [manualPinOpen, setManualPinOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const latestMapInputRef = useRef("");
 
   useEffect(() => subscribeSavedLocations(organizationId, items => { setLocations(items); setMessage(""); }, error => setMessage(`โหลดข้อมูลไม่สำเร็จ: ${error}`)), [organizationId]);
 
+  function changeMapsInput(value: string) {
+    latestMapInputRef.current = value;
+    setManualPinOpen(false);
+    setDraft(current => ({ ...current, originalMapsUrl: value, navigationUrl: "", lat: 0, lng: 0, googleName: "", googlePlaceId: undefined }));
+  }
+
   async function readLink() {
+    const input = draft.originalMapsUrl;
     setBusy("resolve"); setMessage("");
     try {
-      const result = await resolveGoogleMapsLink(draft.originalMapsUrl);
+      const result = await resolveGoogleMapsLink(input);
+      if (latestMapInputRef.current !== input) return;
+      latestMapInputRef.current = result.originalUrl;
+      setManualPinOpen(false);
       setDraft(current => ({
         ...current,
         name: current.name || result.googleName,
@@ -45,7 +58,12 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
         ...(result.googlePlaceId ? { googlePlaceId: result.googlePlaceId } : {})
       }));
       setMessage("อ่านพิกัดแล้ว กรุณาตรวจสอบชื่อและหมุดก่อนบันทึก");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "อ่านลิงก์ไม่สำเร็จ"); }
+    } catch (error) {
+      if (latestMapInputRef.current === input) {
+        setMessage(`${error instanceof Error ? error.message : "อ่านลิงก์ไม่สำเร็จ"} · หาก Google ไม่ส่งพิกัดมา เลือกหมุดบนแผนที่ด้านล่างแทนได้`);
+        try { extractGoogleMapsUrl(input); setManualPinOpen(true); } catch { /* An invalid link cannot be saved with a manual pin. */ }
+      }
+    }
     finally { setBusy(""); }
   }
 
@@ -54,13 +72,15 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
     try {
       if (editingId) await updateSavedLocation(organizationId, editingId, draft, actor);
       else await createSavedLocation(organizationId, draft, actor);
-      setDraft(emptyDraft); setEditingId(""); setMessage(editingId ? "แก้ไขสถานที่แล้ว" : "เพิ่มสถานที่แล้ว");
+      setDraft(emptyDraft); setEditingId(""); setManualPinOpen(false); latestMapInputRef.current = ""; setMessage(editingId ? "แก้ไขสถานที่แล้ว" : "เพิ่มสถานที่แล้ว");
     } catch (error) { setMessage(error instanceof Error ? error.message : "บันทึกสถานที่ไม่สำเร็จ"); }
     finally { setBusy(""); }
   }
 
   function edit(item: SavedLocation) {
     setEditingId(item.id);
+    setManualPinOpen(false);
+    latestMapInputRef.current = item.originalMapsUrl;
     setDraft({
       name: item.name,
       googleName: item.googleName,
@@ -77,6 +97,8 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
 
   function startNew() {
     setEditingId("");
+    setManualPinOpen(false);
+    latestMapInputRef.current = "";
     setDraft(emptyDraft);
     setMessage("");
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -114,7 +136,8 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
     </section>
     <form ref={formRef} className={`location-library-form ${editingId ? "editing" : ""}`} onSubmit={event => { event.preventDefault(); void save(); }}>
       <header><span className="location-library-icon"><MapPinned size={22} /></span><div><h2>{editingId ? "แก้ไขสถานที่" : "เพิ่มสถานที่จาก Google Maps"}</h2><p>{editingId ? `กำลังแก้ไข “${draft.name}”` : "วางลิงก์ที่ลูกค้าส่งมา แล้วตั้งชื่อให้เข้าใจง่ายในบริษัท"}</p></div></header>
-      <label className="wide"><span>ลิงก์ Google Maps</span><div className="location-resolve-row"><input required type="url" value={draft.originalMapsUrl} onChange={event => setDraft({ ...draft, originalMapsUrl: event.target.value })} placeholder="https://maps.app.goo.gl/..." /><button type="button" disabled={busy === "resolve" || !draft.originalMapsUrl.trim()} onClick={() => void readLink()}>{busy === "resolve" ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} อ่านลิงก์</button></div></label>
+      <label className="wide"><span>ลิงก์ Google Maps</span><div className="location-resolve-row"><input required type="text" inputMode="url" value={draft.originalMapsUrl} onChange={event => changeMapsInput(event.target.value)} onPaste={event => { try { const url = extractGoogleMapsUrl(event.clipboardData.getData("text")); event.preventDefault(); changeMapsInput(url); } catch { /* Keep pasted text visible so the user can correct it. */ } }} placeholder="วางลิงก์หรือข้อความที่แชร์จาก Google Maps" /><button type="button" disabled={busy === "resolve" || !draft.originalMapsUrl.trim()} onClick={() => void readLink()}>{busy === "resolve" ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} อ่านลิงก์</button></div></label>
+      <div className="location-pin-picker-section"><button type="button" disabled={!draft.originalMapsUrl.trim()} onClick={() => { try { const url = extractGoogleMapsUrl(draft.originalMapsUrl); latestMapInputRef.current = url; setDraft(current => ({ ...current, originalMapsUrl: url })); setManualPinOpen(current => !current); setMessage(""); } catch (error) { setMessage(error instanceof Error ? error.message : "ลิงก์ Google Maps ไม่ถูกต้อง"); } }}>{manualPinOpen ? "ซ่อนแผนที่เลือกหมุด" : "อ่านพิกัดไม่ได้? เลือกหมุดเองบนแผนที่"}</button>{manualPinOpen && <><p>เปิดลิงก์ต้นทางเพื่อตรวจสอบสถานที่ แล้วแตะตำแหน่งเดียวกันบนแผนที่นี้ก่อนบันทึก <a href={extractGoogleMapsUrl(draft.originalMapsUrl)} target="_blank" rel="noreferrer">เปิดลิงก์ Google Maps</a></p><LocationPinPicker initialCenter={locations.find(item => item.active) ?? { lat: 13.7563, lng: 100.5018 }} value={draft.navigationUrl ? { lat: draft.lat, lng: draft.lng } : undefined} onPick={({ lat, lng }) => { const navigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`; setDraft(current => ({ ...current, lat, lng, navigationUrl, googlePlaceId: undefined })); setMessage("เลือกหมุดแล้ว กรุณาตรวจสอบชื่อและพิกัดก่อนบันทึก"); }} /></>}</div>
       <label><span>ชื่อที่ใช้ในระบบ</span><input required maxLength={160} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} placeholder="เช่น ท่าเรือกรุงเทพ – โรงพักสินค้า 13" /></label>
       <label><span>ชื่อที่พบจาก Google</span><input readOnly value={draft.googleName || "รออ่านจากลิงก์"} /></label>
       <label className="wide"><span>คำแนะนำสำหรับคนขับ</span><textarea rows={3} maxLength={500} value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} placeholder="เช่น รถใหญ่เข้าประตู 3 โทรหา รปภ. ก่อนเข้า" /></label>

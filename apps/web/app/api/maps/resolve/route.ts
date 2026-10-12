@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAllowedGoogleMapsUrl, parseGoogleMapsUrl } from "@/lib/google-maps-link";
+import { extractGoogleMapsUrl, isAllowedGoogleMapsUrl, parseGoogleMapsUrl } from "@/lib/google-maps-link";
 
 export const runtime = "nodejs";
 
@@ -8,10 +8,10 @@ const MAX_REDIRECTS = 5;
 export async function POST(request: Request) {
   try {
     const body = await request.json() as { url?: unknown };
-    const originalUrl = typeof body.url === "string" ? body.url.trim() : "";
-    if (originalUrl.length > 2048 || !isAllowedGoogleMapsUrl(originalUrl)) {
-      return NextResponse.json({ error: "กรุณาใช้ลิงก์ HTTPS จาก Google Maps เท่านั้น" }, { status: 400 });
-    }
+    const input = typeof body.url === "string" ? body.url : "";
+    if (input.length > 4096) return NextResponse.json({ error: "ข้อความลิงก์ยาวเกินไป" }, { status: 400 });
+    const originalUrl = extractGoogleMapsUrl(input);
+    if (originalUrl.length > 2048) return NextResponse.json({ error: "ลิงก์ Google Maps ยาวเกินไป" }, { status: 400 });
 
     let resolvedUrl = originalUrl;
     for (let redirect = 0; redirect < MAX_REDIRECTS; redirect += 1) {

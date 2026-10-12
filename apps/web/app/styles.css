@@ -1674,6 +1674,12 @@ h2 {
 .location-resolve-row, .location-library-form > footer, .location-form-preview, .location-library-grid article > footer { display: flex; align-items: center; gap: 8px; }
 .location-resolve-row input { flex: 1; }
 .location-resolve-row button, .location-library-form > footer button, .location-form-preview a, .location-library-grid article > footer a, .location-library-grid article > footer button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border: 1px solid var(--border); border-radius: 8px; font-size: .7rem; font-weight: 850; text-decoration: none; }
+.location-pin-picker-section { grid-column: 1 / -1; display: grid; gap: 10px; }
+.location-pin-picker-section > button { justify-self: start; padding: 5px 0; border: 0; color: var(--accent); background: transparent; font-size: .76rem; font-weight: 750; cursor: pointer; }
+.location-pin-picker-section > button:disabled { opacity: .5; cursor: not-allowed; }
+.location-pin-picker-section p { line-height: 1.6; }
+.location-pin-picker-section p a { color: var(--accent); font-weight: 700; }
+.location-pin-picker-map { width: 100%; height: clamp(280px, 42vh, 430px); border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .location-form-preview { padding: 10px; color: var(--muted); background: var(--surface-2); border-radius: 9px; }
 .location-form-preview a { margin-left: auto; }
 .location-library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

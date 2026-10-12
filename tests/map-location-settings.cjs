@@ -19,6 +19,7 @@ const context = { exports: {}, URL, require: name => {
   if (name === 'firebase/firestore') return firestore;
   if (name === './firebase') return { db: {} };
   if (name === './transport-repository') return { canManageOrganizationLists: () => true };
+  if (name === './google-maps-link') return { isAllowedGoogleMapsUrl: value => typeof value === 'string' && value.startsWith('https://www.google.com/maps/') };
   return {};
 } };
 const repositorySource = fs.readFileSync('apps/web/lib/location-repository.ts', 'utf8');
@@ -43,4 +44,9 @@ const managementSource = fs.readFileSync('apps/web/app/components/LocationManage
 for (const expected of ['รายการพิกัดแผนที่', 'ค้นหาชื่อ สถานที่ หรือคำแนะนำ', 'filterSavedLocations', 'กำลังแก้ไข']) {
   assert.ok(managementSource.includes(expected), `management screen must show ${expected}`);
 }
-console.log('PASS: job locations use one complete saved map record and never mix legacy text dropdown state');
+const validDraft = { name: 'คลัง A', googleName: '', originalMapsUrl: 'https://www.google.com/maps/place/a', navigationUrl: 'https://www.google.com/maps/dir/?api=1', lat: 13.7, lng: 100.5, notes: '' };
+Promise.all([
+  assert.rejects(() => context.exports.createSavedLocation('main', { ...validDraft, lat: 0, lng: 0 }, {}), /พิกัด/),
+  assert.rejects(() => context.exports.createSavedLocation('main', { ...validDraft, originalMapsUrl: 'https://example.com/a' }, {}), /Google Maps/)
+]).then(() => console.log('PASS: saved map locations require verified coordinates and a Google Maps link'))
+  .catch(error => { console.error(error); process.exitCode = 1; });

@@ -18,10 +18,23 @@ const GOOGLE_MAPS_HOSTS = new Set([
 export function isAllowedGoogleMapsUrl(value: string) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && GOOGLE_MAPS_HOSTS.has(url.hostname.toLowerCase());
+    return url.protocol === "https:" && (
+      GOOGLE_MAPS_HOSTS.has(url.hostname.toLowerCase())
+      || (url.hostname.toLowerCase() === "goo.gl" && url.pathname.startsWith("/maps/"))
+    );
   } catch {
     return false;
   }
+}
+
+export function extractGoogleMapsUrl(input: string) {
+  const clean = input.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+  const candidates = clean.match(/https:\/\/[^\s<>"']+/gi) ?? [];
+  for (const candidate of candidates) {
+    const url = candidate.replace(/[.,!?;:)\]}»”’]+$/u, "");
+    if (isAllowedGoogleMapsUrl(url)) return url;
+  }
+  throw new Error("กรุณาวางลิงก์ HTTPS จาก Google Maps หรือข้อความแชร์ที่มีลิงก์");
 }
 
 function coordinate(value: string | null) {
@@ -107,10 +120,11 @@ export function parseGoogleMapsUrl(originalUrl: string, resolvedUrl = originalUr
 }
 
 export async function resolveGoogleMapsLink(url: string) {
+  const mapsUrl = extractGoogleMapsUrl(url);
   const response = await fetch("/api/maps/resolve", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url })
+    body: JSON.stringify({ url: mapsUrl })
   });
   const data = await response.json() as ResolvedGoogleMapsLocation & { error?: string };
   if (!response.ok) throw new Error(data.error || "อ่านลิงก์ Google Maps ไม่สำเร็จ");
