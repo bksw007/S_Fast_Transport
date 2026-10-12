@@ -209,7 +209,8 @@ service cloud.firestore {
     }
 
     match /organizations/{orgId}/list_options/{itemId} {
-      allow read: if activeUser() && (isMainAdmin() || orgId == organizationId());
+      allow read: if activeUser() && (isMainAdmin() || orgId == organizationId()
+        || (role() == "customer" && orgId == "main" && resource.data.field == "vehicle_type"));
       allow create: if request.resource.data.organizationId == orgId
         && canManageListOption(orgId, request.resource.data);
       allow update: if resource.data.organizationId == orgId
@@ -252,6 +253,12 @@ service cloud.firestore {
     }
 
     match /customers/{customerId}/locations/{locationId} {
+      allow read: if isMainCompanyAdmin()
+        || (activeUser() && role() == "customer" && profile().data.customerId == customerId);
+      allow write: if false;
+    }
+
+    match /customers/{customerId}/cargo_types/{itemId} {
       allow read: if isMainCompanyAdmin()
         || (activeUser() && role() == "customer" && profile().data.customerId == customerId);
       allow write: if false;

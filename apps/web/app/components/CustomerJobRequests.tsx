@@ -6,8 +6,9 @@ import { collection, onSnapshot } from "firebase/firestore";
 import type { JobPlace } from "@s-fast-transport/shared";
 import { db } from "@/lib/firebase";
 import { submitCustomerJobRequest, subscribeCustomerJobRequests, type CustomerJobRequest } from "@/lib/customer-job-requests";
-import type { UserProfile } from "@/lib/transport-repository";
+import { subscribeListOptions, type UserProfile } from "@/lib/transport-repository";
 import CustomerMapPicker from "./CustomerMapPicker";
+import { ListManagerComboBox } from "./ListManagerComboBox";
 
 const dateTime = (date: string, time: string) => `${date} ${time}`;
 const requestLabels = { pending: "รอพิจารณา", accepted: "รับงานแล้ว", rejected: "ไม่รับงาน" } as const;
@@ -24,6 +25,7 @@ export default function CustomerJobRequests({ profile, onOpenJob }: { profile: U
   const [deliveryTime, setDeliveryTime] = useState("");
   const [cargoType, setCargoType] = useState("");
   const [vehicleType, setVehicleType] = useState("");
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [sendToSelf, setSendToSelf] = useState(true);
   const [extraEmails, setExtraEmails] = useState(["", ""]);
@@ -33,6 +35,7 @@ export default function CustomerJobRequests({ profile, onOpenJob }: { profile: U
   const recent = useMemo(() => requests.slice(0, 12), [requests]);
 
   useEffect(() => subscribeCustomerJobRequests(profile, setRequests, setError), [profile]);
+  useEffect(() => subscribeListOptions("main", "vehicle_type", items => setVehicleTypes(items.map(item => item.value)), message => setError(`โหลดประเภทรถไม่สำเร็จ: ${message}`)), []);
   useEffect(() => onSnapshot(collection(db, "customers", profile.customerId || "__none__", "locations"), snapshot => {
     setSaved(snapshot.docs.filter(item => item.data().active !== false).map(item => ({ ...(item.data() as JobPlace), locationId: item.id })).sort((a, b) => a.name.localeCompare(b.name, "th")));
   }, error => setError(error.message)), [profile.customerId]);
@@ -42,6 +45,7 @@ export default function CustomerJobRequests({ profile, onOpenJob }: { profile: U
     setError(""); setMessage("");
     if (!pickupPlace || !deliveryPlace) { setError("กรุณาเลือกหมุดจุดรับและจุดส่ง"); return; }
     if (`${deliveryDate}T${deliveryTime}` < `${pickupDate}T${pickupTime}`) { setError("วันและเวลาส่งต้องไม่ก่อนวันและเวลารับ"); return; }
+    if (!vehicleTypes.some(item => item.trim().toLocaleLowerCase("th-TH") === vehicleType.trim().toLocaleLowerCase("th-TH"))) { setError("กรุณาเลือกประเภทรถจากรายการของบริษัทขนส่งหลัก"); return; }
     const recipientEmails = [...new Set([...(sendToSelf ? [profile.email] : []), ...extraEmails.filter(Boolean)].map(email => email.trim().toLowerCase()))];
     if (!recipientEmails.length) { setError("กรุณาเลือกอีเมลผู้รับอย่างน้อย 1 ที่อยู่"); return; }
     setBusy(true);
@@ -60,7 +64,7 @@ export default function CustomerJobRequests({ profile, onOpenJob }: { profile: U
     {showForm && <form className="customer-request-form" onSubmit={event => void submit(event)}>
       <div className="customer-request-form-head"><BellRing size={22} /><div><strong>รายละเอียดคำขอ</strong><span>บริษัท {profile.organizationName} · ผู้แจ้ง {profile.fullName || profile.displayName}</span></div></div>
       <div className="customer-request-places"><CustomerMapPicker title="จุดรับสินค้า" value={pickupPlace} saved={saved} onChange={setPickupPlace} /><CustomerMapPicker title="จุดส่งสินค้า" value={deliveryPlace} saved={saved} onChange={setDeliveryPlace} /></div>
-      <div className="customer-request-fields"><label>วันที่รับสินค้า<input required type="date" value={pickupDate} onChange={event => setPickupDate(event.target.value)} /></label><label>เวลารับสินค้า<input required type="time" value={pickupTime} onChange={event => setPickupTime(event.target.value)} /></label><label>วันที่ส่งสินค้า<input required type="date" value={deliveryDate} onChange={event => setDeliveryDate(event.target.value)} /></label><label>เวลาส่งสินค้า<input required type="time" value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)} /></label><label>ประเภทสินค้า<input required maxLength={160} value={cargoType} onChange={event => setCargoType(event.target.value)} placeholder="เช่น อุปกรณ์ไฟฟ้า" /></label><label>ประเภทรถ<input required maxLength={160} value={vehicleType} onChange={event => setVehicleType(event.target.value)} placeholder="เช่น รถ 6 ล้อตู้ทึบ" /></label><label className="wide">หมายเหตุ<textarea rows={3} maxLength={2000} value={notes} onChange={event => setNotes(event.target.value)} placeholder="ข้อมูลเพิ่มเติมสำหรับการรับงาน" /></label></div>
+      <div className="customer-request-fields"><label>วันที่รับสินค้า<input required type="date" value={pickupDate} onChange={event => setPickupDate(event.target.value)} /></label><label>เวลารับสินค้า<input required type="time" value={pickupTime} onChange={event => setPickupTime(event.target.value)} /></label><label>วันที่ส่งสินค้า<input required type="date" value={deliveryDate} onChange={event => setDeliveryDate(event.target.value)} /></label><label>เวลาส่งสินค้า<input required type="time" value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)} /></label><label>ประเภทสินค้า<ListManagerComboBox field="cargo_type" value={cargoType} onChange={setCargoType} placeholder="ค้นหาหรือระบุประเภทสินค้า" organizationId="main" customerId={profile.customerId || undefined} actor={profile} required /><small>รายการใหม่จะบันทึกไว้เฉพาะบริษัทของคุณเมื่อส่งคำขอ</small></label><label>ประเภทรถ<ListManagerComboBox field="vehicle_type" value={vehicleType} onChange={setVehicleType} placeholder="ค้นหาประเภทรถ" organizationId="main" actor={profile} required /><small>เลือกจากรายการเดียวกับหน้าใบงานของแอดมิน</small></label><label className="wide">หมายเหตุ<textarea rows={3} maxLength={2000} value={notes} onChange={event => setNotes(event.target.value)} placeholder="ข้อมูลเพิ่มเติมสำหรับการรับงาน" /></label></div>
       <fieldset className="customer-request-emails"><legend>อีเมลรับรายละเอียดและผลการพิจารณา</legend><label className="customer-request-self-email"><input type="checkbox" checked={sendToSelf} onChange={event => setSendToSelf(event.target.checked)} /><span>ส่งถึงอีเมลที่ใช้เข้าสู่ระบบ <strong>{profile.email}</strong></span></label><div className="customer-request-extra-emails">{extraEmails.map((email, index) => <label key={index}>อีเมลเพิ่มเติม {index + 1}<input type="email" maxLength={254} value={email} onChange={event => setExtraEmails(current => current.map((item, position) => position === index ? event.target.value : item))} placeholder="name@example.com" /></label>)}</div><p>ระบบจะส่งไปยังอีเมลที่เลือก และอีเมลบริษัทขนส่งหลัก</p></fieldset>
       <div className="customer-request-actions"><button type="submit" disabled={busy || !pickupPlace || !deliveryPlace}>{busy ? "กำลังส่ง…" : <><Send size={17} /> ส่งคำขอแจ้งงาน</>}</button></div>
     </form>}

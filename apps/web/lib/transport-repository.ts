@@ -583,6 +583,22 @@ export function subscribeListOptions(
   );
 }
 
+export function subscribeCustomerCargoTypes(
+  customerId: string,
+  onItems: (items: ListOption[]) => void,
+  onError: (message: string) => void
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, "customers", customerId, "cargo_types"),
+    (snapshot) => onItems(snapshot.docs.map((itemDoc) => ({
+      id: itemDoc.id,
+      field: "cargo_type" as const,
+      value: String(itemDoc.data().value ?? "")
+    })).filter((item) => item.value).sort((a, b) => a.value.localeCompare(b.value, "th"))),
+    (error) => onError(error.message)
+  );
+}
+
 export async function createListOption(
   organizationId: string,
   field: ListOptionField,

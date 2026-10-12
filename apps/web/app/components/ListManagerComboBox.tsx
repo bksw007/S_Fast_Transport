@@ -7,6 +7,7 @@ import {
   createListOption,
   canManageOrganizationLists,
   deleteListOption,
+  subscribeCustomerCargoTypes,
   subscribeListOptions,
   updateListOption,
   type ListOption,
@@ -21,6 +22,7 @@ export function ListManagerComboBox({
   value,
   placeholder,
   organizationId,
+  customerId,
   actor,
   onChange,
   required = false
@@ -29,6 +31,7 @@ export function ListManagerComboBox({
   value: string;
   placeholder: string;
   organizationId: string;
+  customerId?: string;
   actor: UserProfile;
   onChange: (value: string) => void;
   required?: boolean;
@@ -47,7 +50,7 @@ export function ListManagerComboBox({
   const [mutating, setMutating] = useState("");
   const [position, setPosition] = useState<DropdownPosition>({ top: 0, left: 0, width: 280 });
   const [dark, setDark] = useState(false);
-  const canManage = canManageOrganizationLists(actor, organizationId);
+  const canManage = !customerId && canManageOrganizationLists(actor, organizationId);
 
   const query = value.trim().toLocaleLowerCase("th-TH");
   const shownItems = useMemo(
@@ -61,6 +64,8 @@ export function ListManagerComboBox({
 
   useEffect(() => {
     if (!open) return;
+    const subscribe = customerId && field === "cargo_type" ? subscribeCustomerCargoTypes : null;
+    if (subscribe) return subscribe(customerId!, (nextItems) => { setItems(nextItems); setLoading(false); setError(""); }, (message) => { setError(`โหลดรายการไม่สำเร็จ: ${message}`); setLoading(false); });
     return subscribeListOptions(
       organizationId,
       field,
@@ -74,7 +79,7 @@ export function ListManagerComboBox({
         setLoading(false);
       }
     );
-  }, [field, open, organizationId]);
+  }, [customerId, field, open, organizationId]);
 
   useEffect(() => {
     if (!open) return;
@@ -194,7 +199,7 @@ export function ListManagerComboBox({
     >
       <div className="list-manager-heading">
         <span>รายการที่บันทึกไว้</span>
-        <small>{canManage ? `${items.length} รายการ` : `${items.length} รายการ · เลือกได้เท่านั้น`}</small>
+        <small>{canManage ? `${items.length} รายการ` : customerId ? `${items.length} รายการ · พิมพ์ใหม่ได้` : `${items.length} รายการ · เลือกได้เท่านั้น`}</small>
       </div>
 
       {loading && <div className="list-manager-message"><LoaderCircle className="spin" size={17} /> กำลังโหลด…</div>}

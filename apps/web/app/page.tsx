@@ -577,12 +577,12 @@ export default function Home() {
             {mode === "admin" && isMainAdmin(profile) && (
               <button
                 className="notification-action"
-                aria-label={`คำขอสิทธิ์ใหม่ ${pendingAccessCount} รายการ`}
-                title="คำขอสิทธิ์ใหม่"
-                onClick={() => { setAdminScreen("User Management" as AdminScreen); setMobileMenuOpen(false); }}
+                aria-label={`แจ้งเตือนรอดำเนินการ ${unresolvedIssueCount + pendingCustomerRequestCount} รายการ`}
+                title="แจ้งเตือนจากคนขับและลูกค้า"
+                onClick={() => { setAdminScreen("แจ้งเตือน"); setMobileMenuOpen(false); }}
               >
                 <Bell size={18} />
-                {pendingAccessCount > 0 && <span>{pendingAccessCount > 99 ? "99+" : pendingAccessCount}</span>}
+                {unresolvedIssueCount + pendingCustomerRequestCount > 0 && <span>{unresolvedIssueCount + pendingCustomerRequestCount > 99 ? "99+" : unresolvedIssueCount + pendingCustomerRequestCount}</span>}
               </button>
             )}
             <button className="font-scale-action" aria-label="ลดขนาดอักษร" onClick={() => setFontScale((value) => value > 1 ? 1 : 0.92)}>

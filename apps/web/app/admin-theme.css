@@ -141,9 +141,11 @@
   .admin-premium-shell .report-header { align-items: stretch; }
 }
 
+.notification-center { grid-column: 1 / -1; flex: 1; min-width: 0; width: 100%; padding: 20px; overflow-y: auto; }
 .notification-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
 .notification-tabs button { padding: 10px 15px; border: 1px solid #dce4dc; border-radius: 9px; background: #fff; color: #526761; font-size: .78rem; font-weight: 600; }
 .notification-tabs button[aria-selected="true"] { border-color: #264b49; background: #264b49; color: #fff; }
+.notification-center .driver-issues-screen { width: 100%; min-width: 0; padding: 0; overflow: visible; }
 .customer-request-inbox { display: grid; gap: 13px; }
 .customer-request-inbox-intro { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #21313a; }
 .customer-request-inbox-intro span { color: #69757a; font-size: .75rem; }
@@ -178,3 +180,10 @@
 .dispatch-request-banner strong, .dispatch-request-banner span { display: block; }
 .dispatch-request-banner button { padding: 8px 11px; border: 1px solid #b9cbc2; border-radius: 8px; background: #fff; color: #264b49; font-size: .72rem; }
 @media (max-width: 700px) { .customer-request-inbox-route { grid-template-columns: 1fr; } .customer-request-inbox-route > div { flex-wrap: wrap; } .customer-request-inbox-route time { width: 100%; padding-left: 25px; } }
+@media (max-width: 700px) {
+  .notification-center { padding: 18px 16px 30px; }
+  .notification-tabs { margin-bottom: 20px; }
+  .notification-tabs button { flex: 1 1 145px; min-height: 44px; }
+  .notification-center .driver-issues-screen > .section-title { margin-bottom: 4px; }
+  .notification-center .driver-issue-card { width: 100%; }
+}

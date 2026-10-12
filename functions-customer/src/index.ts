@@ -75,6 +75,10 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
   }
   const cargoType = cleanText(data?.cargoType, 160, "ประเภทสินค้า");
   const vehicleType = cleanText(data?.vehicleType, 160, "ประเภทรถ");
+  const vehicleTypeId = `vehicle_type--${encodeURIComponent(vehicleType.replace(/\s+/g, " ").toLocaleLowerCase("th-TH"))}`;
+  if (!(await db.doc(`organizations/main/list_options/${vehicleTypeId}`).get()).exists) {
+    throw new HttpsError("invalid-argument", "กรุณาเลือกประเภทรถจากรายการของบริษัทขนส่งหลัก");
+  }
   const notes = cleanText(data?.notes, 2000, "หมายเหตุ", false);
   const requesterEmail = cleanText(request.auth.token.email, 254, "อีเมลผู้แจ้ง").toLowerCase();
   const recipientEmails = cleanRecipients(data?.recipientEmails, requesterEmail);
@@ -83,9 +87,12 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
     const key = placeKey(place);
     return { place, customerRef: db.doc(`customers/${user.customerId}/locations/${key}`), mainRef: db.doc(`organizations/main/locations/${createHash("sha256").update(`${user.customerId}:${key}`).digest("hex").slice(0, 32)}`) };
   });
+  const normalizedCargoType = cargoType.replace(/\s+/g, " ").toLocaleLowerCase("th-TH");
+  const cargoTypeId = createHash("sha256").update(normalizedCargoType).digest("hex").slice(0, 32);
+  const cargoTypeRef = db.doc(`customers/${user.customerId}/cargo_types/${cargoTypeId}`);
   const requestRef = db.collection("customer_job_requests").doc();
   await db.runTransaction(async tx => {
-    const unique = [...new Map(placePairs.flatMap(pair => [pair.customerRef, pair.mainRef]).map(ref => [ref.path, ref])).values()];
+    const unique = [...new Map([...placePairs.flatMap(pair => [pair.customerRef, pair.mainRef]), cargoTypeRef].map(ref => [ref.path, ref])).values()];
     const snapshots = await Promise.all(unique.map(ref => tx.get(ref)));
     const exists = new Map(snapshots.map((snapshot, index) => [unique[index].path, snapshot.exists]));
     const planned = new Set<string>();
@@ -94,6 +101,10 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
       if (!exists.get(pair.customerRef.path) && !planned.has(pair.customerRef.path)) { tx.create(pair.customerRef, { ...common, organizationId: user.customerId, customerId: user.customerId, sourceCustomerName: customerName, createdByUid: uid }); planned.add(pair.customerRef.path); }
       if (!exists.get(pair.mainRef.path) && !planned.has(pair.mainRef.path)) { tx.create(pair.mainRef, { ...common, organizationId: "main", sourceCustomerId: user.customerId, sourceCustomerName: customerName, createdByUid: uid }); planned.add(pair.mainRef.path); }
     }
+    if (!exists.get(cargoTypeRef.path)) tx.create(cargoTypeRef, {
+      customerId: user.customerId, value: cargoType, normalizedValue: normalizedCargoType,
+      createdByUid: uid, createdAt: FieldValue.serverTimestamp()
+    });
     tx.create(requestRef, {
       customerId: user.customerId, customerName, requesterUid: uid,
       requesterName: user.fullName || user.displayName || requesterEmail,
@@ -153,22 +164,30 @@ export const emailCustomerJobRequest = onDocumentWritten({
   const password = gmailAppPassword.value()?.replace(/\s/g, "");
   if (!sender || !password) throw new Error("Customer request Gmail configuration is missing");
   const requestId = event.params.requestId;
-  const key = createHash("sha256").update(`${requestId}:${status}`).digest("hex");
-  const log = db.doc(`customer_request_email_delivery/${key}`);
-  if ((await log.get()).data()?.sentAt) return;
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com", port: 465, secure: true,
     auth: { user: sender, pass: password }
   });
-  const result = await transporter.sendMail({
-    from: { name: "S Fast Transportation", address: sender },
-    to: companyEmail,
-    bcc: recipients.filter(recipient => recipient !== companyEmail),
-    subject,
-    text: lines.join("\n"),
-    html: `<div style="font-family:sans-serif;line-height:1.7">${lines.map(line => `<p>${escapeHtml(line)}</p>`).join("")}</div>`
-  });
-  await log.set({ requestId, status, recipients, providerId: result.messageId || "", sentAt: FieldValue.serverTimestamp() });
+  try {
+    for (const recipient of recipients) {
+      const key = createHash("sha256").update(`${requestId}:${status}:${recipient}`).digest("hex");
+      const log = db.doc(`customer_request_email_delivery/${key}`);
+      if ((await log.get()).data()?.sentAt) continue;
+      const result = await transporter.sendMail({
+        from: { name: "S Fast Transportation", address: sender },
+        to: recipient,
+        subject,
+        text: lines.join("\n"),
+        html: `<div style="font-family:sans-serif;line-height:1.7">${lines.map(line => `<p>${escapeHtml(line)}</p>`).join("")}</div>`
+      });
+      if (!result.accepted.some(address => address.toLowerCase() === recipient)) {
+        throw new Error(`Gmail did not accept recipient ${recipient}`);
+      }
+      await log.set({ requestId, status, recipients: [recipient], providerId: result.messageId || "", sentAt: FieldValue.serverTimestamp() });
+    }
+  } finally {
+    transporter.close();
+  }
 });
 
 export const linkJobToCustomer = onDocumentWritten({

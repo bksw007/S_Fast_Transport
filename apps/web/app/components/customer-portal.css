@@ -206,6 +206,7 @@
 .customer-request-map-picker { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 16px; border: 1px solid #dfe6de; border-radius: 13px; background: #f8faf7; }
 .customer-request-map-title { display: flex; align-items: center; gap: 7px; color: #264b49; font-size: 13px; }
 .customer-request-map-picker label, .customer-request-fields label, .customer-request-extra-emails label { display: grid; gap: 7px; min-width: 0; color: #526761; font-size: 12px; }
+.customer-request-fields label > small { color: #78857d; font-size: 11px; font-weight: 400; line-height: 1.45; }
 .customer-request-map-picker input, .customer-request-map-picker select, .customer-request-fields input, .customer-request-fields textarea, .customer-request-extra-emails input { width: 100%; min-width: 0; min-height: 42px; padding: 9px 11px; border: 1px solid #d5ded5; border-radius: 9px; background: #fff; color: #21313a; font: inherit; font-size: 12px; }
 .customer-request-map-search { display: flex; gap: 8px; }
 .customer-request-map-search button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: none; padding: 0 12px; border-radius: 9px; background: #e5eee8; color: #264b49; font: inherit; font-size: 11px; cursor: pointer; }
