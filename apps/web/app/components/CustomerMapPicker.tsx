@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { MapPin, Search } from "lucide-react";
 import type { JobPlace } from "@s-fast-transport/shared";
 
+type SearchResult = { place: JobPlace; address: string };
+
 let mapsPromise: Promise<void> | null = null;
 
 function loadMaps(key: string): Promise<void> {
@@ -34,9 +36,10 @@ export default function CustomerMapPicker({ title, value, saved, onChange }: {
   const mapElement = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
-  const geocoder = useRef<google.maps.Geocoder | null>(null);
   const changeRef = useRef(onChange);
   const [search, setSearch] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   useEffect(() => { changeRef.current = onChange; }, [onChange]);
@@ -48,23 +51,17 @@ export default function CustomerMapPicker({ title, value, saved, onChange }: {
       if (!active || !mapElement.current) return;
       const center = value ? { lat: value.lat, lng: value.lng } : { lat: 13.7563, lng: 100.5018 };
       map.current = new google.maps.Map(mapElement.current, { center, zoom: value ? 15 : 10, mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
-      geocoder.current = new google.maps.Geocoder();
       marker.current = new google.maps.Marker({ map: map.current, position: value ? center : undefined, draggable: true });
-      const choose = async (lat: number, lng: number) => {
+      const choose = (lat: number, lng: number) => {
         if (!active) return;
         marker.current?.setPosition({ lat, lng });
         map.current?.panTo({ lat, lng });
-        let name = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        let placeId: string | undefined;
-        try {
-          const result = await geocoder.current?.geocode({ location: { lat, lng } });
-          const found = result?.results[0];
-          if (found) { name = found.formatted_address; placeId = found.place_id; }
-        } catch { /* Coordinates remain usable when reverse geocoding is unavailable. */ }
-        if (active) { changeRef.current(toPlace(lat, lng, name, placeId)); setMessage(""); }
+        changeRef.current(toPlace(lat, lng, `${lat.toFixed(6)}, ${lng.toFixed(6)}`));
+        setResults([]);
+        setMessage("");
       };
-      map.current.addListener("click", (event: google.maps.MapMouseEvent) => { if (event.latLng) void choose(event.latLng.lat(), event.latLng.lng()); });
-      marker.current.addListener("dragend", (event: google.maps.MapMouseEvent) => { if (event.latLng) void choose(event.latLng.lat(), event.latLng.lng()); });
+      map.current.addListener("click", (event: google.maps.MapMouseEvent) => { if (event.latLng) choose(event.latLng.lat(), event.latLng.lng()); });
+      marker.current.addListener("dragend", (event: google.maps.MapMouseEvent) => { if (event.latLng) choose(event.latLng.lat(), event.latLng.lng()); });
     }).catch(error => { if (active) setMessage(error instanceof Error ? error.message : "เปิดแผนที่ไม่สำเร็จ"); });
     return () => { active = false; marker.current?.setMap(null); marker.current = null; map.current = null; };
   // Initial map construction only; subsequent place selections update the marker below.
@@ -80,23 +77,42 @@ export default function CustomerMapPicker({ title, value, saved, onChange }: {
   }, [value]);
 
   async function findPlace() {
-    if (!search.trim() || !geocoder.current) return;
+    if (!search.trim() || !map.current || searching) return;
+    setSearching(true);
+    setResults([]);
     setMessage("กำลังค้นหาสถานที่…");
     try {
-      const result = await geocoder.current.geocode({ address: search.trim(), region: "TH" });
-      const found = result.results[0];
-      const point = found?.geometry.location;
-      if (!point) throw new Error("ไม่พบสถานที่ กรุณาลองคำค้นอื่น");
-      const place = toPlace(point.lat(), point.lng(), found.formatted_address, found.place_id);
-      onChange(place);
-      setMessage("");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "ค้นหาสถานที่ไม่สำเร็จ"); }
+      const { Place } = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+      const { places } = await Place.searchByText({
+        textQuery: search.trim(),
+        fields: ["id", "displayName", "formattedAddress", "location"],
+        region: "th", language: "th", maxResultCount: 5,
+        locationBias: map.current.getBounds() || undefined
+      });
+      const matches = places.flatMap(found => {
+        if (!found.location) return [];
+        const name = found.displayName || found.formattedAddress || search.trim();
+        return [{ place: toPlace(found.location.lat(), found.location.lng(), name, found.id), address: found.formattedAddress || "" }];
+      });
+      setResults(matches);
+      setMessage(matches.length ? "เลือกสถานที่จากผลการค้นหา" : "ไม่พบสถานที่ ลองใช้ชื่อหรือที่อยู่อื่น หรือปักหมุดบนแผนที่");
+    } catch {
+      setMessage("ค้นหาสถานที่ไม่สำเร็จ กรุณาลองอีกครั้ง หรือปักหมุดบนแผนที่");
+    } finally { setSearching(false); }
+  }
+
+  function chooseResult(result: SearchResult) {
+    onChange(result.place);
+    setSearch(result.place.name);
+    setResults([]);
+    setMessage("");
   }
 
   return <section className="customer-request-map-picker">
     <div className="customer-request-map-title"><MapPin size={18} /><strong>{title}</strong></div>
     {saved.length > 0 && <label>สถานที่ของบริษัทที่เคยใช้<select value="" onChange={event => { const found = saved.find(item => item.locationId === event.target.value); if (found) onChange(found); }}><option value="">เลือกสถานที่เดิม หรือเลือกหมุดใหม่ด้านล่าง</option>{saved.map(item => <option key={item.locationId || item.navigationUrl} value={item.locationId}>{item.name}</option>)}</select></label>}
-    <div className="customer-request-map-search"><input aria-label={`ค้นหา${title}`} value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void findPlace(); } }} placeholder="ค้นหาชื่อสถานที่หรือที่อยู่" /><button type="button" onClick={() => void findPlace()} disabled={!key}><Search size={16} /> ค้นหา</button></div>
+    <div className="customer-request-map-search"><input aria-label={`ค้นหา${title}`} value={search} onChange={event => { setSearch(event.target.value); setResults([]); }} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void findPlace(); } }} placeholder="ค้นหาชื่อสถานที่หรือที่อยู่" /><button type="button" onClick={() => void findPlace()} disabled={!key || searching}>{searching ? "กำลังค้นหา…" : <><Search size={16} /> ค้นหา</>}</button></div>
+    {results.length > 0 && <div className="customer-request-search-results" role="listbox" aria-label={`ผลการค้นหา${title}`}>{results.map((result, index) => <button type="button" role="option" aria-selected="false" key={`${result.place.googlePlaceId || result.place.navigationUrl}-${index}`} onClick={() => chooseResult(result)}><strong>{result.place.name}</strong>{result.address && <span>{result.address}</span>}</button>)}</div>}
     {key ? <div ref={mapElement} className="customer-request-map" role="application" aria-label={`แผนที่เลือก${title}`} /> : <p role="alert">ยังไม่ได้ตั้งค่า Google Maps สำหรับเว็บไซต์ กรุณาติดต่อผู้ดูแล</p>}
     {message && <p role="status">{message}</p>}
     {value && <label>ชื่อสถานที่ที่จะแสดงในคำขอ<input maxLength={160} value={value.name} onChange={event => onChange({ ...value, name: event.target.value })} /><small>พิกัด {value.lat.toFixed(6)}, {value.lng.toFixed(6)} · <a href={value.navigationUrl} target="_blank" rel="noreferrer">ตรวจสอบใน Google Maps</a></small></label>}
