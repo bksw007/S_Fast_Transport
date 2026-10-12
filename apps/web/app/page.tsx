@@ -18,6 +18,8 @@ import PwaInstallButton, { preparePwaInstallPromptCapture } from "./components/P
 import { subscribeOrganizationUserProfiles } from "@/lib/transport-repository";
 import SettingsScreen, { type AppearanceSettings } from "./components/SettingsScreen";
 import LocationManagementScreen from "./components/LocationManagementScreen";
+import CustomerRequestInbox from "./components/CustomerRequestInbox";
+import { subscribeCustomerJobRequests, type CustomerJobRequest } from "@/lib/customer-job-requests";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -226,6 +228,26 @@ function createEmptyJobDraft(): JobDraft {
   };
 }
 
+function draftFromCustomerRequest(request: CustomerJobRequest): JobDraft {
+  return {
+    ...createEmptyJobDraft(),
+    sourceRequestId: request.id,
+    customer: request.customerName,
+    cargoType: request.cargoType,
+    vehicleType: request.vehicleType,
+    pickupLocation: request.pickupPlace.name,
+    pickupPlace: request.pickupPlace,
+    pickupDate: request.pickupDate,
+    pickupTime: request.pickupTime,
+    deliveryLocation: request.deliveryPlace.name,
+    deliveryPlace: request.deliveryPlace,
+    deliveryDate: request.deliveryDate,
+    deliveryTime: request.deliveryTime,
+    eta: request.deliveryTime,
+    notes: request.notes
+  };
+}
+
 type DriverScreen = (typeof driverMenu)[number];
 type AdminScreen = (typeof adminMenu)[number];
 
@@ -278,6 +300,8 @@ export default function Home() {
   const [adminScreen, setAdminScreen] = useState<AdminScreen>(adminMenu[0]);
   const [adminDriverMode, setAdminDriverMode] = useState(false);
   const [pendingAccessCount, setPendingAccessCount] = useState(0);
+  const [customerRequests, setCustomerRequests] = useState<CustomerJobRequest[]>([]);
+  const [prefillRequest, setPrefillRequest] = useState<CustomerJobRequest | null>(null);
   const [trackingMessage, setTrackingMessage] = useState("พร้อมขอตำแหน่งเมื่อกดเริ่มแชร์");
   const [issueJob, setIssueJob] = useState<TransportJob | null>(null);
   const [driverNotice, setDriverNotice] = useState<DriverNotice | null>(null);
@@ -415,6 +439,11 @@ export default function Home() {
   }, [profile]);
 
   useEffect(() => {
+    if (!profile || !hasApprovedAccess(profile) || !isMainAdmin(profile)) return;
+    return subscribeCustomerJobRequests(profile, setCustomerRequests, message => setFirebaseMessage(`อ่านคำขอลูกค้าไม่สำเร็จ: ${message}`));
+  }, [profile]);
+
+  useEffect(() => {
     if (!profile || (profile.role !== "driver" && !adminDriverMode) || ownDriverJobs.length === 0) return;
     const storedJobId = getStoredTrackingJobId();
     const storedJob = ownDriverJobs.find((job) => job.id === storedJobId);
@@ -431,6 +460,7 @@ export default function Home() {
   const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? emptySelectedJob;
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
   const unresolvedIssueCount = useMemo(() => jobs.filter(job => job.lastIssue && !job.lastIssue.resolvedAt).length, [jobs]);
+  const pendingCustomerRequestCount = customerRequests.filter(item => item.status === "pending").length;
   const canWrite = Boolean(profile && hasApprovedAccess(profile));
 
   async function runAction<T>(action: (actor: UserProfile) => Promise<T>): Promise<T | undefined> {
@@ -584,7 +614,7 @@ export default function Home() {
           profile={profile}
           statusMessage={busyMessage || firebaseMessage}
           pendingAccessCount={isMainAdmin(profile) ? pendingAccessCount : 0}
-          unresolvedIssueCount={unresolvedIssueCount}
+          unresolvedIssueCount={unresolvedIssueCount + pendingCustomerRequestCount}
           driverScreen={driverScreen}
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
@@ -629,6 +659,11 @@ export default function Home() {
               onPermanentlyDelete={permanentlyDeleteCancelledJob}
               canWrite={canWrite}
               onProfileUpdated={refreshCurrentProfile}
+              prefillRequest={prefillRequest}
+              onPrefillClear={() => setPrefillRequest(null)}
+              pendingCustomerRequestCount={pendingCustomerRequestCount}
+              unresolvedIssueCount={unresolvedIssueCount}
+              onAcceptCustomerRequest={request => { setPrefillRequest(request); setAdminScreen("Jobs / ใบงาน"); setMobileMenuOpen(false); }}
             />
           )}
         </div>
@@ -646,6 +681,8 @@ export default function Home() {
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               canWrite={canWrite}
               compact={false}
+              prefillRequest={prefillRequest}
+              onPrefillClear={() => setPrefillRequest(null)}
             />
 
           </> : adminScreen === "Live Tracking" ? (
@@ -655,7 +692,7 @@ export default function Home() {
           ) : adminScreen === "Dashboard" ? (
             <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} onPermanentlyDelete={permanentlyDeleteCancelledJob} />
           ) : adminScreen === "แจ้งเตือน" ? (
-            <DriverIssuesScreen jobs={jobs} actor={profile} />
+            <NotificationCenter jobs={jobs} actor={profile} pendingCustomerRequestCount={pendingCustomerRequestCount} unresolvedIssueCount={unresolvedIssueCount} onAcceptCustomerRequest={request => { setPrefillRequest(request); setAdminScreen("Jobs / ใบงาน"); }} />
           ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
@@ -723,7 +760,7 @@ const adminMenuDetails = [
   { label: adminMenu[6], description: "ลูกค้าและลิงก์ติดตาม", icon: Share2, mainOnly: true },
   { label: adminMenu[12], description: "ผู้ติดต่อจุดรับและจุดส่ง", icon: Users },
   { label: adminMenu[7], description: "สรุปประสิทธิภาพ", icon: BarChart3 },
-  { label: adminMenu[8], description: "เหตุผิดปกติ", icon: ShieldAlert },
+  { label: adminMenu[8], description: "แจ้งเตือนจากคนขับและคำขอจากลูกค้า", icon: ShieldAlert },
   { label: adminMenu[9], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
   { label: adminMenu[10], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
   { label: adminMenu[11], description: "ข้อมูลบริษัท", icon: Settings }
@@ -890,7 +927,12 @@ function AdminMobileScreen({
   onCreateJob,
   onPermanentlyDelete,
   canWrite,
-  onProfileUpdated
+  onProfileUpdated,
+  prefillRequest,
+  onPrefillClear,
+  pendingCustomerRequestCount,
+  unresolvedIssueCount,
+  onAcceptCustomerRequest
 }: {
   appearance: AppearanceSettings;
   jobsState: "loading" | "ready" | "error";
@@ -906,6 +948,11 @@ function AdminMobileScreen({
   onPermanentlyDelete: (job: TransportJob) => Promise<void>;
   canWrite: boolean;
   onProfileUpdated: () => Promise<void>;
+  prefillRequest: CustomerJobRequest | null;
+  onPrefillClear: () => void;
+  pendingCustomerRequestCount: number;
+  unresolvedIssueCount: number;
+  onAcceptCustomerRequest: (request: CustomerJobRequest) => void;
 }) {
   if (screen === "Dashboard") {
     return <AdminDashboard jobs={allJobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJobId} onSelectJob={onSelectJob} onPermanentlyDelete={onPermanentlyDelete} />;
@@ -920,11 +967,13 @@ function AdminMobileScreen({
         onSelectJob={onSelectJob}
         onCreateJob={onCreateJob}
         canWrite={canWrite}
+        prefillRequest={prefillRequest}
+        onPrefillClear={onPrefillClear}
       />
     );
   }
 
-  if (screen === "แจ้งเตือน") return <DriverIssuesScreen jobs={allJobs} actor={profile} />;
+  if (screen === "แจ้งเตือน") return <NotificationCenter jobs={allJobs} actor={profile} pendingCustomerRequestCount={pendingCustomerRequestCount} unresolvedIssueCount={unresolvedIssueCount} onAcceptCustomerRequest={onAcceptCustomerRequest} />;
 
   if (screen === "Live Tracking") {
     return activeJobs.length > 0
@@ -961,6 +1010,23 @@ function AdminMobileScreen({
   if (screen === "Settings") return <SettingsScreen key={profile.organizationId} actor={profile} appearance={appearance} />;
 
   return <FeatureOverview screen={screen} />;
+}
+
+function NotificationCenter({ jobs, actor, pendingCustomerRequestCount, unresolvedIssueCount, onAcceptCustomerRequest }: {
+  jobs: TransportJob[];
+  actor: UserProfile;
+  pendingCustomerRequestCount: number;
+  unresolvedIssueCount: number;
+  onAcceptCustomerRequest: (request: CustomerJobRequest) => void;
+}) {
+  const [tab, setTab] = useState<"driver" | "customer">(() => pendingCustomerRequestCount > 0 && unresolvedIssueCount === 0 && isMainAdmin(actor) ? "customer" : "driver");
+  return <section className="notification-center">
+    <div className="notification-tabs" role="tablist" aria-label="ประเภทการแจ้งเตือน">
+      <button type="button" role="tab" aria-selected={tab === "driver"} onClick={() => setTab("driver")}>แจ้งเตือนจากคนขับ {unresolvedIssueCount > 0 && <span>{unresolvedIssueCount}</span>}</button>
+      {isMainAdmin(actor) && <button type="button" role="tab" aria-selected={tab === "customer"} onClick={() => setTab("customer")}>แจ้งเตือนจากลูกค้า {pendingCustomerRequestCount > 0 && <span>{pendingCustomerRequestCount}</span>}</button>}
+    </div>
+    {tab === "customer" && isMainAdmin(actor) ? <CustomerRequestInbox actor={actor} onAccept={onAcceptCustomerRequest} /> : <DriverIssuesScreen jobs={jobs} actor={actor} />}
+  </section>;
 }
 
 function DriverIssuesScreen({ jobs, actor }: { jobs: TransportJob[]; actor: UserProfile }) {
@@ -2318,6 +2384,8 @@ function AdminView({
   onSelectJob,
   onCreateJob,
   canWrite,
+  prefillRequest,
+  onPrefillClear,
   compact = true
 }: {
   profile: UserProfile;
@@ -2326,9 +2394,11 @@ function AdminView({
   onSelectJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => Promise<CreatedJob | undefined>;
   canWrite: boolean;
+  prefillRequest: CustomerJobRequest | null;
+  onPrefillClear: () => void;
   compact?: boolean;
 }) {
-  const [draft, setDraft] = useState<JobDraft>(createEmptyJobDraft);
+  const [draft, setDraft] = useState<JobDraft>(() => prefillRequest ? draftFromCustomerRequest(prefillRequest) : createEmptyJobDraft());
   const [formVersion, setFormVersion] = useState(0);
   const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrder: string; link: string } | { kind: "clear" } | null>(null);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
@@ -2339,6 +2409,15 @@ function AdminView({
   const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
   const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
   const organizationId = profile.organizationId ?? "main";
+
+  useEffect(() => {
+    if (prefillRequest || !draft.sourceRequestId) return;
+    const timer = window.setTimeout(() => {
+      setDraft(createEmptyJobDraft());
+      setFormVersion(current => current + 1);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [prefillRequest, draft.sourceRequestId]);
 
   useEffect(() => {
     const stopDrivers = subscribeDrivers(organizationId, items => { setDrivers(items); setDriversReady(true); }, message => setDriverError(message));
@@ -2373,6 +2452,7 @@ function AdminView({
     const created = await onCreateJob(nextDraft);
     if (created) {
       resetJobForm();
+      if (draft.sourceRequestId) onPrefillClear();
       setFormNotice({ kind: "saved", workOrder: created.workOrder, link: `https://sfasttransport.vercel.app/track/${created.trackingToken}` });
     }
   }
@@ -2387,6 +2467,7 @@ function AdminView({
       </div>
 
       <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); void submitJob(); }}>
+          {draft.sourceRequestId && <div className="dispatch-request-banner"><div><strong>กำลังรับงานจาก {prefillRequest?.customerName || draft.customer}</strong><span>ข้อมูลจากลูกค้าถูกใส่ให้แล้ว กรุณาเลือกคนขับและตรวจสอบรายละเอียดก่อนบันทึก</span></div><button type="button" onClick={() => { onPrefillClear(); resetJobForm(); }}>ยกเลิกการรับงานนี้</button></div>}
           <header className="dispatch-form-hero">
             <div><span>DISPATCH CENTER</span><h2>ฟอร์มแจ้งงาน</h2><p>สร้างใบแจ้งงานและบันทึกเข้าระบบ</p></div>
             <FilePenLine size={24} />
@@ -2395,7 +2476,7 @@ function AdminView({
           <div className="dispatch-form-body" key={formVersion}>
             <div className="dispatch-general-grid">
               <DispatchField label="เลขที่ใบแจ้งงาน"><div className="work-order-field"><input value={draft.workOrder} readOnly placeholder={`JN-${formatJobDateKey()}…`} /><small>เช่น JN-{formatJobDateKey()}001 · ระบบกำหนดลำดับถัดไปเมื่อบันทึก</small></div></DispatchField>
-              <DispatchField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={(value) => updateDraft("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={profile} required /></DispatchField>
+              <DispatchField label="บริษัทผู้ว่าจ้าง">{draft.sourceRequestId ? <input value={draft.customer} readOnly aria-label="บริษัทลูกค้าที่แจ้งงาน" /> : <ListManagerComboBox field="customer" value={draft.customer} onChange={(value) => updateDraft("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={profile} required />}</DispatchField>
               <DispatchField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" value={draft.jobDate} onChange={(event) => updateDraft("jobDate", event.target.value)} /></DispatchField>
               <DispatchField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={(value) => updateDraft("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={(value) => updateDraft("vehicleType", value)} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={profile} /></DispatchField>

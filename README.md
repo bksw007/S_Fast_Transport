@@ -56,6 +56,35 @@ straight-line fallback.
 The Expo mobile project is currently parked. Its source remains in `apps/mobile`,
 but new driver features are implemented in the PWA under `apps/web`.
 
+## Customer transport requests
+
+Approved customer accounts can submit a transport request from `/customer`, choose
+pickup and delivery pins, and select the login email plus up to two additional
+recipient addresses. Each new pin is stored in the customer's location library
+and in the main company's location library with a customer source tag. Main
+company staff review requests in the customer tab of Notifications. Accepting
+opens the existing dispatch form; the request becomes accepted only when its
+job is created. Rejecting requires a reason. Customers see the status and can
+open the created job from their portal.
+
+Request submission and decisions send email to every selected recipient and
+the main company's email in **Settings**. Temporarily, email is sent through
+the company's Gmail account. Enable 2-Step Verification, create a Gmail app
+password, and set these Firebase secrets before deploying the `customer-linking`
+Functions codebase:
+
+```bash
+firebase functions:secrets:set CUSTOMER_REQUEST_GMAIL_ADDRESS
+firebase functions:secrets:set CUSTOMER_REQUEST_GMAIL_APP_PASSWORD
+```
+
+Enter the full Gmail address for the first secret and the app password for the
+second. The password must never be committed or entered into a web form. The
+request submission function refuses new requests if email delivery is not configured.
+Set the
+production `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel for the pin picker, and
+enable Maps JavaScript API and Geocoding API for that key.
+
 ## PWA location and stale-location alerts
 
 When a driver presses **เริ่มแชร์ตำแหน่ง**, the PWA requests notification and

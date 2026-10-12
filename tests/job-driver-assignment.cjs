@@ -90,5 +90,18 @@ function reset() {
     reset(); change(); await assert.rejects(() => context.exports.createJob(draft, actor)); assert.equal(writes.length, 0);
   }
   reset(); await assert.rejects(() => context.exports.createJob({ ...draft, driverId: '' }, actor)); assert.equal(writes.length, 0);
+  const customerRequestDraft = { ...draft, customer: 'บริษัท A', sourceRequestId: 'request-1' };
+  reset(); records['customer_job_requests/request-1'] = { status: 'pending', customerId: 'customer-A', customerName: 'บริษัท A' };
+  const accepted = await context.exports.createJob(customerRequestDraft, actor);
+  assert.equal(writes.find(write => write.path === 'today_jobs/auto-job').data.customerId, 'customer-A', 'request keeps its authoritative customer identity');
+  assert.equal(records['customer_job_requests/request-1'].status, 'accepted');
+  assert.equal(records['customer_job_requests/request-1'].jobId, 'auto-job');
+  assert.equal(records['customer_job_requests/request-1'].workOrder, accepted.workOrder);
+  reset(); records['customer_job_requests/request-1'] = { status: 'rejected', customerId: 'customer-A', customerName: 'บริษัท A' };
+  await assert.rejects(() => context.exports.createJob(customerRequestDraft, actor), /ไม่พร้อมรับงาน/);
+  assert.equal(writes.length, 0, 'a decided request cannot create a job');
+  reset(); records['customer_job_requests/request-1'] = { status: 'pending', customerId: 'customer-A', customerName: 'บริษัท A' };
+  await assert.rejects(() => context.exports.createJob({ ...customerRequestDraft, customer: 'บริษัท B' }, actor), /ไม่พร้อมรับงาน/);
+  assert.equal(writes.length, 0, 'staff cannot silently move a request to another customer');
   console.log('PASS: daily job numbering, driver identity, automatic phone, fallback, and invalid assignment protection');
 })().catch(error => { console.error(error); process.exitCode = 1; });

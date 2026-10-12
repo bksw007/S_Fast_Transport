@@ -85,6 +85,7 @@ export type UserAccessUpdate = Pick<
 >;
 
 export type JobDraft = {
+  sourceRequestId?: string;
   workOrder: string;
   customer: string;
   jobDate: string;
@@ -423,15 +424,21 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       throw new Error(`กรุณาระบุชื่อและเบอร์โทรผู้ติดต่อ${side === "pickup" ? "จุดรับ" : "จุดส่ง"}ให้ครบถ้วน`);
     }
   }
-  const customerId = organizationId === "main" ? await resolveCustomerId(draft.customer, actor) : null;
+  const customerId = organizationId === "main" && !draft.sourceRequestId ? await resolveCustomerId(draft.customer, actor) : null;
   const { pickupPlace, deliveryPlace, ...jobFields } = draft;
   const jobRef = doc(collection(db, "today_jobs"));
   const trackingToken = crypto.randomUUID().replaceAll("-", "");
   const trackingLinkRef = doc(db, "tracking_share_links", trackingToken);
   const trackingExpiresAt = Timestamp.fromDate(new Date(Date.now() + companySettings.trackingLinkDays * 86400000));
   const counterRef = doc(db, "job_counters", dateKey);
+  const requestRef = draft.sourceRequestId ? doc(db, "customer_job_requests", draft.sourceRequestId) : null;
   const workOrder = await runTransaction(db, async (transaction) => {
     const counterSnapshot = await transaction.get(counterRef);
+    const requestSnapshot = requestRef ? await transaction.get(requestRef) : null;
+    const source = requestSnapshot?.data();
+    if (requestRef && (!isMainAdmin(actor) || !source || source.status !== "pending" || source.customerName !== draft.customer)) {
+      throw new Error("คำขอแจ้งงานนี้ไม่พร้อมรับงานแล้ว กรุณากลับไปตรวจสอบรายการแจ้งเตือน");
+    }
     const currentSequence = counterSnapshot.exists() && Number.isInteger(counterSnapshot.data().lastSequence)
       ? counterSnapshot.data().lastSequence
       : 0;
@@ -444,7 +451,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     });
     transaction.set(jobRef, {
       ...jobFields,
-      ...(customerId ? { customerId } : {}),
+      ...((source?.customerId || customerId) ? { customerId: source?.customerId || customerId } : {}),
       ...(pickupPlace ? { pickupPlace } : {}),
       ...(deliveryPlace ? { deliveryPlace } : {}),
       workOrder: nextWorkOrder,
@@ -485,6 +492,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    if (requestRef) transaction.update(requestRef, { status: "accepted", jobId: jobRef.id, workOrder: nextWorkOrder, decidedByUid: actor.uid, decidedAt: serverTimestamp() });
     return nextWorkOrder;
   });
   const fingerprint = coordinateFingerprint(pickupPlace, deliveryPlace);

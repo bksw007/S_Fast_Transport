@@ -11,6 +11,7 @@ import { storage } from "@/lib/firebase";
 import { completionReportHtml, type ReportProof } from "@/lib/job-completion-report";
 import { driverIssueLabels } from "@/lib/driver-issue-labels";
 import type { UserProfile } from "@/lib/transport-repository";
+import CustomerJobRequests from "./CustomerJobRequests";
 import "./customer-portal.css";
 
 type Evidence = { pickup: ReportProof; delivery: ReportProof };
@@ -32,6 +33,7 @@ async function loadProof(proof?: StopProof): Promise<ReportProof> {
 }
 
 export default function CustomerPortal({ profile, jobs, loading, error }: { profile: UserProfile; jobs: TransportJob[]; loading: boolean; error: string }) {
+  const [view, setView] = useState<"overview" | "requests">("overview");
   const [selectedId, setSelectedId] = useState("");
   const [month, setMonth] = useState("");
   const [evidence, setEvidence] = useState<Evidence>({ pickup: emptyProof, delivery: emptyProof });
@@ -95,7 +97,9 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
 
   return <main className="customer-portal">
     <header className="customer-portal-header"><div className="customer-portal-header-inner"><div className="customer-portal-brand"><Image className="customer-portal-brand-mark" src="/icons/truck-logo.png" alt="S Fast Transport" width={46} height={46} /><div><strong>S Fast Transportation</strong><span>CUSTOMER PORTAL</span></div></div><button type="button" onClick={() => void signOut(auth)}><LogOut size={16} /> ออกจากระบบ</button></div></header>
+    <nav className="customer-portal-nav" aria-label="เมนูลูกค้า"><div><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>ภาพรวมใบงาน</button><button type="button" aria-current={view === "requests" ? "page" : undefined} onClick={() => setView("requests")}><PenLine size={16} /> แจ้งงาน</button></div></nav>
     <div className="customer-portal-wrap">
+      {view === "overview" && <>
       <section className="customer-portal-hero"><div className="customer-portal-hero-copy"><span className="customer-portal-eyebrow"><span aria-hidden="true" /> ภาพรวมการขนส่งของคุณ</span><h1>ทุกการขนส่ง<br /><em>อยู่ในสายตาคุณ</em></h1><p>ติดตามงานของ {profile.organizationName} และย้อนดูประวัติการส่งมอบได้ในที่เดียว</p></div><div className="customer-portal-counts"><div><span>กำลังดำเนินการ</span><strong>{active.length.toLocaleString("th-TH")}</strong><small>งานที่กำลังขนส่ง</small></div><div><span>ส่งมอบแล้ว</span><strong>{completed.length.toLocaleString("th-TH")}</strong><small>งานทั้งหมดที่เสร็จสิ้น</small></div></div></section>
       {loading && <p role="status">กำลังโหลดใบงาน…</p>}
       {error && <p role="alert" className="customer-portal-error">โหลดใบงานไม่สำเร็จ: {error}</p>}
@@ -104,6 +108,8 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
         <section className="customer-portal-section"><div className="customer-portal-section-title"><div><span className="customer-portal-section-kicker">DELIVERY ARCHIVE / 02</span><h2>ประวัติการส่งมอบ</h2><p>เลือกเดือนเพื่อดูงานที่เสร็จแล้ว</p></div><label className="customer-portal-month"><CalendarDays size={17} /><span>เดือน</span><select value={selectedMonth} onChange={event => setMonth(event.target.value)} disabled={!months.length}>{months.length ? months.map(key => <option key={key} value={key}>{monthLabel(key)}</option>) : <option value="">ยังไม่มีประวัติ</option>}</select></label></div>{history.length ? <div className="customer-portal-grid">{history.map(job => <JobCard key={job.id} job={job} onOpen={() => openJob(job.id)} />)}</div> : <p className="customer-portal-empty">ยังไม่มีงานที่เสร็จแล้วในเดือนนี้</p>}</section>
         {cancelled.length > 0 && <section className="customer-portal-section"><div className="customer-portal-section-title"><div><span className="customer-portal-section-kicker">OTHER RECORDS / 03</span><h2>งานที่ยกเลิก</h2></div><span className="customer-portal-section-count">{cancelled.length} งาน</span></div><div className="customer-portal-grid">{cancelled.map(job => <JobCard key={job.id} job={job} onOpen={() => openJob(job.id)} />)}</div></section>}
       </>}
+      </>}
+      {view === "requests" && <CustomerJobRequests profile={profile} onOpenJob={openJob} />}
     </div>
     {selected && <CustomerJobDetail job={selected} evidence={evidence} proofLoading={proofLoading} issuePhoto={issuePhoto} proofError={proofError} reportBusy={reportBusy} onClose={() => setSelectedId("")} onReport={() => void openReport(selected)} />}
   </main>;

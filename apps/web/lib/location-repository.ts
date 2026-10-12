@@ -20,6 +20,8 @@ export type SavedLocation = JobPlace & {
   organizationId: string;
   notes: string;
   active: boolean;
+  sourceCustomerId?: string;
+  sourceCustomerName?: string;
 };
 
 export type LocationDraft = Omit<SavedLocation, "id" | "organizationId" | "active">;
@@ -67,7 +69,9 @@ function toSavedLocation(id: string, data: DocumentData): SavedLocation {
     lng: Number(data.lng),
     googlePlaceId: data.googlePlaceId ? String(data.googlePlaceId) : undefined,
     notes: String(data.notes ?? ""),
-    active: data.active !== false
+    active: data.active !== false,
+    sourceCustomerId: data.sourceCustomerId ? String(data.sourceCustomerId) : undefined,
+    sourceCustomerName: data.sourceCustomerName ? String(data.sourceCustomerName) : undefined
   };
 }
 
@@ -147,7 +151,7 @@ export function filterSavedLocations(locations: SavedLocation[], search: string,
     if (status === "active" && !item.active) return false;
     if (status === "inactive" && item.active) return false;
     if (!queryText) return true;
-    return [item.name, item.googleName, item.notes, item.lat, item.lng]
+    return [item.name, item.googleName, item.notes, item.sourceCustomerName, item.lat, item.lng]
       .filter((value) => value !== undefined && value !== null)
       .some((value) => String(value).toLocaleLowerCase("th-TH").includes(queryText));
   });

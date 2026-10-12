@@ -27,6 +27,7 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
   const [message, setMessage] = useState("กำลังโหลดคลังสถานที่…");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LocationStatusFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [manualPinOpen, setManualPinOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const latestMapInputRef = useRef("");
@@ -111,7 +112,8 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
     finally { setBusy(""); }
   }
 
-  const filteredLocations = filterSavedLocations(locations, search, statusFilter);
+  const customerSources = [...new Map(locations.filter(item => item.sourceCustomerId).map(item => [item.sourceCustomerId!, item.sourceCustomerName || "ลูกค้า"])).entries()];
+  const filteredLocations = filterSavedLocations(locations, search, statusFilter).filter(item => sourceFilter === "all" || (sourceFilter === "main" ? !item.sourceCustomerId : item.sourceCustomerId === sourceFilter));
 
   return <section className="screen location-management-screen">
     <div className="section-title"><div><h1>ตั้งค่าพิกัดแผนที่</h1><p>จับคู่ชื่อสถานที่ ลิงก์ Google Maps และพิกัด เพื่อเลือกใช้ในใบงานได้อย่างถูกต้อง</p></div></div>
@@ -123,10 +125,11 @@ export default function LocationManagementScreen({ actor }: { actor: UserProfile
       <div className="location-list-toolbar">
         <label><Search size={16} /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="ค้นหาชื่อ สถานที่ หรือคำแนะนำ" /></label>
         <label><ListFilter size={16} /><select value={statusFilter} onChange={event => setStatusFilter(event.target.value as LocationStatusFilter)}><option value="all">ทุกสถานะ</option><option value="active">ใช้งาน</option><option value="inactive">พักใช้</option></select></label>
+        {organizationId === "main" && <label><ListFilter size={16} /><select aria-label="แหล่งที่มาของพิกัด" value={sourceFilter} onChange={event => setSourceFilter(event.target.value)}><option value="all">ทุกแหล่งที่มา</option><option value="main">บริษัทหลัก</option>{customerSources.map(([id, name]) => <option key={id} value={id}>ลูกค้า: {name}</option>)}</select></label>}
       </div>
       <div className="location-library-grid">
         {filteredLocations.map(item => <article key={item.id} className={[!item.active ? "inactive" : "", editingId === item.id ? "editing" : ""].filter(Boolean).join(" ")}>
-          <header><span><MapPinned size={20} /></span><div><h2>{item.name}</h2><p>{item.googleName || "สถานที่กำหนดเอง"}</p></div><b>{editingId === item.id ? "กำลังแก้ไข" : item.active ? "ใช้งาน" : "พักใช้"}</b></header>
+          <header><span><MapPinned size={20} /></span><div><h2>{item.name}</h2><p>{item.googleName || "สถานที่กำหนดเอง"}</p><p>{item.sourceCustomerId ? `พิกัดจากลูกค้า: ${item.sourceCustomerName || "ลูกค้า"}` : "พิกัดบริษัทหลัก"}</p></div><b>{editingId === item.id ? "กำลังแก้ไข" : item.active ? "ใช้งาน" : "พักใช้"}</b></header>
           <p>{item.notes || "ไม่มีคำแนะนำเพิ่มเติม"}</p><code>{item.lat.toFixed(6)}, {item.lng.toFixed(6)}</code>
           <footer><a href={item.navigationUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> เปิดแผนที่</a><button type="button" onClick={() => edit(item)}><Pencil size={15} /> แก้ไข</button><button type="button" disabled={busy === item.id} onClick={() => void toggle(item)}><Power size={15} /> {item.active ? "พักใช้" : "เปิดใช้"}</button></footer>
         </article>)}

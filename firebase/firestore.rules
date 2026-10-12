@@ -251,6 +251,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /customers/{customerId}/locations/{locationId} {
+      allow read: if isMainCompanyAdmin()
+        || (activeUser() && role() == "customer" && profile().data.customerId == customerId);
+      allow write: if false;
+    }
+
+    match /customer_job_requests/{requestId} {
+      allow read: if isMainCompanyAdmin()
+        || (activeUser() && role() == "customer"
+          && resource.data.customerId == profile().data.customerId);
+      allow create, delete: if false;
+      allow update: if isMainCompanyAdmin()
+        && resource.data.status == "pending"
+        && request.resource.data.status == "accepted"
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.jobId is string
+        && request.resource.data.jobId.size() > 0
+        && request.resource.data.workOrder is string
+        && request.resource.data.workOrder.size() > 0
+        && request.resource.data.decidedByUid == request.auth.uid
+        && request.resource.data.decidedAt == request.time
+        && getAfter(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data.sourceRequestId == requestId
+        && getAfter(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data.customerId == resource.data.customerId
+        && getAfter(/databases/$(database)/documents/today_jobs/$(request.resource.data.jobId)).data.workOrder == request.resource.data.workOrder
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status", "jobId", "workOrder", "decidedByUid", "decidedAt"
+        ]);
+    }
+
     match /job_counters/{dateKey} {
       allow read: if isMainAdmin() || isSubcontractAdmin();
       allow create: if (isMainAdmin() || isSubcontractAdmin())

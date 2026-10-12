@@ -75,6 +75,8 @@ export function LocationPicker({
   const matchingLocations = filterSavedLocations(activeLocations, query, "active");
   const recentLocations = recentIds.map(id => matchingLocations.find(item => item.id === id)).filter((item): item is SavedLocation => Boolean(item));
   const otherLocations = matchingLocations.filter(item => !recentIds.includes(item.id));
+  const mainLocations = otherLocations.filter(item => !item.sourceCustomerId);
+  const customerLocations = otherLocations.filter(item => item.sourceCustomerId);
   const selectedName = activeLocations.find(item => item.id === place?.locationId)?.name || place?.name;
   return <div className="location-picker">
     <div className="location-picker-select" ref={pickerRef} onKeyDown={event => {
@@ -89,8 +91,9 @@ export function LocationPicker({
           if (event.key === "Enter") { event.preventDefault(); const first = recentLocations[0] || otherLocations[0]; if (first) chooseSaved(first.id); }
         }} placeholder="พิมพ์ชื่อสถานที่เพื่อค้นหา" /></label>
         <div className="location-picker-results">
-          {recentLocations.length > 0 && <><p className="location-picker-group-title">ใช้ล่าสุด</p>{recentLocations.map(item => <button type="button" className="location-picker-option" key={item.id} onClick={() => chooseSaved(item.id)}><span>{item.name}</span>{place?.locationId === item.id && <Check size={16} />}</button>)}</>}
-          {otherLocations.length > 0 && <><p className="location-picker-group-title">{recentLocations.length ? "สถานที่ทั้งหมด" : "สถานที่"}</p>{otherLocations.map(item => <button type="button" className="location-picker-option" key={item.id} onClick={() => chooseSaved(item.id)}><span>{item.name}</span>{place?.locationId === item.id && <Check size={16} />}</button>)}</>}
+          {recentLocations.length > 0 && <><p className="location-picker-group-title">ใช้ล่าสุด</p>{recentLocations.map(item => <button type="button" className="location-picker-option" key={item.id} onClick={() => chooseSaved(item.id)}><span>{item.name}{item.sourceCustomerId && <small> · {item.sourceCustomerName}</small>}</span>{place?.locationId === item.id && <Check size={16} />}</button>)}</>}
+          {mainLocations.length > 0 && <><p className="location-picker-group-title">พิกัดบริษัทหลัก</p>{mainLocations.map(item => <button type="button" className="location-picker-option" key={item.id} onClick={() => chooseSaved(item.id)}><span>{item.name}</span>{place?.locationId === item.id && <Check size={16} />}</button>)}</>}
+          {customerLocations.length > 0 && <><p className="location-picker-group-title">พิกัดจากลูกค้า</p>{customerLocations.map(item => <button type="button" className="location-picker-option" key={item.id} onClick={() => chooseSaved(item.id)}><span>{item.name}<small> · {item.sourceCustomerName || "ลูกค้า"}</small></span>{place?.locationId === item.id && <Check size={16} />}</button>)}</>}
           {!matchingLocations.length && <p className="location-picker-no-results">{activeLocations.length ? "ไม่พบสถานที่ที่ค้นหา" : "ยังไม่มีสถานที่ที่ใช้งานได้"}</p>}
         </div>
       </div>}
