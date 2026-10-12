@@ -5061,7 +5061,11 @@ textarea:focus {
 .dashboard-job-status.attention { color: var(--dashboard-warning); background: color-mix(in srgb, var(--dashboard-warning) 10%, var(--surface)); }
 .dashboard-customer { color: var(--muted); font-size: .76rem; margin-top: 5px; overflow-wrap: anywhere; }
 .dashboard-job-route { display: grid; gap: 14px; margin: 20px 0; }
-.dashboard-job-route > span { display: flex; align-items: flex-start; gap: 9px; }
+.dashboard-job-stop { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: start; gap: 12px; min-width: 0; }
+.dashboard-job-stop-place { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
+.dashboard-job-stop-place > span { min-width: 0; }
+.dashboard-job-stop-schedule { min-width: 0; text-align: right; }
+.dashboard-job-stop-schedule strong { font-variant-numeric: tabular-nums; }
 .dashboard-job-route svg { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
 .dashboard-job-route small { display: block; font-size: .65rem; color: var(--muted); margin-bottom: 3px; }
 .dashboard-job-route strong { display: block; font-size: .82rem; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }

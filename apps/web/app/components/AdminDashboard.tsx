@@ -12,6 +12,7 @@ const filters: { id: Filter; label: string }[] = [
 const isActive = (job: TransportJob) => job.status !== "completed" && job.status !== "cancelled";
 const needsAttention = (job: TransportJob) => isActive(job) && (job.alerts.length > 0 || job.status === "problem");
 const pickupDateKey = (job: TransportJob) => /^\d{4}-\d{2}-\d{2}$/.test(job.pickupDate || "") ? job.pickupDate || "" : "";
+const stopSchedule = (date?: string, time?: string) => [date, time].filter(Boolean).join(" ") || "ยังไม่ระบุ";
 const pageSize = 12;
 
 export default function AdminDashboard({ jobs, deletedJobs = [], dataState, selectedJobId, onSelectJob, onPermanentlyDelete }: {
@@ -110,7 +111,10 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
         : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => { const deleted = deletedIds.has(job.id); const interactiveCard = !deleted && filter !== "cancelled"; const Card = interactiveCard ? "button" : "div"; return <Card type={interactiveCard ? "button" : undefined} className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} aria-haspopup={interactiveCard ? "dialog" : undefined} aria-label={interactiveCard ? `เปิดรายละเอียดใบงาน ${job.workOrder}` : undefined} data-selected={selectedJobId === job.id} onClick={interactiveCard ? () => onSelectJob(job.id) : undefined}>
           <span className="dashboard-job-top"><span className="dashboard-work-order">{job.workOrder}</span><span className={`dashboard-job-status ${job.status === "completed" ? "completed" : needsAttention(job) ? "attention" : ""}`}>{deleted ? "ลบใบงานแล้ว" : statusLabels[job.status]}</span></span>
           <span className="dashboard-customer">{job.customer}</span>
-          <span className="dashboard-job-route"><span><MapPin size={16} /><span><small>รับสินค้า</small><strong>{job.pickupLocation}</strong></span></span><span><MapPin size={16} /><span><small>ส่งสินค้า</small><strong>{job.deliveryLocation}</strong></span></span></span>
+          <span className="dashboard-job-route">
+            <span className="dashboard-job-stop"><span className="dashboard-job-stop-place"><MapPin size={16} /><span><small>รับสินค้า</small><strong>{job.pickupLocation}</strong></span></span><span className="dashboard-job-stop-schedule"><small>วันเวลารับสินค้า</small><strong>{stopSchedule(job.pickupDate, job.pickupTime)}</strong></span></span>
+            <span className="dashboard-job-stop"><span className="dashboard-job-stop-place"><MapPin size={16} /><span><small>ส่งสินค้า</small><strong>{job.deliveryLocation}</strong></span></span><span className="dashboard-job-stop-schedule"><small>วันเวลาส่งสินค้า</small><strong>{stopSchedule(job.deliveryDate, job.deliveryTime)}</strong></span></span>
+          </span>
           <span className="dashboard-job-assignment"><span><UserRound size={15} />{job.driverName || "ยังไม่ระบุคนขับ"}</span><span><Truck size={15} />{job.vehiclePlate || "ยังไม่ระบุรถ"}</span></span>
           {needsAttention(job) && <span className="dashboard-job-alert"><AlertTriangle size={14} />{job.alerts[0] || "งานนี้มีปัญหา กรุณาตรวจสอบ"}</span>}
           <span className="dashboard-job-footer"><span><Clock3 size={14} /> {job.status === "cancelled" ? "ยกเลิก" : "ETA"} {job.status === "cancelled" ? (job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH") : "—") : job.eta || "—"}</span>{interactiveCard && <span>ดูรายละเอียด<ArrowRight size={16} /></span>}{!deleted && filter === "cancelled" && <button type="button" className="dashboard-detail-link" onClick={() => onSelectJob(job.id)}>ดูรายละเอียด <ArrowRight size={16} /></button>}</span>
