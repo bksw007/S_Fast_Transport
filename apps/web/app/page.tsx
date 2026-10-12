@@ -199,6 +199,7 @@ export function stopNavigationUrl(location: string, place?: JobPlace) {
 function createEmptyJobDraft(): JobDraft {
   const today = new Date().toISOString().slice(0, 10);
   return {
+    submissionId: crypto.randomUUID(),
     workOrder: "",
     customer: "",
     jobDate: today,
@@ -2401,6 +2402,8 @@ function AdminView({
   const [draft, setDraft] = useState<JobDraft>(() => prefillRequest ? draftFromCustomerRequest(prefillRequest) : createEmptyJobDraft());
   const [formVersion, setFormVersion] = useState(0);
   const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrder: string; link: string } | { kind: "clear" } | null>(null);
+  const [savingJob, setSavingJob] = useState(false);
+  const submittingJobRef = useRef(false);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
   const [driverProfiles, setDriverProfiles] = useState<UserProfile[]>([]);
   const [driverError, setDriverError] = useState("");
@@ -2439,6 +2442,9 @@ function AdminView({
   }
 
   async function submitJob() {
+    if (submittingJobRef.current) return;
+    submittingJobRef.current = true;
+    setSavingJob(true);
     const nextDraft = {
       ...draft,
       customer: draft.customer || "ลูกค้าใหม่",
@@ -2449,11 +2455,16 @@ function AdminView({
       deliveryLocation: draft.deliveryLocation || "จุดส่งสินค้า",
       eta: draft.deliveryTime || draft.eta || "วันนี้"
     };
-    const created = await onCreateJob(nextDraft);
-    if (created) {
-      resetJobForm();
-      if (draft.sourceRequestId) onPrefillClear();
-      setFormNotice({ kind: "saved", workOrder: created.workOrder, link: `https://sfasttransport.vercel.app/track/${created.trackingToken}` });
+    try {
+      const created = await onCreateJob(nextDraft);
+      if (created) {
+        resetJobForm();
+        if (draft.sourceRequestId) onPrefillClear();
+        setFormNotice({ kind: "saved", workOrder: created.workOrder, link: `https://sfasttransport.vercel.app/track/${created.trackingToken}` });
+      }
+    } finally {
+      submittingJobRef.current = false;
+      setSavingJob(false);
     }
   }
 
@@ -2525,8 +2536,8 @@ function AdminView({
             </div>
 
             <div className="dispatch-form-actions">
-              <button className="save-job-button" type="submit" disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError) || !driverOptions.some(driver => driver.id === draft.driverId && driver.eligible)}><Save size={17} /> บันทึกงาน</button>
-              <button type="button" onClick={() => setFormNotice({ kind: "clear" })}><RotateCcw size={17} /> ล้างข้อมูล</button>
+              <button className="save-job-button" type="submit" disabled={savingJob || !canWrite || !driversReady || !profilesReady || Boolean(driverError) || !driverOptions.some(driver => driver.id === draft.driverId && driver.eligible)}><Save size={17} /> {savingJob ? "กำลังบันทึก..." : "บันทึกงาน"}</button>
+              <button type="button" disabled={savingJob} onClick={() => setFormNotice({ kind: "clear" })}><RotateCcw size={17} /> ล้างข้อมูล</button>
             </div>
           </div>
       </form>

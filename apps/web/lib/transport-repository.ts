@@ -86,6 +86,7 @@ export type UserAccessUpdate = Pick<
 
 export type JobDraft = {
   sourceRequestId?: string;
+  submissionId?: string;
   workOrder: string;
   customer: string;
   jobDate: string;
@@ -425,14 +426,22 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     }
   }
   const customerId = organizationId === "main" && !draft.sourceRequestId ? await resolveCustomerId(draft.customer, actor) : null;
-  const { pickupPlace, deliveryPlace, ...jobFields } = draft;
-  const jobRef = doc(collection(db, "today_jobs"));
+  const { pickupPlace, deliveryPlace, submissionId, ...jobFields } = draft;
+  const jobRef = submissionId ? doc(db, "today_jobs", submissionId) : doc(collection(db, "today_jobs"));
   const trackingToken = crypto.randomUUID().replaceAll("-", "");
   const trackingLinkRef = doc(db, "tracking_share_links", trackingToken);
   const trackingExpiresAt = Timestamp.fromDate(new Date(Date.now() + companySettings.trackingLinkDays * 86400000));
   const counterRef = doc(db, "job_counters", dateKey);
   const requestRef = draft.sourceRequestId ? doc(db, "customer_job_requests", draft.sourceRequestId) : null;
-  const workOrder = await runTransaction(db, async (transaction) => {
+  const result = await runTransaction(db, async (transaction) => {
+    const existingJob = await transaction.get(jobRef);
+    if (existingJob.exists()) {
+      const existing = existingJob.data();
+      if (!submissionId || existing.createdByUid !== actor.uid || existing.organizationId !== organizationId || existing.submissionId !== submissionId) {
+        throw new Error("ไม่สามารถใช้รายการบันทึกนี้ซ้ำได้ กรุณาเริ่มสร้างใบงานใหม่");
+      }
+      return { workOrder: existing.workOrder as string, trackingToken: existing.trackingShareToken as string, created: false };
+    }
     const counterSnapshot = await transaction.get(counterRef);
     const requestSnapshot = requestRef ? await transaction.get(requestRef) : null;
     const source = requestSnapshot?.data();
@@ -451,6 +460,8 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     });
     transaction.set(jobRef, {
       ...jobFields,
+      ...(submissionId ? { submissionId } : {}),
+      createdByUid: actor.uid,
       ...((source?.customerId || customerId) ? { customerId: source?.customerId || customerId } : {}),
       ...(pickupPlace ? { pickupPlace } : {}),
       ...(deliveryPlace ? { deliveryPlace } : {}),
@@ -493,10 +504,10 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       updatedAt: serverTimestamp()
     });
     if (requestRef) transaction.update(requestRef, { status: "accepted", jobId: jobRef.id, workOrder: nextWorkOrder, decidedByUid: actor.uid, decidedAt: serverTimestamp() });
-    return nextWorkOrder;
+    return { workOrder: nextWorkOrder, trackingToken, created: true };
   });
   const fingerprint = coordinateFingerprint(pickupPlace, deliveryPlace);
-  if (fingerprint && pickupPlace && deliveryPlace) {
+  if (result.created && fingerprint && pickupPlace && deliveryPlace) {
     try {
       const distanceMeters = await requestJobRoadDistance(jobRef.id, pickupPlace, deliveryPlace);
       await saveJobRouteDistance(jobRef.id, distanceMeters, fingerprint, actor);
@@ -504,7 +515,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       // The job is already saved; its details screen can retry the distance calculation later.
     }
   }
-  return { workOrder, trackingToken } satisfies CreatedJob;
+  return { workOrder: result.workOrder, trackingToken: result.trackingToken } satisfies CreatedJob;
 }
 
 export async function saveJobRouteDistance(jobId: string, distanceMeters: number, fingerprint: string, actor: UserProfile) {
