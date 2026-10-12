@@ -136,6 +136,7 @@
 .admin-premium-shell[data-theme="dark"] .brand span { color: #adc0b6; }
 
 @media (max-width: 700px) {
+  .admin-premium-shell .phone-frame { border-radius: 0; box-shadow: none; }
   .admin-premium-shell :is(.dashboard-header, .admin-wide > .section-title, .screen > .section-title, .resource-page-head, .access-page-head, .report-header, .customer-screen > header, .profile-page-head) { min-height: 135px; padding: 22px 20px; }
   .admin-premium-shell .report-header { align-items: stretch; }
 }

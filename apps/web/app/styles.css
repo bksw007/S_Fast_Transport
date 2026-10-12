@@ -456,8 +456,14 @@ a {
 
 .mobile-primary-content {
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex: 1;
+}
+
+.mobile-primary-content > .screen {
+  min-width: 0;
+  width: 100%;
 }
 
 @media (min-width: 1051px) {
@@ -4810,7 +4816,7 @@ textarea:focus {
 
 /* Only the detail body scrolls, keeping the title, close button and tabs visible. */
 .job-detail-modal[open] { display: flex; overflow: hidden; }
-.job-detail-modal-content { display: flex; flex-direction: column; width: 100%; min-height: 0; max-height: calc(100dvh - 34px); }
+.job-detail-modal-content { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 0; max-height: calc(100dvh - 34px); }
 .job-detail-modal-header { flex: 0 0 auto; background: var(--surface); }
 .job-detail-modal .job-detail-functional { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
 .job-detail-toolbar { flex: 0 0 auto; padding: 18px 18px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -4826,7 +4832,7 @@ textarea:focus {
 .job-action-panel label { display: grid; gap: 6px; margin: 12px 0; }
 .job-action-panel input, .job-action-panel textarea { width: 100%; padding: 10px; }
 .job-action-panel img { display: block; max-width: 100%; height: auto; }
-.job-action-close { float: right; }
+.job-action-close { display: block; margin-left: auto; }
 @media (max-width: 600px) {
   .job-detail-fields { grid-template-columns: 1fr; }
   .job-detail-toolbar { padding: 12px 12px 0; }
@@ -4842,16 +4848,17 @@ textarea:focus {
 }
 .job-detail-modal::backdrop { background: rgb(20 27 30 / 58%); backdrop-filter: blur(5px); }
 .job-detail-modal-header { padding: 14px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
-.job-detail-modal-header h2 { font-size: .88rem; font-weight: 600; color: var(--muted); }
+.job-detail-modal-header h2 { min-width: 0; overflow-wrap: anywhere; font-size: .88rem; font-weight: 600; color: var(--muted); }
 .job-detail-modal-header button { min-width: 36px; min-height: 36px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); transition: background .15s, transform .15s; }
 .job-detail-modal-header button:hover { background: var(--border); transform: rotate(6deg); }
 .job-detail-toolbar { padding: 24px 26px 0; }
 .job-detail-toolbar .detail-head { margin-bottom: 24px; align-items: center; }
 .job-detail-identity { display: flex; align-items: center; gap: 14px; min-width: 0; flex-wrap: wrap; }
+.job-detail-identity > div { min-width: 0; }
 .job-detail-emblem { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px; background: var(--accent); color: white; flex-shrink: 0; }
 .job-detail-eyebrow { color: var(--muted); font-size: .7rem; font-weight: 600; }
 .job-detail-identity h2 { font-size: clamp(1.1rem, 2.5vw, 1.4rem); margin: 2px 0; letter-spacing: -.025em; overflow-wrap: anywhere; }
-.job-detail-identity p { margin: 0; color: var(--muted); font-size: .86rem; }
+.job-detail-identity p { margin: 0; overflow-wrap: anywhere; color: var(--muted); font-size: .86rem; }
 .job-detail-status { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; font-size: .72rem; font-weight: 600; border-radius: 20px; color: var(--accent); background: var(--surface-2); border: 1px solid var(--border); }
 .job-detail-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .job-detail-status.is-alert { color: var(--danger); }
@@ -4920,22 +4927,25 @@ textarea:focus {
 .job-action-panel button[type="submit"] { background: var(--accent); color: white; }
 .job-action-panel img { margin: 12px auto; border-radius: 12px; border: 1px solid var(--border); }
 .job-action-panel:has(.job-edit-form) { padding: 16px; border-top-width: 1px; }
-.job-edit-form { display: grid; gap: 14px; }
+.job-edit-form { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-width: 0; gap: 14px; }
 .job-edit-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 4px 2px 2px; }
-.job-edit-header h3 { margin: 0 0 4px; font-size: 1rem; }
+.job-edit-header > div { min-width: 0; }
+.job-edit-header h3 { margin: 0 0 4px; overflow-wrap: anywhere; font-size: 1rem; }
 .job-edit-header p { margin: 0; color: var(--muted); font-size: .74rem; }
 .job-edit-section { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 72%, var(--surface-2)); }
-.job-edit-section h4, .job-edit-section legend { margin: 0 0 14px; padding: 0; color: var(--text); font-size: .82rem; font-weight: 650; }
+.job-edit-section h4, .job-edit-section legend { margin: 0 0 14px; padding: 0; overflow-wrap: anywhere; color: var(--text); font-size: .82rem; font-weight: 650; }
+.job-edit-section legend { max-width: 100%; }
 .job-edit-section legend { transform: translateY(7px); }
-.job-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.job-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; gap: 13px; }
 .job-edit-grid.compact { margin: 13px 0; }
-.job-edit-field { display: grid; align-content: start; gap: 7px; min-width: 0; color: var(--muted); font-size: .73rem; }
+.job-edit-field { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 7px; min-width: 0; color: var(--muted); font-size: .73rem; }
+.job-edit-field > span { overflow-wrap: anywhere; }
 .job-edit-field.wide { grid-column: 1 / -1; }
 .job-edit-field > div { min-width: 0; }
 .job-edit-field :is(input, select, textarea) { width: 100%; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 9px; font: inherit; }
 .job-edit-field textarea { resize: vertical; }
 .job-edit-field small { display: block; margin-top: 5px; color: var(--danger); line-height: 1.45; }
-.job-edit-stops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.job-edit-stops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; gap: 14px; }
 .job-edit-form .location-picker, .job-edit-form .contact-picker { gap: 8px; }
 .job-edit-field .location-picker-search input { border: 0; background: transparent; }
 .job-edit-form .contact-picker-select > span { display: none; }
@@ -4967,11 +4977,11 @@ textarea:focus {
   .job-route-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
   .job-route-heading > span { padding-left: 27px; }
   .job-route-stops { grid-template-columns: 1fr; gap: 20px; }
-  .job-edit-grid, .job-edit-stops { grid-template-columns: 1fr; }
+  .job-edit-grid, .job-edit-stops { grid-template-columns: minmax(0, 1fr); }
   .job-edit-section { padding: 13px; }
   .job-delete-zone { align-items: stretch; flex-direction: column; }
   .job-delete-confirm { justify-content: flex-start; }
-  .job-detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .job-detail-fields { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .job-detail-modal-header button { transition: none; }
