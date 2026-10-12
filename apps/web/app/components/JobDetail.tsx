@@ -19,6 +19,15 @@ const dateLabel = (value: number | string) => value && Number.isFinite(new Date(
 const mapUrl = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 const validPoint = (lat: unknown, lng: unknown) => typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat !== 0 || lng !== 0);
 
+export function previewableEvidenceUrl(data: Record<string, unknown>): string | null {
+  const url = data.downloadUrl;
+  if (typeof url !== "string" || !url.startsWith("https://")) return null;
+  const contentType = typeof data.contentType === "string" ? data.contentType.toLowerCase() : "";
+  if (contentType) return contentType.startsWith("image/") ? url : null;
+  const fileName = typeof data.fileName === "string" ? data.fileName : "";
+  return ["photo", "photo_revision", "signature", "issue"].includes(String(data.proofKind)) || /\.(jpe?g|png|webp|gif|svg)$/i.test(fileName) ? url : null;
+}
+
 export function approximateDistanceKm(from?: { lat: number; lng: number }, to?: { lat: number; lng: number }) {
   if (!from || !to || !validPoint(from.lat, from.lng) || !validPoint(to.lat, to.lng)) return null;
   const radians = (degrees: number) => degrees * Math.PI / 180;
@@ -96,11 +105,18 @@ function Records({ job, kind }: { job: TransportJob; kind: "proofs" | "events" |
   return <div className={`job-records job-records-${kind}`}>
     {visibleRows.map(({ id, data }) => <article key={id}>
       <time>{dateLabel(recordTime(data))}</time>
-      {kind === "proofs" ? <><strong>{data.proofStage === "pickup" ? "จุดรับสินค้า" : data.proofStage === "delivery" ? "จุดส่งสินค้า" : "หลักฐานทั่วไป"} · {data.proofKind === "signature" ? "ลายเซ็น" : data.proofKind === "photo" || data.proofKind === "photo_revision" ? "รูปสินค้า" : data.fileName || "หลักฐาน"}</strong><p>{data.proofKind === "signature" ? `ผู้เซ็น ${data.signerName || "—"} · ` : ""}อัปโหลดโดย {data.uploadedByName || "—"}</p>{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
+      {kind === "proofs" ? <><strong>{data.proofStage === "pickup" ? "จุดรับสินค้า" : data.proofStage === "delivery" ? "จุดส่งสินค้า" : "หลักฐานทั่วไป"} · {data.proofKind === "signature" ? "ลายเซ็น" : data.proofKind === "photo" || data.proofKind === "photo_revision" ? "รูปสินค้า" : data.fileName || "หลักฐาน"}</strong><p>{data.proofKind === "signature" ? `ผู้เซ็น ${data.signerName || "—"} · ` : ""}อัปโหลดโดย {data.uploadedByName || "—"}</p><EvidencePreview data={data} />{typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") && <a href={data.downloadUrl} target="_blank" rel="noreferrer">เปิด / ดาวน์โหลดหลักฐาน</a>}</>
         : kind === "events" ? <><strong>{data.message || data.type || "เหตุการณ์"}</strong><p>{data.actorName || "ระบบ"}</p></>
         : null}
     </article>)}
   </div>;
+}
+
+function EvidencePreview({ data }: { data: JobRecord["data"] }) {
+  const url = previewableEvidenceUrl(data);
+  if (!url) return null;
+  const label = String(data.fileName || data.proofKind || "หลักฐาน");
+  return <a className="job-proof-preview" href={url} target="_blank" rel="noreferrer" aria-label={`เปิดภาพหลักฐาน ${label}`}><Image unoptimized src={url} width={480} height={320} alt={`ภาพตัวอย่าง ${label}`} /></a>;
 }
 
 export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { job: TransportJob; actor: UserProfile; canWrite: boolean; map: React.ReactNode; onDeleted: () => void }) {

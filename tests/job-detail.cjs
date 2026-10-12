@@ -48,6 +48,10 @@ function nodes(node = tree) { if (!node || typeof node !== 'object') return []; 
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {
+  assert.equal(context.exports.previewableEvidenceUrl({ downloadUrl: 'https://example.test/photo.jpg', contentType: 'image/jpeg' }), 'https://example.test/photo.jpg');
+  assert.equal(context.exports.previewableEvidenceUrl({ downloadUrl: 'https://example.test/signature.svg', proofKind: 'signature' }), 'https://example.test/signature.svg');
+  assert.equal(context.exports.previewableEvidenceUrl({ downloadUrl: 'https://example.test/document.pdf', contentType: 'application/pdf' }), null);
+  assert.equal(context.exports.previewableEvidenceUrl({ downloadUrl: 'http://example.test/photo.jpg', contentType: 'image/jpeg' }), null);
   const distance = context.exports.approximateDistanceKm({ lat: 0.1, lng: 0 }, { lat: 0.1, lng: 1 });
   assert.ok(distance > 111 && distance < 112, 'distance uses the two saved coordinates');
   assert.equal(context.exports.approximateDistanceKm(undefined, { lat: 1, lng: 1 }), null);

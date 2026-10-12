@@ -4834,6 +4834,8 @@ textarea:focus {
 .job-detail-fields dd { margin: 6px 0 0; white-space: pre-wrap; }
 .job-records { display: grid; gap: 12px; }
 .job-records strong, .job-records a { display: block; margin-top: 8px; }
+.job-records .job-proof-preview { width: min(100%, 480px); padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.job-proof-preview img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; }
 .job-action-panel { border: 1px solid var(--border); padding: 16px; border-radius: 12px; margin-bottom: 18px; }
 .job-action-panel label { display: grid; gap: 6px; margin: 12px 0; }
 .job-action-panel input, .job-action-panel textarea { width: 100%; padding: 10px; }
