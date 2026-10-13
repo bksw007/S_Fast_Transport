@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpRight, CheckCircle2, Clock3, MapPin, XCircle } from "lucide-react";
+import { ArrowUpRight, BellRing, CheckCircle2, Clock3, MapPin, XCircle } from "lucide-react";
 import { rejectCustomerJobRequest, subscribeCustomerJobRequests, type CustomerJobRequest } from "@/lib/customer-job-requests";
 import type { UserProfile } from "@/lib/transport-repository";
 
@@ -26,8 +26,12 @@ export default function CustomerRequestInbox({ actor, onAccept }: { actor: UserP
   }
 
   const sorted = [...requests].sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending") || (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+  const pendingCount = requests.filter(item => item.status === "pending").length;
   return <div className="customer-request-inbox">
-    <div className="customer-request-inbox-intro"><strong>คำขอจากลูกค้า</strong><span>รอพิจารณา {requests.filter(item => item.status === "pending").length} รายการ</span></div>
+    <header className="dashboard-header customer-request-inbox-header">
+      <div><span className="dashboard-eyebrow"><BellRing size={15} /> CUSTOMER REQUESTS</span><h1>คำขอจากลูกค้า</h1><p>ตรวจสอบรายละเอียดงานก่อนรับหรือปฏิเสธคำขอ</p></div>
+      <span className="customer-request-inbox-count"><Clock3 size={17} /><span>รอพิจารณา <strong>{pendingCount}</strong> รายการ</span></span>
+    </header>
     {error && <p role="alert" className="customer-request-inbox-error">{error}</p>}
     {!sorted.length && <p className="customer-request-inbox-empty">ยังไม่มีคำขอแจ้งงานจากลูกค้า</p>}
     {sorted.map(item => <article className="customer-request-inbox-card" data-status={item.status} key={item.id}>

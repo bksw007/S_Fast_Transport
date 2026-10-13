@@ -147,8 +147,10 @@
 .notification-tabs button[aria-selected="true"] { border-color: #264b49; background: #264b49; color: #fff; }
 .notification-center .driver-issues-screen { width: 100%; min-width: 0; padding: 0; overflow: visible; }
 .customer-request-inbox { display: grid; gap: 13px; }
-.customer-request-inbox-intro { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #21313a; }
-.customer-request-inbox-intro span { color: #69757a; font-size: .75rem; }
+.admin-premium-shell .customer-request-inbox-header { min-width: 0; margin: 0 0 8px; }
+.customer-request-inbox-count { display: inline-flex; align-items: center; gap: 9px; padding: 11px 14px; border: 1px solid #ffffff3b; border-radius: 999px; background: #ffffff16; color: #e5eee7; font-size: .76rem; white-space: nowrap; }
+.customer-request-inbox-count svg { flex: none; color: #d7c3a2; }
+.customer-request-inbox-count strong { padding: 0 2px; color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums; }
 .customer-request-inbox-card { display: grid; gap: 14px; min-width: 0; padding: 20px; border: 1px solid #dfe6de; border-radius: 14px; background: #fff; }
 .customer-request-inbox-card[data-status="pending"] { border-left: 4px solid #ab8b64; }
 .customer-request-inbox-card header, .customer-request-inbox-actions { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
@@ -184,6 +186,7 @@
   .notification-center { padding: 18px 16px 30px; }
   .notification-tabs { margin-bottom: 20px; }
   .notification-tabs button { flex: 1 1 145px; min-height: 44px; }
+  .customer-request-inbox-count { max-width: 100%; white-space: normal; }
   .notification-center .driver-issues-screen > .section-title { margin-bottom: 4px; }
   .notification-center .driver-issue-card { width: 100%; }
 }
