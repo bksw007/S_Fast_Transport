@@ -111,7 +111,7 @@ service cloud.firestore {
           && data.customerId == profile().data.customerId);
     }
 
-    // driver_expenses: one claim per completed job and driver. Money is in THB.
+    // driver_expenses: job claims or independent vehicle costs. Money is in THB.
     function validExpenseReceipt(path, data) {
       return path is string
         && path.matches('driver_expenses/' + data.jobId + '/' + data.driverUid + '/[^/]+');
@@ -126,7 +126,8 @@ service cloud.firestore {
         && data.keys().hasOnly([
           "jobId", "workOrder", "organizationId", "driverUid", "driverName",
           "completedMonth", "amount", "note", "receiptPaths", "status",
-          "reviewNote", "createdAt", "updatedAt", "reviewedByUid", "reviewedByName", "reviewedAt"
+          "reviewNote", "createdAt", "updatedAt", "reviewedByUid", "reviewedByName", "reviewedAt",
+          "expenseKind", "category", "expenseDate", "vehiclePlate"
         ])
         && data.jobId is string && data.jobId.size() > 0
         && data.workOrder is string && data.workOrder.size() > 0 && data.workOrder.size() <= 80
@@ -159,6 +160,21 @@ service cloud.firestore {
           || (!job.keys().hasAny(["organizationId"]) && data.organizationId == "main")
         )
         && job.workOrder == data.workOrder;
+    }
+
+    function validOtherExpense(data) {
+      return data.keys().hasAll(["expenseKind", "category", "expenseDate", "vehiclePlate"])
+        && data.expenseKind == "other"
+        && data.jobId.matches('other_[a-f0-9-]{36}')
+        && data.workOrder == "ค่าใช้จ่ายอื่น"
+        && data.category in ["repair", "equipment", "wash", "other"]
+        && data.expenseDate is string && data.expenseDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && data.vehiclePlate is string && data.vehiclePlate.size() <= 40;
+    }
+
+    function validJobExpense(data) {
+      return !data.keys().hasAny(["expenseKind", "category", "expenseDate", "vehiclePlate"])
+        && completedExpenseJob(data);
     }
 
     function validProfilePhoto(data) {
@@ -423,7 +439,13 @@ service cloud.firestore {
     }
 
     match /driver_expenses/{expenseId} {
-      allow read: if activeUser() && (
+      // A driver must be able to read their deterministic ID before its first create.
+      allow get: if activeUser() && (
+        expenseId.matches('.*_' + request.auth.uid)
+        || isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data))
+      );
+      allow list: if activeUser() && (
         resource.data.driverUid == request.auth.uid
         || isMainAdmin()
         || (isSubcontractAdmin() && sameOrganization(resource.data))
@@ -438,7 +460,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && validDriverExpense(request.resource.data)
-        && completedExpenseJob(request.resource.data);
+        && (validJobExpense(request.resource.data) || validOtherExpense(request.resource.data));
       allow update: if activeUser()
         && validDriverExpense(request.resource.data)
         && request.resource.data.jobId == resource.data.jobId
@@ -455,7 +477,7 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               "amount", "note", "receiptPaths", "status", "reviewNote", "updatedAt"
             ])
-            && completedExpenseJob(request.resource.data)
+            && (validJobExpense(request.resource.data) || validOtherExpense(request.resource.data))
           )
           || (
             (isMainAdmin() || (isSubcontractAdmin() && sameOrganization(resource.data)))

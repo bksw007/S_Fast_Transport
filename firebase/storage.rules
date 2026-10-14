@@ -41,6 +41,16 @@ service firebase.storage {
       return activeUser() && job(jobId).data.assignedDriverUid == request.auth.uid;
     }
 
+    function isOwnOtherExpense(jobId, uid) {
+      return activeUser() && uid == request.auth.uid
+        && jobId.matches('other_[a-f0-9-]{36}');
+    }
+
+    function isOtherExpenseInOrganization(jobId, uid) {
+      return jobId.matches('other_[a-f0-9-]{36}')
+        && profile().data.organizationId == userProfile(uid).data.organizationId;
+    }
+
     function isJobCustomer(jobId) {
       return activeUser()
         && profile().data.role == "customer"
@@ -96,16 +106,16 @@ service firebase.storage {
 
     match /driver_expenses/{jobId}/{uid}/{fileName} {
       allow read: if isMainAdmin()
-        || (isSubcontractAdmin() && sameOrganization(jobId))
-        || (activeUser() && uid == request.auth.uid && isAssignedDriver(jobId));
+        || (isSubcontractAdmin() && (isOtherExpenseInOrganization(jobId, uid) || sameOrganization(jobId)))
+        || (activeUser() && uid == request.auth.uid && (isOwnOtherExpense(jobId, uid) || isAssignedDriver(jobId)));
       allow create, update: if activeUser()
         && uid == request.auth.uid
-        && isAssignedDriver(jobId)
-        && job(jobId).data.status == "completed"
+        && (isOwnOtherExpense(jobId, uid) || (isAssignedDriver(jobId) && job(jobId).data.status == "completed"))
         && request.resource.size > 0
         && request.resource.size <= 1 * 1024 * 1024
         && request.resource.contentType.matches("image/jpeg|image/png|image/webp");
-      allow delete: if activeUser() && uid == request.auth.uid && isAssignedDriver(jobId);
+      allow delete: if activeUser() && uid == request.auth.uid
+        && (isOwnOtherExpense(jobId, uid) || isAssignedDriver(jobId));
     }
 
 
