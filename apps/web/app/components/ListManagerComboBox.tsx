@@ -42,6 +42,7 @@ export function ListManagerComboBox({
   const listboxId = `list-manager-${useId().replaceAll(":", "")}`;
   const [items, setItems] = useState<ListOption[]>([]);
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -49,17 +50,19 @@ export function ListManagerComboBox({
   const [editValue, setEditValue] = useState("");
   const [mutating, setMutating] = useState("");
   const [position, setPosition] = useState<DropdownPosition>({ top: 0, left: 0, width: 280 });
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [dark, setDark] = useState(false);
   const canManage = !customerId && canManageOrganizationLists(actor, organizationId);
 
-  const query = value.trim().toLocaleLowerCase("th-TH");
+  const valueQuery = value.trim().toLocaleLowerCase("th-TH");
+  const query = searching ? valueQuery : "";
   const shownItems = useMemo(
     () => query
       ? items.filter((item) => item.value.toLocaleLowerCase("th-TH").includes(query))
       : items,
     [items, query]
   );
-  const exactMatch = items.some((item) => item.value.trim().toLocaleLowerCase("th-TH") === query);
+  const exactMatch = items.some((item) => item.value.trim().toLocaleLowerCase("th-TH") === valueQuery);
   const safeActiveIndex = Math.min(activeIndex, shownItems.length - 1);
 
   useEffect(() => {
@@ -122,7 +125,15 @@ export function ListManagerComboBox({
   function selectItem(item: ListOption) {
     onChange(item.value);
     setOpen(false);
+    setSearching(false);
     setActiveIndex(-1);
+  }
+
+  function showAllItems() {
+    setPortalRoot(wrapperRef.current?.closest<HTMLDialogElement>("dialog[open]") ?? document.body);
+    setSearching(false);
+    setActiveIndex(-1);
+    setOpen(true);
   }
 
   async function runMutation(key: string, action: () => Promise<void>) {
@@ -174,7 +185,7 @@ export function ListManagerComboBox({
     }
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setOpen(true);
+      if (!open) showAllItems();
       setActiveIndex((current) => Math.min(current + 1, shownItems.length - 1));
       return;
     }
@@ -257,7 +268,7 @@ export function ListManagerComboBox({
       ))}
 
       {error && <div className="list-manager-error">{error}</div>}
-      {canManage && query && !exactMatch && (
+      {canManage && valueQuery && !exactMatch && (
         <button type="button" className="list-manager-add" disabled={mutating === "add"} onClick={() => void addCurrentValue()}>
           {mutating === "add" ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}
           <span>เพิ่ม “{value.trim()}” ลงในรายการ</span>
@@ -279,15 +290,15 @@ export function ListManagerComboBox({
         aria-autocomplete="list"
         aria-expanded={open}
         aria-controls={listboxId}
-        onFocus={() => setOpen(true)}
-        onClick={() => setOpen(true)}
-        onChange={(event) => { onChange(event.target.value); setOpen(true); setActiveIndex(-1); }}
+        onFocus={showAllItems}
+        onClick={showAllItems}
+        onChange={(event) => { onChange(event.target.value); setSearching(true); setOpen(true); setActiveIndex(-1); }}
         onKeyDown={handleKeyDown}
       />
-      <button type="button" className="list-manager-toggle" aria-label="เปิดรายการ" tabIndex={-1} onClick={() => { setOpen((current) => !current); inputRef.current?.focus(); }}>
+      <button type="button" className="list-manager-toggle" aria-label={open ? "ปิดรายการ" : "เปิดรายการ"} tabIndex={-1} onClick={() => { if (open) { setOpen(false); return; } showAllItems(); inputRef.current?.focus(); }}>
         <ChevronDown size={16} />
       </button>
-      {typeof document !== "undefined" && dropdown && createPortal(dropdown, document.body)}
+      {portalRoot && dropdown && createPortal(dropdown, portalRoot)}
     </div>
   );
 }

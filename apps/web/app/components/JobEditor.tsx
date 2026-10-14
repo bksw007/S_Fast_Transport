@@ -71,10 +71,10 @@ export default function JobEditor({
     <section className="job-edit-section">
       <h4>ข้อมูลทั่วไป</h4>
       <div className="job-edit-grid">
-        <EditField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={value => update("customer", value)} placeholder="ค้นหาบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={actor} required /></EditField>
+        <EditField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={value => update("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={actor} required /></EditField>
         <EditField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" required value={draft.jobDate} onChange={event => update("jobDate", event.target.value)} /></EditField>
-        <EditField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={value => update("cargoType", value)} placeholder="ค้นหาประเภทสินค้า" organizationId={organizationId} actor={actor} /></EditField>
-        <EditField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={value => update("vehicleType", value)} placeholder="ค้นหาประเภทรถ" organizationId={organizationId} actor={actor} /></EditField>
+        <EditField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={value => update("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={actor} /></EditField>
+        <EditField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={value => update("vehicleType", value)} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={actor} /></EditField>
         <EditField label="จำนวนรอบ"><input type="number" min="1" max="999" required value={draft.tripCount} onChange={event => update("tripCount", event.target.value)} /></EditField>
       </div>
     </section>
@@ -99,7 +99,7 @@ export default function JobEditor({
       <div className="job-edit-grid">
         <EditField label="พนักงานขับรถ"><select required value={selectedDriverId} disabled={!driverDataReady || busy} onChange={event => update("driverId", event.target.value)}><option value="">{driverDataReady ? "เลือกพนักงานขับรถ" : "กำลังโหลดคนขับ…"}</option>{currentDriverMissing && <option value={selectedDriverId}>{job.driverName} (ข้อมูลปัจจุบัน)</option>}{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}</EditField>
         <EditField label="เบอร์ติดต่อ"><input value={formatPhoneNumber(selectedDriver?.phone || job.driverPhone)} readOnly /></EditField>
-        <EditField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={value => update("vehiclePlate", value)} placeholder="ค้นหาทะเบียนรถ" organizationId={organizationId} actor={actor} /></EditField>
+        <EditField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={value => update("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={actor} /></EditField>
         <EditField label="กำหนดถึง (ETA)"><input maxLength={100} value={draft.eta} onChange={event => update("eta", event.target.value)} /></EditField>
         <EditField label="หมายเหตุ" wide><textarea rows={4} maxLength={2000} value={draft.notes} onChange={event => update("notes", event.target.value)} /></EditField>
       </div>
