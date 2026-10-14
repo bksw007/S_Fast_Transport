@@ -65,6 +65,24 @@
 .expense-other-entry > button { gap: 7px; }
 .expense-primary, .expense-open { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 9px 14px; border-radius: 9px; background: #264b49; color: #fff; font-size: .78rem; font-weight: 650; }
 .expense-open { justify-self: start; background: #e7eee8; color: #264b49; }
+.expense-card-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.expense-card-actions button:disabled { opacity: .5; cursor: wait; }
+.expense-delete { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 9px 14px; border: 1px solid #ead8d2; border-radius: 9px; background: #faf1ed; color: #9b4f45; font-size: .78rem; font-weight: 650; }
+.expense-delete:hover { background: #f7e5df; }
+.expense-delete-dialog { width: min(420px, calc(100% - 32px)); max-width: none; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 18px; color: var(--text); background: var(--surface); box-shadow: 0 24px 70px rgb(7 28 44 / 25%); }
+.expense-delete-dialog::backdrop { background: rgb(5 25 41 / 65%); backdrop-filter: blur(3px); }
+.expense-delete-content { display: grid; justify-items: start; gap: 11px; padding: 27px; }
+.expense-delete-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 13px; background: #faf1ed; color: #9b4f45; }
+.expense-delete-content h2 { margin: 4px 0 0; font-size: 1.16rem; }
+.expense-delete-content p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.6; overflow-wrap: anywhere; }
+.expense-delete-content p strong { color: var(--text); }
+.expense-delete-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; width: 100%; margin-top: 10px; }
+.expense-delete-dialog-actions button { min-height: 44px; padding: 9px 14px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
+.expense-delete-dialog-actions button:first-child { border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.expense-delete-dialog-actions button:last-child { background: #9b4f45; color: #fff; }
+.expense-delete-dialog button:focus-visible, .expense-delete:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.driver-shell[data-theme="dark"] .expense-delete { border-color: #684b44; background: #493431; color: #e3aaa0; }
+.driver-shell[data-theme="dark"] .expense-delete-icon { background: #493431; color: #e3aaa0; }
 .expense-primary:disabled { opacity: .6; }
 .expense-review { display: grid; gap: 10px; }
 .expense-review > div { display: flex; justify-content: flex-end; gap: 8px; }

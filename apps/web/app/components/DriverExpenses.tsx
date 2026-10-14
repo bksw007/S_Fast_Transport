@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { CalendarDays, Camera, CheckCircle2, CircleDollarSign, FileImage, FolderOpen, Plus, Printer, ReceiptText, Truck, X } from "lucide-react";
+import { CalendarDays, Camera, CheckCircle2, CircleDollarSign, FileImage, FolderOpen, Plus, Printer, ReceiptText, Trash2, Truck, X } from "lucide-react";
 import { historyMonthLabel, jobHistoryDate, jobHistoryMonth, type TransportJob } from "@s-fast-transport/shared";
-import { expenseTitle, getExpenseReceiptUrl, otherExpenseCategories, reviewDriverExpense, submitDriverExpense, submitOtherDriverExpense, subscribeDriverExpenses, type DriverExpense, type ExpenseStatus, type OtherExpenseCategory } from "@/lib/driver-expenses";
+import { deleteDriverExpense, expenseTitle, getExpenseReceiptUrl, otherExpenseCategories, reviewDriverExpense, submitDriverExpense, submitOtherDriverExpense, subscribeDriverExpenses, type DriverExpense, type ExpenseStatus, type OtherExpenseCategory } from "@/lib/driver-expenses";
 import { driverExpenseReportHtml, expenseReportRows, expenseReportSummary } from "@/lib/driver-expense-report";
 import { isImageFile, MAX_SOURCE_IMAGE_BYTES } from "@/lib/image-upload";
 import type { UserProfile } from "@/lib/transport-repository";
@@ -97,6 +97,24 @@ function ExpenseForm({ job, actor, claim, onCancel, onSaved, onStatus }: { job?:
   </form>;
 }
 
+function ExpenseDeleteConfirmation({ claim, onCancel, onConfirm }: { claim: DriverExpense; onCancel: () => void; onConfirm: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  return <dialog ref={dialogRef} className="expense-delete-dialog" aria-labelledby="expense-delete-title" onCancel={event => { event.preventDefault(); onCancel(); }}>
+    <div className="expense-delete-content">
+      <span className="expense-delete-icon"><Trash2 size={25} /></span>
+      <h2 id="expense-delete-title">ลบรายการค่าใช้จ่าย?</h2>
+      <p><strong>{expenseTitle(claim)}</strong> · {money.format(claim.amount)}</p>
+      <p>รายการและรูปบิลที่แนบไว้จะถูกลบ หากต้องการแจ้งใหม่สามารถเพิ่มรายการอีกครั้งได้</p>
+      <div className="expense-delete-dialog-actions"><button type="button" onClick={onCancel}>ยกเลิก</button><button type="button" onClick={onConfirm}>ยืนยันลบรายการ</button></div>
+    </div>
+  </dialog>;
+}
+
 export default function DriverExpenses({ jobs, actor, adminView = false }: { jobs: TransportJob[]; actor: UserProfile; adminView?: boolean }) {
   const tabsId = useId();
   const [claims, setClaims] = useState<DriverExpense[]>([]);
@@ -112,6 +130,8 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
   const [vehicleFilter, setVehicleFilter] = useState("");
   const [reportMessage, setReportMessage] = useState("");
   const [saveNotice, setSaveNotice] = useState<DriverNotice | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DriverExpense | null>(null);
+  const [deletingId, setDeletingId] = useState("");
 
   useEffect(() => subscribeDriverExpenses(actor, adminView, items => { setClaims(items); setLoading(false); setError(""); }, message => { setError(`โหลดค่าใช้จ่ายไม่สำเร็จ: ${message}`); setLoading(false); }), [actor, adminView]);
 
@@ -156,6 +176,26 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
     finally { setReviewingId(""); }
   }
 
+  async function remove(claim: DriverExpense) {
+    if (deletingId) return;
+    setDeleteTarget(null);
+    setDeletingId(claim.id);
+    setError("");
+    setSaveNotice({ title: "กำลังลบค่าใช้จ่าย", detail: "กำลังลบรายการและรูปบิลที่แนบไว้", tone: "pending" });
+    try {
+      const failedReceipts = await deleteDriverExpense(claim, actor);
+      setSaveNotice(failedReceipts
+        ? { title: "ลบรายการแล้ว", detail: `ลบรายการสำเร็จ แต่ลบรูปบิล ${failedReceipts} รูปไม่สำเร็จ กรุณาแจ้งแอดมิน`, tone: "warning" }
+        : { title: "ลบค่าใช้จ่ายแล้ว", detail: "รายการถูกนำออกจากยอดรวมและรายงานแล้ว", tone: "success" });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "ลบค่าใช้จ่ายไม่สำเร็จ";
+      setError(message);
+      setSaveNotice({ title: "ลบค่าใช้จ่ายไม่สำเร็จ", detail: message, tone: "error" });
+    } finally {
+      setDeletingId("");
+    }
+  }
+
   return <section className="screen driver-expenses-screen">
     <header className="expense-hero"><span><ReceiptText size={17} /> {adminView ? "EXPENSE REVIEW" : "DRIVER EXPENSES"}</span><h1>{adminView ? "ตรวจค่าใช้จ่ายคนขับ" : "แจ้งค่าใช้จ่าย"}</h1><p>{adminView ? "ตรวจบิลค่าใช้จ่ายตามใบงานและรายการอื่นของคนขับ" : "แจ้งค่าใช้จ่ายจากงานที่วิ่งเสร็จ หรือรายการอื่นที่ไม่ผูกใบงาน"}</p></header>
     <div className="expense-months" aria-label="เลือกเดือน">
@@ -195,7 +235,7 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
         {claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}
       </article>) : <>
         <div className="expense-other-entry"><div><strong>ค่าใช้จ่ายอื่น</strong><small>ค่าซ่อมรถ ค่าอุปกรณ์ ค่าล้างรถ และรายการที่ไม่ผูกใบงาน</small></div><button type="button" className="expense-open" onClick={() => setEditingOtherId("new")} disabled={editingOtherId === "new"}><Plus size={17} /> เพิ่มอื่นๆ</button>{editingOtherId === "new" && <ExpenseForm actor={actor} onCancel={() => setEditingOtherId("")} onSaved={nextMonth => { setEditingOtherId(""); if (nextMonth) setMonth(nextMonth); }} onStatus={setSaveNotice} />}</div>
-        {visibleOtherClaims.map(claim => <article className="expense-card" key={claim.id}><div className="expense-card-head"><span className="expense-card-icon"><ReceiptText size={22} /></span><div><small>{claim.expenseDate || "ไม่ระบุวันที่"}{claim.vehiclePlate ? ` · ${claim.vehiclePlate}` : ""}</small><strong>{expenseTitle(claim)}</strong></div><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></div><div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p><div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>{claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}</div>{editingOtherId === claim.id ? <ExpenseForm key={claim.id} actor={actor} claim={claim} onCancel={() => setEditingOtherId("")} onSaved={nextMonth => { setEditingOtherId(""); if (nextMonth) setMonth(nextMonth); }} onStatus={setSaveNotice} /> : <button type="button" className="expense-open" onClick={() => setEditingOtherId(claim.id)}>แก้ไขรายการ</button>}</article>)}
+        {visibleOtherClaims.map(claim => <article className="expense-card" key={claim.id}><div className="expense-card-head"><span className="expense-card-icon"><ReceiptText size={22} /></span><div><small>{claim.expenseDate || "ไม่ระบุวันที่"}{claim.vehiclePlate ? ` · ${claim.vehiclePlate}` : ""}</small><strong>{expenseTitle(claim)}</strong></div><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></div><div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p><div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>{claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}</div>{editingOtherId === claim.id ? <ExpenseForm key={claim.id} actor={actor} claim={claim} onCancel={() => setEditingOtherId("")} onSaved={nextMonth => { setEditingOtherId(""); if (nextMonth) setMonth(nextMonth); }} onStatus={setSaveNotice} /> : <div className="expense-card-actions"><button type="button" className="expense-open" onClick={() => setEditingOtherId(claim.id)} disabled={Boolean(deletingId)}>แก้ไขรายการ</button>{(claim.status === "pending" || claim.status === "rejected") && <button type="button" className="expense-delete" onClick={() => setDeleteTarget(claim)} disabled={Boolean(deletingId)}><Trash2 size={16} /> ลบรายการ</button>}</div>}</article>)}
         {visibleJobs.map(job => {
         const claim = claimsByJob.get(job.id);
         return <article className="expense-card" key={job.id}>
@@ -203,11 +243,12 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
           <p className="expense-route">{job.pickupLocation} → {job.deliveryLocation}</p>
           <small className="expense-date">จบงาน {jobHistoryDate(job) ? new Date(jobHistoryDate(job) || "").toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) : "ไม่ระบุเวลา"}</small>
           {claim && <div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p><div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>{claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}</div>}
-          {editingJobId === job.id ? <ExpenseForm key={job.id} job={job} actor={actor} claim={claim} onCancel={() => setEditingJobId("")} onSaved={() => setEditingJobId("")} onStatus={setSaveNotice} /> : <button type="button" className="expense-open" onClick={() => setEditingJobId(job.id)}>{claim ? "แก้ไขรายการ" : "แจ้งค่าใช้จ่ายงานนี้"}</button>}
+          {editingJobId === job.id ? <ExpenseForm key={job.id} job={job} actor={actor} claim={claim} onCancel={() => setEditingJobId("")} onSaved={() => setEditingJobId("")} onStatus={setSaveNotice} /> : <div className="expense-card-actions"><button type="button" className="expense-open" onClick={() => setEditingJobId(job.id)} disabled={Boolean(deletingId)}>{claim ? "แก้ไขรายการ" : "แจ้งค่าใช้จ่ายงานนี้"}</button>{claim && (claim.status === "pending" || claim.status === "rejected") && <button type="button" className="expense-delete" onClick={() => setDeleteTarget(claim)} disabled={Boolean(deletingId)}><Trash2 size={16} /> ลบรายการ</button>}</div>}
         </article>;
         })}</>}
     </div>}
     {!loading && selectedMonth && (adminView ? adminTab !== "report" && !(adminTab === "pending" ? pendingClaims : approvedClaims).length : !visibleJobs.length && !visibleOtherClaims.length) && <p className="expense-empty"><CheckCircle2 size={25} /> {adminView ? adminTab === "pending" ? "ไม่มีรายการรอตรวจสอบในเดือนนี้" : "ไม่มีรายการที่อนุมัติแล้วในเดือนนี้" : "ยังไม่มีรายการในเดือนนี้"}</p>}
+    {deleteTarget && <ExpenseDeleteConfirmation claim={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={() => void remove(deleteTarget)} />}
     {saveNotice && <DriverStatusDialog notice={saveNotice} onClose={() => setSaveNotice(null)} />}
   </section>;
 }

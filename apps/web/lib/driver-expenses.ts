@@ -202,6 +202,25 @@ export async function reviewDriverExpense(expense: DriverExpense, actor: UserPro
   });
 }
 
+export async function deleteDriverExpense(expense: DriverExpense, actor: UserProfile): Promise<number> {
+  if (!hasApprovedAccess(actor) || actor.role === "customer" || expense.driverUid !== actor.uid || expense.organizationId !== actor.organizationId || expense.id !== claimId(expense.jobId, actor.uid)) throw new Error("ลบได้เฉพาะค่าใช้จ่ายของคุณ");
+  if (expense.status !== "pending" && expense.status !== "rejected") throw new Error("รายการที่อนุมัติแล้วไม่สามารถลบได้");
+
+  const expenseRef = doc(db, "driver_expenses", expense.id);
+  await runTransaction(db, async transaction => {
+    const current = await transaction.get(expenseRef);
+    if (!current.exists()) throw new Error("ไม่พบรายการค่าใช้จ่าย กรุณาโหลดใหม่");
+    const data = current.data();
+    if (data.driverUid !== actor.uid || data.organizationId !== actor.organizationId || data.jobId !== expense.jobId) throw new Error("ไม่มีสิทธิ์ลบรายการนี้");
+    if (data.status !== "pending" && data.status !== "rejected") throw new Error("รายการนี้ได้รับอนุมัติแล้ว ไม่สามารถลบได้");
+    if (!matchesExpenseVersion(data, expense)) throw new Error("รายการมีการเปลี่ยนแปลง กรุณาโหลดใหม่");
+    transaction.delete(expenseRef);
+  });
+
+  const results = await Promise.allSettled(expense.receiptPaths.map(path => deleteObject(ref(storage, path))));
+  return results.filter(result => result.status === "rejected" && (result.reason as { code?: string } | null)?.code !== "storage/object-not-found").length;
+}
+
 export async function getExpenseReceiptUrl(path: string) {
   return getDownloadURL(ref(storage, path));
 }

@@ -114,8 +114,8 @@ service firebase.storage {
         && request.resource.size > 0
         && request.resource.size <= 1 * 1024 * 1024
         && request.resource.contentType.matches("image/jpeg|image/png|image/webp");
-      allow delete: if activeUser() && uid == request.auth.uid
-        && (isOwnOtherExpense(jobId, uid) || isAssignedDriver(jobId));
+      // The expense document is deleted before its receipts, so cleanup cannot rely on it.
+      allow delete: if activeUser() && uid == request.auth.uid;
     }
 
 

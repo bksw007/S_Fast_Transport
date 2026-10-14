@@ -497,7 +497,12 @@ service cloud.firestore {
             && request.resource.data.reviewedAt == request.time
           )
         );
-      allow delete: if false;
+      allow delete: if activeUser()
+        && role() != "customer"
+        && resource.data.driverUid == request.auth.uid
+        && resource.data.organizationId == organizationId()
+        && expenseId == resource.data.jobId + "_" + request.auth.uid
+        && resource.data.status in ["pending", "rejected"];
     }
 
     match /jobs/{jobId} {
