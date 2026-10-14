@@ -9,12 +9,13 @@ const shared = { exports: {} };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
 let slots = [], cursor = 0, selected, permanentlyDeleted, dismissMessage;
 const context = { React, exports: {}, window: { setTimeout: fn => { dismissMessage = fn; return 1; }, clearTimeout: () => {} }, require: name => {
-  if (name === 'react') return { ...React, useEffect: fn => fn(), useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = value; }]; } };
+  if (name === 'react') return { ...React, useEffect: fn => fn(), useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], value => { slots[index] = value; }]; } };
   if (name === '@s-fast-transport/shared') return shared.exports;
   return require(name);
 }};
 vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboard.tsx', 'utf8')), context);
-const makeJob = (id, status, alerts = []) => ({ id, status, alerts, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
+const currentMonth = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 7);
+const makeJob = (id, status, alerts = []) => ({ id, status, alerts, jobDate: `${currentMonth}-01`, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
 const jobs = [makeJob('active', 'assigned'), makeJob('problem', 'problem'), makeJob('done', 'completed', ['Old alert']), makeJob('cancel', 'cancelled')];
 let tree;
 function render(data = jobs, dataState = 'ready', deletedJobs = []) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', onSelectJob: id => { selected = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
@@ -22,8 +23,9 @@ function nodes(node = tree) { if (!node || typeof node !== 'object') return []; 
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 function cardIds() { return nodes().filter(n => n.props?.['aria-haspopup'] === 'dialog').map(n => n.props['aria-label']); }
 render();
+assert.equal(find(n => n.type === 'select' && n.props?.value === currentMonth).props.value, currentMonth, 'dashboard starts with the Bangkok current month');
 assert.equal(cardIds().length, 4);
-find(n => n.props?.className === 'dashboard-metric active').props.onClick(); render(); assert.equal(cardIds().length, 2, 'Active excludes completed/cancelled');
+find(n => n.props?.className === 'dashboard-metric active').props.onClick(); render(); assert.equal(cardIds().length, 1, 'Normal active tab excludes jobs requiring attention and closed jobs');
 find(n => n.props?.className === 'dashboard-metric attention').props.onClick(); render(); assert.equal(cardIds().length, 1, 'Problem status is actionable, old closed-job alert is not');
 find(n => n.props?.className === 'dashboard-metric completed').props.onClick(); render();
 find(n => n.props?.['aria-haspopup'] === 'dialog').props.onClick(); assert.equal(selected, 'done');
@@ -69,12 +71,28 @@ const datedJobs = [
 ];
 function visibleOrders() { return nodes().filter(n => n.props?.className === 'dashboard-work-order').map(n => n.props.children); }
 function selectTab(label) { nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(label)).props.onClick(); render(datedJobs); }
-slots = []; render(datedJobs);
+slots = []; render(datedJobs); find(n => n.type === 'select' && n.props?.value === currentMonth).props.onChange({ target: { value: 'all' } }); render(datedJobs);
 assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-new-completed', 'WO-new-cancelled', 'WO-old-attention', 'WO-older-active', 'WO-old-completed', 'WO-old-cancelled', 'WO-undated']);
-selectTab('กำลังดำเนินงาน'); assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-old-attention', 'WO-older-active', 'WO-undated']);
+selectTab('กำลังดำเนินงาน'); assert.deepEqual(visibleOrders(), ['WO-older-active', 'WO-undated']);
 selectTab('ต้องติดตาม'); assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-old-attention']);
 selectTab('เสร็จงาน'); assert.deepEqual(visibleOrders(), ['WO-new-completed', 'WO-old-completed']);
 selectTab('ยกเลิก'); assert.deepEqual(visibleOrders(), ['WO-new-cancelled', 'WO-old-cancelled']);
+
+const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
+const todayKey = today.toISOString().slice(0, 10);
+const tomorrowKey = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
+const issueJobs = [
+  { ...makeJob('pending-issue', 'problem', ['คนขับแจ้งปัญหา']), lastIssue: { type: 'traffic', note: 'รถติด' }, issuePreviousStatus: 'to_pickup', pickupDate: todayKey, pickupTime: '13:00', deliveryDate: tomorrowKey, deliveryTime: '12:00' },
+  { ...makeJob('resolved-issue', 'to_pickup', ['คนขับแจ้งปัญหา']), lastIssue: { type: 'traffic', note: 'รถติด', resolvedAt: '2026-10-14T00:00:00Z' }, pickupDate: tomorrowKey, pickupTime: '12:00' },
+  { ...makeJob('delivery-stage', 'to_delivery'), pickupDate: todayKey, pickupTime: '09:00', deliveryDate: tomorrowKey, deliveryTime: '12:00' }
+];
+slots = []; render(issueJobs);
+assert.ok(renderToStaticMarkup(tree).includes('ETA รับสินค้า วันนี้ 13:00'));
+assert.ok(renderToStaticMarkup(tree).includes('ETA ส่งสินค้า พรุ่งนี้ 12:00'));
+nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('ต้องติดตาม')).props.onClick(); render(issueJobs);
+assert.deepEqual(visibleOrders(), ['WO-pending-issue'], 'unanswered driver issues stay in attention');
+nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('กำลังดำเนินงาน')).props.onClick(); render(issueJobs);
+assert.deepEqual(visibleOrders(), ['WO-resolved-issue', 'WO-delivery-stage'], 'answered issue returns to the normal active tab');
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const file = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

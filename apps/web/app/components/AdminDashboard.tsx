@@ -10,9 +10,29 @@ const filters: { id: Filter; label: string }[] = [
   { id: "attention", label: "ต้องติดตาม" }, { id: "completed", label: "เสร็จงาน" }, { id: "cancelled", label: "ยกเลิก" }
 ];
 const isActive = (job: TransportJob) => job.status !== "completed" && job.status !== "cancelled";
-const needsAttention = (job: TransportJob) => isActive(job) && (job.alerts.length > 0 || job.status === "problem");
+const staleLocationAlert = "ตำแหน่งไม่อัปเดตเกิน 20 นาที";
+const needsAttention = (job: TransportJob) => isActive(job) && (job.status === "problem" || Boolean(job.lastIssue && !job.lastIssue.resolvedAt) || job.alerts.includes(staleLocationAlert));
+const attentionMessage = (job: TransportJob) => job.lastIssue && !job.lastIssue.resolvedAt
+  ? `คนขับแจ้งปัญหา${job.lastIssue.note ? `: ${job.lastIssue.note}` : ""}`
+  : job.alerts.includes(staleLocationAlert) ? staleLocationAlert : "งานนี้มีปัญหา กรุณาตรวจสอบ";
 const pickupDateKey = (job: TransportJob) => /^\d{4}-\d{2}-\d{2}$/.test(job.pickupDate || "") ? job.pickupDate || "" : "";
 const stopSchedule = (date?: string, time?: string) => [date, time].filter(Boolean).join(" ") || "ยังไม่ระบุ";
+const bangkokDateKey = (date = new Date()) => new Date(date.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const currentBangkokMonth = () => bangkokDateKey().slice(0, 7);
+function relativeSchedule(date?: string, time?: string, today = bangkokDateKey()) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !time || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return "ยังไม่ระบุ";
+  const targetDay = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(targetDay)) return "ยังไม่ระบุ";
+  const days = (targetDay - Date.parse(`${today}T00:00:00Z`)) / 86400000;
+  const day = days === 0 ? "วันนี้" : days === 1 ? "พรุ่งนี้" : days === -1 ? "เมื่อวาน" : new Date(`${date}T12:00:00+07:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" });
+  return `${day} ${time}`;
+}
+function nextStopSchedule(job: TransportJob) {
+  const status = job.status === "problem" ? job.issuePreviousStatus || "assigned" : job.status;
+  const route = job.returnTrip && job.activeLeg === 2 ? job.returnTrip : job;
+  const pickup = ["assigned", "accepted", "to_pickup", "arrived_pickup", "loading"].includes(status);
+  return { label: pickup ? "รับสินค้า" : "ส่งสินค้า", value: relativeSchedule(pickup ? route.pickupDate : route.deliveryDate, pickup ? route.pickupTime : route.deliveryTime) };
+}
 const pageSize = 12;
 
 export default function AdminDashboard({ jobs, deletedJobs = [], dataState, selectedJobId, onSelectJob, onPermanentlyDelete }: {
@@ -25,7 +45,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [month, setMonth] = useState("all");
+  const [month, setMonth] = useState(currentBangkokMonth);
   const [page, setPage] = useState(1);
   const [confirmJobId, setConfirmJobId] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -40,10 +60,10 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   const allJobs = useMemo(() => [...jobs, ...deletedJobs], [jobs, deletedJobs]);
   const deletedIds = useMemo(() => new Set(deletedJobs.map(job => job.id)), [deletedJobs]);
   const jobMonth = (job: TransportJob) => job.status === "cancelled" || job.status === "completed" ? jobHistoryMonth(job) : job.jobDate?.slice(0, 7) || "unknown";
-  const months = useMemo(() => [...new Set(allJobs.map(jobMonth))].sort((a, b) => a === "unknown" ? 1 : b === "unknown" ? -1 : b.localeCompare(a)), [allJobs]);
+  const months = useMemo(() => [...new Set([currentBangkokMonth(), ...allJobs.map(jobMonth)])].sort((a, b) => a === "unknown" ? 1 : b === "unknown" ? -1 : b.localeCompare(a)), [allJobs]);
   const counts = useMemo(() => ({
     all: allJobs.length,
-    active: jobs.filter(isActive).length,
+    active: jobs.filter(job => isActive(job) && !needsAttention(job)).length,
     attention: jobs.filter(needsAttention).length,
     completed: jobs.filter(job => job.status === "completed").length,
     cancelled: allJobs.filter(job => job.status === "cancelled").length
@@ -51,7 +71,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   const shown = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("th-TH");
     return allJobs.filter(job => {
-      const matchesFilter = filter === "all" || (filter === "active" ? isActive(job) : filter === "attention" ? needsAttention(job) : job.status === filter);
+      const matchesFilter = filter === "all" || (filter === "active" ? isActive(job) && !needsAttention(job) : filter === "attention" ? needsAttention(job) : job.status === filter);
       return matchesFilter && (month === "all" || jobMonth(job) === month) && (!term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th-TH").includes(term)));
     }).sort((a, b) => {
       return pickupDateKey(b).localeCompare(pickupDateKey(a))
@@ -77,7 +97,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   }
   const metrics = [
     { id: "all" as const, label: "ใบงานทั้งหมด", hint: "งานที่คุณมีสิทธิ์ดู", value: counts.all, icon: ListChecks },
-    { id: "active" as const, label: "กำลังดำเนินงาน", hint: "ยังไม่เสร็จหรือยกเลิก", value: counts.active, icon: Truck },
+    { id: "active" as const, label: "กำลังดำเนินงาน", hint: "งานปกติที่ยังไม่เสร็จ", value: counts.active, icon: Truck },
     { id: "attention" as const, label: "ต้องติดตาม", hint: "งานมีปัญหาหรือแจ้งเตือน", value: counts.attention, icon: AlertTriangle },
     { id: "completed" as const, label: "เสร็จงานแล้ว", hint: "ปิดงานเรียบร้อย", value: counts.completed, icon: CheckCircle2 }
   ];
@@ -95,9 +115,9 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
 
     <section className="dashboard-progress" aria-label="สัดส่วนสถานะงาน">
       <div className="dashboard-progress-copy"><span className="dashboard-section-kicker">ภาพรวมความคืบหน้า</span><h2>{ready ? `${completedPercent}%` : "—"}<small>เสร็จงานแล้ว</small></h2><p>เทียบกับใบงานทั้งหมด {ready ? counts.all.toLocaleString("th-TH") : "—"} งาน</p></div>
-      <div className="dashboard-progress-chart"><div className="dashboard-status-bar" role="img" aria-label={ready ? `เสร็จ ${counts.completed} งาน กำลังดำเนินงาน ${counts.active} งาน ยกเลิก ${counts.cancelled} งาน` : "ยังไม่มีข้อมูลสรุป"}>
-        {ready && counts.all > 0 && <><span className="completed" style={{ width: `${counts.completed / counts.all * 100}%` }} /><span className="active" style={{ width: `${counts.active / counts.all * 100}%` }} /><span className="cancelled" style={{ width: `${counts.cancelled / counts.all * 100}%` }} /></>}
-      </div><div className="dashboard-legend">{(["completed", "active", "cancelled"] as const).map(id => <button key={id} disabled={!ready} onClick={() => selectFilter(id)}><span className={id} />{filters.find(item => item.id === id)?.label}<strong>{ready ? counts[id] : "—"}</strong></button>)}</div></div>
+      <div className="dashboard-progress-chart"><div className="dashboard-status-bar" role="img" aria-label={ready ? `เสร็จ ${counts.completed} งาน กำลังดำเนินงาน ${counts.active} งาน ต้องติดตาม ${counts.attention} งาน ยกเลิก ${counts.cancelled} งาน` : "ยังไม่มีข้อมูลสรุป"}>
+        {ready && counts.all > 0 && <><span className="completed" style={{ width: `${counts.completed / counts.all * 100}%` }} /><span className="active" style={{ width: `${counts.active / counts.all * 100}%` }} /><span className="attention" style={{ width: `${counts.attention / counts.all * 100}%` }} /><span className="cancelled" style={{ width: `${counts.cancelled / counts.all * 100}%` }} /></>}
+      </div><div className="dashboard-legend">{(["completed", "active", "attention", "cancelled"] as const).map(id => <button key={id} disabled={!ready} onClick={() => selectFilter(id)}><span className={id} />{filters.find(item => item.id === id)?.label}<strong>{ready ? counts[id] : "—"}</strong></button>)}</div></div>
     </section>
 
     <section className="dashboard-jobs" aria-labelledby="dashboard-jobs-title">
@@ -108,8 +128,8 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
       {dataState === "loading" ? <div className="dashboard-empty" role="status"><Clock3 size={30} /><h3>กำลังโหลดใบงาน</h3><p>กำลังรวบรวมข้อมูลภาพรวมของคุณ</p></div>
         : dataState === "error" ? <div className="dashboard-empty" role="alert"><AlertTriangle size={30} /><h3>โหลดข้อมูลไม่สำเร็จ</h3><p>ตรวจสอบการเชื่อมต่อ แล้วเปิด Dashboard อีกครั้งหรือรีเฟรชหน้า</p></div>
         : !shown.length ? <div className="dashboard-empty"><Search size={30} /><h3>{allJobs.length ? "ไม่พบงานที่ตรงกับตัวกรอง" : "ยังไม่มีใบงาน"}</h3><p>{allJobs.length ? "ลองเปลี่ยนคำค้นหา สถานะ หรือเดือน" : "เมื่อมีใบงาน ระบบจะแสดงภาพรวมและรายการงานที่นี่"}</p>{(search || filter !== "all" || month !== "all") && <button onClick={() => { setSearch(""); setMonth("all"); selectFilter("all"); }}>ล้างตัวกรอง</button>}</div>
-        : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => { const deleted = deletedIds.has(job.id); const interactiveCard = !deleted && filter !== "cancelled"; const Card = interactiveCard ? "button" : "div"; return <Card type={interactiveCard ? "button" : undefined} className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} aria-haspopup={interactiveCard ? "dialog" : undefined} aria-label={interactiveCard ? `เปิดรายละเอียดใบงาน ${job.workOrder}` : undefined} data-selected={selectedJobId === job.id} onClick={interactiveCard ? () => onSelectJob(job.id) : undefined}>
-          <span className="dashboard-job-top"><span className="dashboard-work-order">{job.workOrder}</span><span className={`dashboard-job-status ${job.status === "completed" ? "completed" : needsAttention(job) ? "attention" : ""}`}>{deleted ? "ลบใบงานแล้ว" : statusLabels[job.status]}</span></span>
+        : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => { const deleted = deletedIds.has(job.id); const interactiveCard = !deleted && filter !== "cancelled"; const Card = interactiveCard ? "button" : "div"; const eta = nextStopSchedule(job); return <Card type={interactiveCard ? "button" : undefined} className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} aria-haspopup={interactiveCard ? "dialog" : undefined} aria-label={interactiveCard ? `เปิดรายละเอียดใบงาน ${job.workOrder}` : undefined} data-selected={selectedJobId === job.id} onClick={interactiveCard ? () => onSelectJob(job.id) : undefined}>
+          <span className="dashboard-job-top"><span className="dashboard-work-order">{job.workOrder}</span><span className={`dashboard-job-status ${needsAttention(job) ? "attention" : job.status === "completed" ? "completed" : ""}`}>{deleted ? "ลบใบงานแล้ว" : statusLabels[job.status]}</span></span>
           <span className="dashboard-customer">{job.customer}</span>
           <span className="dashboard-job-route">
             <span className="dashboard-job-stop"><span className="dashboard-job-stop-place"><MapPin size={16} /><span><small>รับสินค้า</small><strong>{job.pickupLocation}</strong></span></span><span className="dashboard-job-stop-schedule"><small>วันเวลารับสินค้า</small><strong>{stopSchedule(job.pickupDate, job.pickupTime)}</strong></span></span>
@@ -117,8 +137,8 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
             {job.returnTrip && <><span className="dashboard-job-stop"><span className="dashboard-job-stop-place"><MapPin size={16} /><span><small>รับสินค้ากลับ</small><strong>{job.returnTrip.pickupLocation}</strong></span></span><span className="dashboard-job-stop-schedule"><small>วันเวลารับกลับ</small><strong>{stopSchedule(job.returnTrip.pickupDate, job.returnTrip.pickupTime)}</strong></span></span><span className="dashboard-job-stop"><span className="dashboard-job-stop-place"><MapPin size={16} /><span><small>ส่งสินค้ากลับ</small><strong>{job.returnTrip.deliveryLocation}</strong></span></span><span className="dashboard-job-stop-schedule"><small>วันเวลาส่งกลับ</small><strong>{stopSchedule(job.returnTrip.deliveryDate, job.returnTrip.deliveryTime)}</strong></span></span></>}
           </span>
           <span className="dashboard-job-assignment"><span><UserRound size={15} />{job.driverName || "ยังไม่ระบุคนขับ"}</span><span><Truck size={15} />{job.vehiclePlate || "ยังไม่ระบุรถ"}</span></span>
-          {needsAttention(job) && <span className="dashboard-job-alert"><AlertTriangle size={14} />{job.alerts[0] || "งานนี้มีปัญหา กรุณาตรวจสอบ"}</span>}
-          <span className="dashboard-job-footer"><span><Clock3 size={14} /> {job.status === "cancelled" ? "ยกเลิก" : "ETA"} {job.status === "cancelled" ? (job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH") : "—") : job.eta || "—"}</span>{interactiveCard && <span>ดูรายละเอียด<ArrowRight size={16} /></span>}{!deleted && filter === "cancelled" && <button type="button" className="dashboard-detail-link" onClick={() => onSelectJob(job.id)}>ดูรายละเอียด <ArrowRight size={16} /></button>}</span>
+          {needsAttention(job) && <span className="dashboard-job-alert"><AlertTriangle size={14} />{attentionMessage(job)}</span>}
+          <span className="dashboard-job-footer"><span><Clock3 size={14} /> {job.status === "cancelled" ? "ยกเลิก" : `ETA ${eta.label}`} {job.status === "cancelled" ? (job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH") : "—") : eta.value}</span>{interactiveCard && <span>ดูรายละเอียด<ArrowRight size={16} /></span>}{!deleted && filter === "cancelled" && <button type="button" className="dashboard-detail-link" onClick={() => onSelectJob(job.id)}>ดูรายละเอียด <ArrowRight size={16} /></button>}</span>
           {filter === "cancelled" && onPermanentlyDelete && <div className="dashboard-delete-area">{confirmJobId !== job.id ? <button type="button" className="dashboard-delete-button" onClick={() => { setConfirmJobId(job.id); setConfirmation(""); setDeleteError(""); }}><Trash2 size={15} /> ลบใบงานถาวร</button> : <div className="dashboard-delete-confirm"><strong>ลบ {job.workOrder} ถาวร?</strong><p>ใบงาน รูปหลักฐาน ลายเซ็น ตำแหน่ง และลิงก์ติดตามจะถูกลบและกู้คืนจากระบบไม่ได้</p><label>พิมพ์เลขใบงานเพื่อยืนยัน<input value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder={job.workOrder} autoComplete="off" /></label>{deleteError && <p role="alert">{deleteError}</p>}<div><button type="button" disabled={Boolean(deletingId)} onClick={() => { setConfirmJobId(""); setConfirmation(""); setDeleteError(""); }}>ยกเลิก</button><button type="button" className="danger" disabled={confirmation !== job.workOrder || Boolean(deletingId)} onClick={() => void permanentlyDelete(job)}>{deletingId === job.id ? "กำลังลบ…" : "ยืนยันลบถาวร"}</button></div></div>}</div>}
         </Card>; })}</div><div className="dashboard-pagination"><span>แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, shown.length)} จาก {shown.length} งาน</span>{pages > 1 && <div><button aria-label="หน้าก่อนหน้า" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button><span>{currentPage} / {pages}</span><button aria-label="หน้าถัดไป" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}</div></>}
     </section>

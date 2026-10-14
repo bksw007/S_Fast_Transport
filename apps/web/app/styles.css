@@ -5080,6 +5080,7 @@ textarea:focus {
 .dashboard-status-bar { display: flex; height: 12px; overflow: hidden; border-radius: 10px; background: var(--border); gap: 2px; }
 .dashboard-status-bar .completed, .dashboard-legend .completed { background: var(--dashboard-success); }
 .dashboard-status-bar .active, .dashboard-legend .active { background: var(--accent); }
+.dashboard-status-bar .attention, .dashboard-legend .attention { background: var(--dashboard-warning); }
 .dashboard-status-bar .cancelled, .dashboard-legend .cancelled { background: var(--border); }
 .dashboard-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-top: 16px; }
 .dashboard-legend button { display: inline-flex; align-items: center; gap: 6px; background: transparent; padding: 4px 0; font-size: .73rem; color: var(--muted); }
