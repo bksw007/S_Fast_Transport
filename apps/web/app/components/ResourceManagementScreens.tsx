@@ -650,7 +650,7 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
             <ResourceField label="ชื่อ–นามสกุล *"><input required value={driverDraft.name} placeholder="ชื่อคนขับ" onChange={(event) => setDriverDraft({ ...driverDraft, name: event.target.value })} /></ResourceField>
             <ResourceField label="เบอร์ติดต่อ *"><input type="tel" inputMode="numeric" required maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(driverDraft.phone)} placeholder="080-000-0000" onChange={(event) => setDriverDraft({ ...driverDraft, phone: formatPhoneNumber(event.target.value) })} /></ResourceField>
             <ResourceField label="อีเมล"><input type="email" value={driverDraft.email} placeholder="driver@company.com" onChange={(event) => setDriverDraft({ ...driverDraft, email: event.target.value })} /></ResourceField>
-            <ResourceField label="เลขที่ใบขับขี่ *"><input required disabled={Boolean(editingDriver?.licenseNumber)} value={driverDraft.licenseNumber} onChange={(event) => setDriverDraft({ ...driverDraft, licenseNumber: event.target.value })} /></ResourceField>
+            <ResourceField label="เลขที่ใบขับขี่ *"><input required maxLength={50} value={driverDraft.licenseNumber} onChange={(event) => setDriverDraft({ ...driverDraft, licenseNumber: event.target.value })} /></ResourceField>
             <ResourceField label="ประเภทใบขับขี่"><select value={driverDraft.licenseType} onChange={(event) => setDriverDraft({ ...driverDraft, licenseType: event.target.value })}><option value="">เลือกประเภทใบขับขี่</option>{driverLicenseTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></ResourceField>
             <ResourceField label="ใบขับขี่หมดอายุ"><input type="date" value={driverDraft.licenseExpiry} onChange={(event) => setDriverDraft({ ...driverDraft, licenseExpiry: event.target.value })} /></ResourceField>
             <ResourceField label="รถที่มอบหมาย"><select value={driverDraft.assignedVehicleId} onChange={(event) => setDriverDraft({ ...driverDraft, assignedVehicleId: event.target.value })}><option value="">ยังไม่มอบหมายรถ</option>{vehicles.map((item) => <option key={item.id} value={item.id} disabled={item.status === "inactive" && item.id !== driverDraft.assignedVehicleId}>{item.plate} · {item.vehicleType}{item.status === "inactive" ? " · ระงับ" : ""}</option>)}</select></ResourceField>
@@ -694,8 +694,8 @@ export function FleetAndDriversScreen({ actor }: { actor: UserProfile }) {
             const name = linked?.fullName || item.name;
             const phone = linked?.phone || item.phone;
             const email = linked?.email || item.email;
-            const licenseNumber = linked?.licenseNumber || item.licenseNumber;
-            const licenseExpiry = linked?.licenseExpiry || item.licenseExpiry;
+            const licenseNumber = item.licenseNumber || linked?.licenseNumber || "";
+            const licenseExpiry = item.licenseExpiry || linked?.licenseExpiry || "";
             const expanded = expandedDriverId === item.id;
 
             return (
