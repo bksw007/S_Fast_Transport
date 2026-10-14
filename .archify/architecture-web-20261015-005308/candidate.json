@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "สถาปัตยกรรมเว็บ S Fast Transport",
+    "locale": "th",
+    "output": ".archify/architecture-web-20261015-005308/web-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/bksw007/S_Fast_Transport.git",
+      "revision": "41b9a88d6c7cb172090edddfb19cba358262591d"
+    }
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "ผู้ใช้งาน",
+      "sublabel": "แอดมิน · ลูกค้า · คนขับ",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        155,
+        65
+      ],
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 77,
+          "end_line": 100
+        },
+        {
+          "path": "apps/web/app/customer/page.tsx",
+          "line": 15,
+          "end_line": 26
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "เว็บ Next.js / PWA",
+      "sublabel": "งานขนส่ง · พอร์ทัล · ติดตาม",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        210,
+        70
+      ],
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 3,
+          "end_line": 25
+        },
+        {
+          "path": "apps/web/app/customer/page.tsx",
+          "line": 3,
+          "end_line": 11
+        },
+        {
+          "path": "apps/web/app/track/[token]/page.tsx",
+          "line": 3,
+          "end_line": 10
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Firebase Auth",
+      "sublabel": "เข้าสู่ระบบและบัญชีผู้ใช้",
+      "pos": [
+        300,
+        65
+      ],
+      "size": [
+        185,
+        65
+      ],
+      "sources": [
+        {
+          "path": "apps/web/lib/firebase-auth.ts",
+          "line": 1,
+          "end_line": 8
+        },
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 77,
+          "end_line": 93
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Cloud Firestore",
+      "sublabel": "งาน · ลิงก์ · ตำแหน่ง GPS",
+      "pos": [
+        630,
+        260
+      ],
+      "size": [
+        200,
+        70
+      ],
+      "sources": [
+        {
+          "path": "apps/web/lib/transport-repository.ts",
+          "line": 194,
+          "end_line": 205
+        },
+        {
+          "path": "apps/web/lib/transport-repository.ts",
+          "line": 433,
+          "end_line": 439
+        },
+        {
+          "path": "apps/web/lib/pwa-location.ts",
+          "line": 140,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Firebase Storage",
+      "sublabel": "ภาพและลายเซ็นหลักฐาน",
+      "pos": [
+        630,
+        470
+      ],
+      "size": [
+        200,
+        65
+      ],
+      "sources": [
+        {
+          "path": "apps/web/lib/firebase.ts",
+          "line": 1,
+          "end_line": 17
+        },
+        {
+          "path": "apps/web/lib/transport-repository.ts",
+          "line": 771,
+          "end_line": 779
+        }
+      ]
+    },
+    {
+      "id": "functions",
+      "type": "backend",
+      "label": "Cloud Functions",
+      "sublabel": "คำขอลูกค้า · ติดตาม · แจ้งเตือน",
+      "pos": [
+        960,
+        260
+      ],
+      "size": [
+        225,
+        70
+      ],
+      "sources": [
+        {
+          "path": "functions-customer/src/index.ts",
+          "line": 51,
+          "end_line": 51
+        },
+        {
+          "path": "functions-proof/src/public-tracking.ts",
+          "line": 34,
+          "end_line": 55
+        },
+        {
+          "path": "functions-line/src/index.ts",
+          "line": 15,
+          "end_line": 20
+        }
+      ]
+    },
+    {
+      "id": "maps",
+      "type": "external",
+      "label": "Google Maps / Routes",
+      "sublabel": "แผนที่และระยะทางถนน",
+      "pos": [
+        300,
+        470
+      ],
+      "size": [
+        210,
+        65
+      ],
+      "sources": [
+        {
+          "path": "apps/web/app/api/maps/distance/route.ts",
+          "line": 39,
+          "end_line": 61
+        },
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 200,
+          "end_line": 203
+        }
+      ]
+    },
+    {
+      "id": "line",
+      "type": "external",
+      "label": "LINE กลุ่มงาน",
+      "sublabel": "แจ้งงานใหม่พร้อมลิงก์ติดตาม",
+      "pos": [
+        960,
+        470
+      ],
+      "size": [
+        225,
+        65
+      ],
+      "sources": [
+        {
+          "path": "functions-line/src/index.ts",
+          "line": 74,
+          "end_line": 75
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "open-web",
+      "from": "users",
+      "to": "web",
+      "label": "เปิดใช้งาน",
+      "variant": "emphasis"
+    },
+    {
+      "id": "sign-in",
+      "from": "web",
+      "to": "auth",
+      "label": "เข้าสู่ระบบ",
+      "variant": "security"
+    },
+    {
+      "id": "jobs",
+      "from": "web",
+      "to": "db",
+      "label": "อ่าน / บันทึกงาน",
+      "variant": "emphasis"
+    },
+    {
+      "id": "proof",
+      "from": "web",
+      "to": "storage",
+      "label": "อัปโหลดหลักฐาน"
+    },
+    {
+      "id": "route",
+      "from": "web",
+      "to": "maps",
+      "label": "แผนที่ / ระยะทาง"
+    },
+    {
+      "id": "call",
+      "from": "web",
+      "to": "functions",
+      "label": "เรียก API / Function"
+    },
+    {
+      "id": "trigger",
+      "from": "db",
+      "to": "functions",
+      "label": "ทริกเกอร์งานใหม่",
+      "variant": "dashed"
+    },
+    {
+      "id": "function-read",
+      "from": "functions",
+      "to": "storage",
+      "label": "อ่านหลักฐาน"
+    },
+    {
+      "id": "notify",
+      "from": "functions",
+      "to": "line",
+      "label": "ส่งแจ้งเตือน",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "เส้นทางหลัก",
+      "items": [
+        "สร้างงานและลิงก์ติดตามใน Firestore transaction เดียวกัน",
+        "GPS ของคนขับอัปเดตงานและประวัติเส้นทาง"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "บริการเสริม",
+      "items": [
+        "Cloud Functions ตรวจลิงก์ติดตามก่อนแสดงข้อมูล",
+        "งานใหม่กระตุ้นการแจ้งเตือนผ่าน LINE"
+      ]
+    }
+  ]
+}

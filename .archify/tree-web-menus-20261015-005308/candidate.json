@@ -1,0 +1,430 @@
+{
+  "schema_version": 1,
+  "diagram_type": "tree",
+  "meta": {
+    "title": "ผังเมนูเว็บ S Fast Transport",
+    "subtitle": "เมนูแยกตามบทบาทและกลุ่มที่แสดงในเว็บ",
+    "locale": "th",
+    "output": ".archify/tree-web-menus-20261015-005308/web-menu-map.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/bksw007/S_Fast_Transport.git",
+      "revision": "41b9a88d6c7cb172090edddfb19cba358262591d"
+    }
+  },
+  "layout": {
+    "direction": "right"
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "เมนูเว็บ S Fast Transport",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 810,
+          "end_line": 823
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "label": "ผู้ดูแล",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 811,
+          "end_line": 823
+        }
+      ],
+      "parent": "root"
+    },
+    {
+      "id": "admin_jobs",
+      "label": "งานขนส่ง",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 817,
+          "end_line": 819
+        }
+      ],
+      "parent": "admin"
+    },
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 764,
+          "end_line": 764
+        }
+      ],
+      "parent": "admin_jobs"
+    },
+    {
+      "id": "jobs",
+      "label": "ใบงานขนส่ง",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 765,
+          "end_line": 765
+        }
+      ],
+      "parent": "admin_jobs"
+    },
+    {
+      "id": "live",
+      "label": "ติดตามรถ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 766,
+          "end_line": 766
+        }
+      ],
+      "parent": "admin_jobs"
+    },
+    {
+      "id": "locations",
+      "label": "ตั้งค่าพิกัดแผนที่",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 769,
+          "end_line": 769
+        }
+      ],
+      "parent": "admin_jobs"
+    },
+    {
+      "id": "alerts",
+      "label": "แจ้งเตือน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 773,
+          "end_line": 773
+        }
+      ],
+      "parent": "admin_jobs"
+    },
+    {
+      "id": "admin_driver",
+      "label": "งานคนขับ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 819,
+          "end_line": 819
+        }
+      ],
+      "parent": "admin"
+    },
+    {
+      "id": "driver_mode",
+      "label": "แอดมินคนขับ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 819,
+          "end_line": 825
+        }
+      ],
+      "parent": "admin_driver"
+    },
+    {
+      "id": "admin_data",
+      "label": "ข้อมูลและรายงาน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 820,
+          "end_line": 820
+        }
+      ],
+      "parent": "admin"
+    },
+    {
+      "id": "subcontract",
+      "label": "บริษัทขนส่ง",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 767,
+          "end_line": 767
+        }
+      ],
+      "parent": "admin_data",
+      "sublabel": "เฉพาะผู้ดูแลบริษัทหลัก"
+    },
+    {
+      "id": "vehicles",
+      "label": "รถและคนขับ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 768,
+          "end_line": 768
+        }
+      ],
+      "parent": "admin_data"
+    },
+    {
+      "id": "customers",
+      "label": "ลูกค้า",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 770,
+          "end_line": 770
+        }
+      ],
+      "parent": "admin_data",
+      "sublabel": "เฉพาะผู้ดูแลบริษัทหลัก"
+    },
+    {
+      "id": "contacts",
+      "label": "สมุดรายชื่อ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 771,
+          "end_line": 771
+        }
+      ],
+      "parent": "admin_data"
+    },
+    {
+      "id": "reports",
+      "label": "รายงาน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 772,
+          "end_line": 772
+        }
+      ],
+      "parent": "admin_data"
+    },
+    {
+      "id": "expenses",
+      "label": "รายการเบิกค่าใช้จ่าย",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 777,
+          "end_line": 777
+        }
+      ],
+      "parent": "admin_data"
+    },
+    {
+      "id": "admin_account",
+      "label": "บัญชีและระบบ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 821,
+          "end_line": 821
+        }
+      ],
+      "parent": "admin"
+    },
+    {
+      "id": "users",
+      "label": "จัดการผู้ใช้งาน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 774,
+          "end_line": 774
+        }
+      ],
+      "parent": "admin_account",
+      "sublabel": "เฉพาะผู้ดูแลบริษัทหลัก"
+    },
+    {
+      "id": "profile",
+      "label": "โปรไฟล์",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 775,
+          "end_line": 775
+        }
+      ],
+      "parent": "admin_account"
+    },
+    {
+      "id": "settings",
+      "label": "ตั้งค่าระบบ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 776,
+          "end_line": 776
+        }
+      ],
+      "parent": "admin_account"
+    },
+    {
+      "id": "driver",
+      "label": "คนขับ",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 753,
+          "end_line": 760
+        }
+      ],
+      "parent": "root"
+    },
+    {
+      "id": "myjobs",
+      "label": "งานของฉัน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 754,
+          "end_line": 754
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "active",
+      "label": "กำลังขนส่ง",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 755,
+          "end_line": 755
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "map",
+      "label": "แผนที่งานของฉัน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 756,
+          "end_line": 756
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "claim",
+      "label": "แจ้งค่าใช้จ่าย",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 757,
+          "end_line": 757
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "history",
+      "label": "ประวัติงาน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 758,
+          "end_line": 758
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "driver_reports",
+      "label": "รายงาน",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 759,
+          "end_line": 759
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "driver_profile",
+      "label": "โปรไฟล์",
+      "sources": [
+        {
+          "path": "apps/web/app/page.tsx",
+          "line": 760,
+          "end_line": 760
+        }
+      ],
+      "parent": "driver"
+    },
+    {
+      "id": "customer",
+      "label": "ลูกค้า",
+      "sources": [
+        {
+          "path": "apps/web/app/customer/page.tsx",
+          "line": 41,
+          "end_line": 47
+        }
+      ],
+      "parent": "root"
+    },
+    {
+      "id": "customer_overview",
+      "label": "ภาพรวมใบงาน",
+      "sources": [
+        {
+          "path": "apps/web/app/components/CustomerPortal.tsx",
+          "line": 100,
+          "end_line": 100
+        }
+      ],
+      "parent": "customer"
+    },
+    {
+      "id": "customer_requests",
+      "label": "แจ้งงาน",
+      "sources": [
+        {
+          "path": "apps/web/app/components/CustomerPortal.tsx",
+          "line": 100,
+          "end_line": 112
+        }
+      ],
+      "parent": "customer"
+    },
+    {
+      "id": "public",
+      "label": "ลิงก์ติดตามสาธารณะ",
+      "sources": [
+        {
+          "path": "apps/web/app/track/[token]/page.tsx",
+          "line": 3,
+          "end_line": 10
+        }
+      ],
+      "parent": "root"
+    },
+    {
+      "id": "tracking",
+      "label": "สถานะงานและตำแหน่ง",
+      "sources": [
+        {
+          "path": "apps/web/app/track/[token]/page.tsx",
+          "line": 33,
+          "end_line": 75
+        }
+      ],
+      "parent": "public"
+    }
+  ]
+}
