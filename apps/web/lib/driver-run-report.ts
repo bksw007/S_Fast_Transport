@@ -37,17 +37,24 @@ export function driverRunDate(value?: string) {
   return new Date(value).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" });
 }
 
-export function driverRunPickupDate(value?: string) {
+function validPickupDay(value?: string) {
   const date = value?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (!date) return "";
+  const parsed = new Date(`${date}T12:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date ? date : "";
+}
+
+export function driverRunPickupDate(value?: string) {
+  const date = validPickupDay(value);
   if (!date) return "ไม่ระบุวันที่";
   const parsed = new Date(`${date}T12:00:00Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return "ไม่ระบุวันที่";
   return parsed.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" });
 }
 
 export function driverRunReportHtml(rows: DriverRunReportRow[], driver: { name: string; photoURL?: string }, monthLabel: string, vehicleType: string, createdAt = new Date()) {
   const summary = driverRunReportSummary(rows);
-  const details = rows.map(({ job, expense }, index) => `<tr><td data-label="ลำดับ">${index + 1}</td><td data-label="วันที่งาน">${escapeHtml(driverRunPickupDate(job.pickupDate))}</td><td data-label="ใบงาน">${escapeHtml(job.workOrder)}</td><td data-label="งาน"><strong>${escapeHtml(job.customer)}</strong><small>${escapeHtml(job.pickupLocation)} → ${escapeHtml(job.deliveryLocation)}</small></td><td data-label="รถ">${escapeHtml(job.vehicleType?.trim() || "ไม่ระบุประเภทรถ")}<small>${escapeHtml(job.vehiclePlate || "ไม่ระบุทะเบียน")}</small></td><td data-label="ค่าใช้จ่าย">${expense ? escapeHtml(money.format(expense.amount)) : "—"}<small>${escapeHtml(driverRunExpenseLabel(expense))}</small></td></tr>`).join("");
+  const sortedRows = [...rows].sort((a, b) => (validPickupDay(a.job.pickupDate) || "9999-12-31").localeCompare(validPickupDay(b.job.pickupDate) || "9999-12-31") || a.job.workOrder.localeCompare(b.job.workOrder, "th"));
+  const details = sortedRows.map(({ job, expense }, index) => `<tr><td data-label="ลำดับ">${index + 1}</td><td data-label="วันที่งาน">${escapeHtml(driverRunPickupDate(job.pickupDate))}</td><td data-label="ใบงาน">${escapeHtml(job.workOrder)}</td><td data-label="งาน"><strong>${escapeHtml(job.customer)}</strong><small>${escapeHtml(job.pickupLocation)} → ${escapeHtml(job.deliveryLocation)}</small></td><td data-label="รถ">${escapeHtml(job.vehicleType?.trim() || "ไม่ระบุประเภทรถ")}<small>${escapeHtml(job.vehiclePlate || "ไม่ระบุทะเบียน")}</small></td><td data-label="ค่าใช้จ่าย">${expense ? escapeHtml(money.format(expense.amount)) : "—"}<small>${escapeHtml(driverRunExpenseLabel(expense))}</small></td></tr>`).join("");
   const photo = driver.photoURL?.startsWith("https://") ? `<img src="${escapeHtml(driver.photoURL)}" alt="รูปโปรไฟล์พนักงาน" onerror="this.remove()">` : "";
   const initial = Array.from(driver.name.trim())[0] || "ค";
   return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>รายงานงานวิ่ง ${escapeHtml(monthLabel)}</title><style>

@@ -53,3 +53,15 @@ assert.ok(html.includes('@page{size:A4 portrait'));
 assert.ok(html.indexOf('class="footnote"') < html.indexOf('<table>'), 'report note stays with the summary, not on an extra last page');
 assert.ok(html.includes('@media print'));
 assert.ok(!html.includes('JN-B'), 'PDF follows the selected rows');
+
+const unsortedRows = [
+  { job: { ...base, id: 'late', workOrder: 'JN-LATE', pickupDate: '2026-10-20' } },
+  { job: { ...base, id: 'missing', workOrder: 'JN-MISSING', pickupDate: '' } },
+  { job: { ...base, id: 'early-b', workOrder: 'JN-EARLY-B', pickupDate: '2026-10-02' } },
+  { job: { ...base, id: 'early-a', workOrder: 'JN-EARLY-A', pickupDate: '2026-10-02' } }
+];
+const orderedHtml = driverRunReportHtml(unsortedRows, { name: 'คนขับ' }, 'ตุลาคม 2569', '');
+assert.ok(orderedHtml.indexOf('JN-EARLY-A') < orderedHtml.indexOf('JN-EARLY-B'));
+assert.ok(orderedHtml.indexOf('JN-EARLY-B') < orderedHtml.indexOf('JN-LATE'));
+assert.ok(orderedHtml.indexOf('JN-LATE') < orderedHtml.indexOf('JN-MISSING'));
+assert.equal(unsortedRows[0].job.workOrder, 'JN-LATE', 'PDF sorting must not change the screen order');
