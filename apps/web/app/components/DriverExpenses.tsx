@@ -91,11 +91,12 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
 
   function printExpenseReport() {
     if (!displayedReportRows.length) return;
-    const preview = window.open("", "_blank");
-    if (!preview) { setReportMessage("เบราว์เซอร์บล็อกหน้าต่างรายงาน กรุณาอนุญาตป๊อปอัปแล้วลองใหม่"); return; }
-    preview.document.write(driverExpenseReportHtml(displayedReportRows, historyMonthLabel(selectedMonth), reportDrivers.find(([uid]) => uid === driverFilter)?.[1] || "ทุกคนขับ", selectedVehicleFilter || "ทุกรถ"));
-    preview.document.close();
+    const html = driverExpenseReportHtml(displayedReportRows, historyMonthLabel(selectedMonth), reportDrivers.find(([uid]) => uid === driverFilter)?.[1] || "ทุกคนขับ", selectedVehicleFilter || "ทุกรถ");
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const preview = window.open(url, "_blank");
+    if (!preview) { URL.revokeObjectURL(url); setReportMessage("เบราว์เซอร์บล็อกหน้าต่างรายงาน กรุณาอนุญาตป๊อปอัปแล้วลองใหม่"); return; }
     preview.focus();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     setReportMessage("เปิดรายงานแล้ว กด ‘พิมพ์ / บันทึกเป็น PDF’ เพื่อบันทึกไฟล์");
   }
 
