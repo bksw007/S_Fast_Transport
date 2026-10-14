@@ -1431,6 +1431,51 @@ h2 {
   animation: list-manager-enter 130ms ease-out;
 }
 
+.list-manager-dropdown.mobile {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-radius: 16px;
+}
+
+.list-manager-dropdown.mobile .list-manager-heading {
+  position: sticky;
+  flex: none;
+  padding: 13px 16px;
+}
+
+.list-manager-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: var(--lm-text);
+  background: var(--lm-surface-2);
+}
+
+.list-manager-mobile-search {
+  position: sticky;
+  top: 62px;
+  z-index: 1;
+  flex: none;
+  width: calc(100% - 32px);
+  min-height: 44px;
+  margin: 12px 16px;
+  padding: 0 12px;
+  border: 1px solid var(--lm-border);
+  border-radius: 9px;
+  color: var(--lm-text);
+  background: var(--lm-surface);
+  font-size: 16px;
+}
+
+.list-manager-dropdown.mobile .list-manager-row {
+  flex: none;
+}
+
 .list-manager-dropdown.dark {
   --lm-surface: #1b1c1e;
   --lm-surface-2: #242628;
@@ -5178,4 +5223,32 @@ textarea:focus {
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar-menu-list button { transition: none; }
+}
+
+/* iOS zooms focused form fields below 16px and then lets the page pan sideways. */
+@media (max-width: 700px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .phone-frame {
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .screen {
+    overflow-x: clip;
+    overscroll-behavior: contain;
+  }
+
+  .app-shell :is(input, select, textarea),
+  .list-manager-dropdown input {
+    font-size: 16px;
+  }
 }

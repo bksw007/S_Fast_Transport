@@ -15,7 +15,7 @@ import {
   type UserProfile
 } from "@/lib/transport-repository";
 
-type DropdownPosition = { top: number; left: number; width: number };
+type DropdownPosition = { top: number; left: number; width: number; maxHeight: number };
 
 export function ListManagerComboBox({
   field,
@@ -38,6 +38,7 @@ export function ListManagerComboBox({
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const mobileSearchRef = useRef<HTMLInputElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const listboxId = `list-manager-${useId().replaceAll(":", "")}`;
   const [items, setItems] = useState<ListOption[]>([]);
@@ -49,7 +50,8 @@ export function ListManagerComboBox({
   const [editingId, setEditingId] = useState("");
   const [editValue, setEditValue] = useState("");
   const [mutating, setMutating] = useState("");
-  const [position, setPosition] = useState<DropdownPosition>({ top: 0, left: 0, width: 280 });
+  const [position, setPosition] = useState<DropdownPosition>({ top: 0, left: 0, width: 280, maxHeight: 320 });
+  const [mobile, setMobile] = useState(false);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [dark, setDark] = useState(false);
   const canManage = !customerId && canManageOrganizationLists(actor, organizationId);
@@ -90,16 +92,35 @@ export function ListManagerComboBox({
     function reposition() {
       const rect = inputRef.current?.getBoundingClientRect();
       if (!rect) return;
+      const viewport = window.visualViewport;
+      const visibleTop = viewport?.offsetTop ?? 0;
+      const visibleLeft = viewport?.offsetLeft ?? 0;
+      const visibleHeight = viewport?.height ?? window.innerHeight;
+      const visibleWidth = viewport?.width ?? window.innerWidth;
       const margin = 12;
-      const preferredHeight = Math.min(320, window.innerHeight * 0.55);
-      const width = Math.min(Math.max(rect.width, 280), window.innerWidth - margin * 2);
-      const left = Math.min(Math.max(rect.left, margin), window.innerWidth - width - margin);
-      const opensAbove = window.innerHeight - rect.bottom < preferredHeight && rect.top > preferredHeight;
-      setPosition({
-        top: opensAbove ? Math.max(margin, rect.top - preferredHeight - 6) : rect.bottom + 6,
-        left,
-        width
-      });
+      const isMobile = window.matchMedia("(max-width: 700px)").matches;
+      setMobile(isMobile);
+      if (isMobile) {
+        // Keep the list in one predictable place inside the visible iPhone viewport,
+        // including while the software keyboard changes its height.
+        setPosition({
+          top: visibleTop + margin,
+          left: visibleLeft + margin,
+          width: Math.max(0, visibleWidth - margin * 2),
+          maxHeight: Math.max(80, visibleHeight - margin * 2)
+        });
+      } else {
+        const preferredHeight = Math.min(320, visibleHeight * 0.55);
+        const width = Math.min(Math.max(rect.width, 280), visibleWidth - margin * 2);
+        const left = Math.min(Math.max(rect.left, visibleLeft + margin), visibleLeft + visibleWidth - width - margin);
+        const opensAbove = visibleTop + visibleHeight - rect.bottom < preferredHeight && rect.top - visibleTop > preferredHeight;
+        setPosition({
+          top: opensAbove ? Math.max(visibleTop + margin, rect.top - preferredHeight - 6) : rect.bottom + 6,
+          left,
+          width,
+          maxHeight: Math.max(80, Math.min(preferredHeight, opensAbove ? rect.top - visibleTop - margin : visibleTop + visibleHeight - rect.bottom - margin))
+        });
+      }
       setDark(wrapperRef.current?.closest("[data-theme]")?.getAttribute("data-theme") === "dark");
     }
 
@@ -115,12 +136,20 @@ export function ListManagerComboBox({
     document.addEventListener("pointerdown", closeFromOutside);
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", reposition, true);
+    window.visualViewport?.addEventListener("resize", reposition);
+    window.visualViewport?.addEventListener("scroll", reposition);
     return () => {
       document.removeEventListener("pointerdown", closeFromOutside);
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("scroll", reposition);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (open && mobile) mobileSearchRef.current?.focus();
+  }, [open, mobile]);
 
   function selectItem(item: ListOption) {
     onChange(item.value);
@@ -204,14 +233,25 @@ export function ListManagerComboBox({
     <div
       ref={dropdownRef}
       id={listboxId}
-      className={`list-manager-dropdown ${dark ? "dark" : ""}`}
+      className={`list-manager-dropdown ${dark ? "dark" : ""} ${mobile ? "mobile" : ""}`}
       role="listbox"
       style={position}
     >
       <div className="list-manager-heading">
         <span>รายการที่บันทึกไว้</span>
         <small>{canManage ? `${items.length} รายการ` : customerId ? `${items.length} รายการ · พิมพ์ใหม่ได้` : `${items.length} รายการ · เลือกได้เท่านั้น`}</small>
+        {mobile && <button type="button" className="list-manager-close" aria-label="ปิดรายการ" onClick={() => setOpen(false)}><X size={20} /></button>}
       </div>
+
+      {mobile && <input
+        ref={mobileSearchRef}
+        className="list-manager-mobile-search"
+        aria-label={`ค้นหา${placeholder}`}
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => { onChange(event.target.value); setSearching(true); setActiveIndex(-1); }}
+        onKeyDown={handleKeyDown}
+      />}
 
       {loading && <div className="list-manager-message"><LoaderCircle className="spin" size={17} /> กำลังโหลด…</div>}
       {!loading && !shownItems.length && (

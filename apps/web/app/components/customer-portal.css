@@ -246,5 +246,11 @@
 .customer-request-card button { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 0; border: 0; background: none; color: #264b49; font-size: 11px; font-weight: 600; cursor: pointer; }
 @media (max-width: 760px) { .customer-request-places, .customer-request-list { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .customer-request-form { padding: 15px; } .customer-request-fields, .customer-request-extra-emails { grid-template-columns: 1fr; } .customer-request-map { height: 250px; } .customer-request-map-search { flex-wrap: wrap; } .customer-request-map-search button { min-height: 39px; } .customer-request-new { width: 100%; } }
+@media (max-width: 700px) {
+  .customer-request-map-picker :is(input, select),
+  .customer-request-fields :is(input, textarea),
+  .customer-request-extra-emails input,
+  .customer-portal-month select { font-size: 16px; }
+}
 .customer-portal .customer-request-section { margin-top: 0; }
 @media (max-width: 600px) { .customer-portal-nav > div { padding: 0 17px; } }
