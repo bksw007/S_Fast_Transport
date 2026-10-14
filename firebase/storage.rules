@@ -94,6 +94,20 @@ service firebase.storage {
         );
     }
 
+    match /driver_expenses/{jobId}/{uid}/{fileName} {
+      allow read: if isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(jobId))
+        || (activeUser() && uid == request.auth.uid && isAssignedDriver(jobId));
+      allow create, update: if activeUser()
+        && uid == request.auth.uid
+        && isAssignedDriver(jobId)
+        && job(jobId).data.status == "completed"
+        && request.resource.size > 0
+        && request.resource.size <= 1 * 1024 * 1024
+        && request.resource.contentType.matches("image/jpeg|image/png|image/webp");
+      allow delete: if activeUser() && uid == request.auth.uid && isAssignedDriver(jobId);
+    }
+
 
     match /user_profiles/{uid}/profile/{fileName} {
       allow read: if canReadUserFile(uid);

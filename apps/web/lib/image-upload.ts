@@ -79,7 +79,9 @@ export async function compressImageForUpload(file: File) {
   try {
     image.src = objectURL;
     await image.decode();
-    if (file.size <= MAX_STORED_IMAGE_BYTES && Math.max(image.naturalWidth, image.naturalHeight) <= MAX_IMAGE_DIMENSION) {
+    if (["image/jpeg", "image/png", "image/webp"].includes(file.type)
+      && file.size <= MAX_STORED_IMAGE_BYTES
+      && Math.max(image.naturalWidth, image.naturalHeight) <= MAX_IMAGE_DIMENSION) {
       return file;
     }
 

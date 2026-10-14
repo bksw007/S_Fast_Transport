@@ -1,0 +1,55 @@
+.driver-expenses-screen { min-width: 0; color: var(--text); }
+.expense-hero { position: relative; overflow: hidden; margin-bottom: 20px; padding: 24px 27px; border-radius: 16px; color: #fff; background: linear-gradient(125deg, #244b48, #1d383a 70%, #162d31); }
+.expense-hero::after { content: ""; position: absolute; width: 190px; height: 190px; right: -38px; top: -100px; border: 1px solid #ffffff30; border-radius: 50%; box-shadow: 0 0 0 40px #ffffff09, 0 0 0 80px #ffffff05; pointer-events: none; }
+.expense-hero > span { display: inline-flex; align-items: center; gap: 7px; color: #d5c3a6; font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
+.expense-hero h1 { position: relative; margin: 10px 0 5px; font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 650; }
+.expense-hero p { position: relative; margin: 0; color: #d7e4de; font-size: .83rem; }
+.expense-months { display: flex; gap: 8px; overflow-x: auto; padding: 2px 1px 12px; scrollbar-width: thin; }
+.expense-months button { display: inline-flex; flex: none; align-items: center; gap: 8px; min-height: 42px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--muted); font-size: .8rem; }
+.expense-months button.selected { border-color: var(--accent); background: var(--accent); color: #fff; }
+.expense-months b { display: grid; place-items: center; min-width: 23px; height: 23px; padding: 0 5px; border-radius: 6px; background: #9eb6a544; font-size: .7rem; }
+.expense-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 7px 0 18px; padding: 17px 20px; border: 1px solid #dbe3d9; border-radius: 13px; background: #f4f7f2; }
+.expense-summary > span { display: inline-flex; align-items: center; gap: 7px; color: #456c61; font-size: .8rem; }
+.expense-summary strong { margin-left: auto; color: #213d3b; font-size: 1.45rem; }
+.expense-summary small { width: 100%; color: var(--muted); }
+.expense-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
+.expense-card { display: grid; gap: 13px; min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 4px 18px #243d3608; }
+.expense-card-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.expense-card-icon { display: grid; flex: none; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: #eaf0eb; color: #315b52; }
+.expense-card-head > div { min-width: 0; flex: 1; }
+.expense-card-head small, .expense-card-head strong { display: block; overflow-wrap: anywhere; }
+.expense-card-head small { color: var(--muted); font-size: .72rem; }
+.expense-card-head strong { margin-top: 3px; font-size: .95rem; }
+.expense-status { flex: none; padding: 6px 9px; border-radius: 999px; background: #f3eee5; color: #8a6a44; font-size: .67rem; font-style: normal; font-weight: 700; }
+.expense-status.approved { background: #e8f0ea; color: #326752; }
+.expense-status.rejected { background: #f7e9e6; color: #a3544c; }
+.expense-status.paid { background: #e5efef; color: #285b6b; }
+.expense-route { margin: 0; color: var(--text); font-size: .8rem; overflow-wrap: anywhere; }
+.expense-date { color: var(--muted); }
+.expense-card-detail { padding: 12px 14px; border-radius: 10px; background: var(--surface-2); }
+.expense-card-detail > strong { color: #244b48; font-size: 1.12rem; }
+.expense-card-detail p { margin: 7px 0 0; font-size: .78rem; overflow-wrap: anywhere; }
+.expense-receipts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.expense-receipt-preview { display: grid; place-items: center; overflow: hidden; width: 100px; height: 80px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.expense-receipt-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.expense-receipt-preview > span { display: grid; justify-items: center; gap: 3px; color: var(--muted); font-size: .62rem; }
+.expense-form { display: grid; gap: 13px; padding: 15px; border: 1px solid #cfddd2; border-radius: 11px; background: #f6f8f4; }
+.expense-form-head { display: flex; align-items: center; justify-content: space-between; }
+.expense-form-head strong { font-size: .9rem; }
+.expense-form-head button { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 7px; background: #e8eee8; }
+.expense-form label, .expense-review label { display: grid; gap: 6px; color: var(--muted); font-size: .76rem; }
+.expense-form :is(input, textarea), .expense-review textarea { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: #21313a; font: inherit; }
+.expense-form input[type="file"] { padding: 11px; }
+.expense-form small { color: var(--muted); overflow-wrap: anywhere; }
+.expense-primary, .expense-open { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 9px 14px; border-radius: 9px; background: #264b49; color: #fff; font-size: .78rem; font-weight: 650; }
+.expense-open { justify-self: start; background: #e7eee8; color: #264b49; }
+.expense-primary:disabled { opacity: .6; }
+.expense-review { display: grid; gap: 10px; }
+.expense-review > div { display: flex; justify-content: flex-end; gap: 8px; }
+.expense-review > div button:first-child { min-height: 42px; padding: 9px 14px; border-radius: 9px; background: #f8ece9; color: #a3544c; }
+.expense-paid { justify-self: end; }
+.expense-review-note { margin: 0; color: #8a6749; font-size: .76rem; }
+.expense-error { padding: 11px 13px; border-radius: 9px; background: #f8ece9; color: #a3544c; font-size: .78rem; }
+.expense-empty { display: flex; align-items: center; gap: 8px; padding: 24px; border: 1px dashed var(--border); border-radius: 12px; color: var(--muted); background: var(--surface); }
+@media (max-width: 800px) { .expense-list { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .expense-hero { padding: 21px; } .expense-card { padding: 16px; } .expense-form :is(input, textarea), .expense-review textarea { font-size: 16px; } .expense-status { white-space: nowrap; } }

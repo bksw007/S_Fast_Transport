@@ -8,6 +8,7 @@ import ContactPicker, { type StopContact } from "./components/ContactPicker";
 import JobContacts from "./components/JobContacts";
 import DriverStopProof, { clearDriverProofDraft, clearDriverProofDrafts } from "./components/DriverStopProof";
 import DriverHistory from "./components/DriverHistory";
+import DriverExpenses from "./components/DriverExpenses";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { saveDriverProofDraft } from "@/lib/driver-proof-draft";
@@ -40,6 +41,7 @@ import {
   CircleDot,
   Clock3,
   FileImage,
+  ReceiptText,
   FilePenLine,
   Gauge,
   ListChecks,
@@ -640,7 +642,6 @@ export default function Home() {
               onBackToJobs={() => setDriverScreen("งานวันนี้")}
               onAction={(status, job) => handleDriverAction(status, job ?? selectedDriverJob)}
               onReportIssue={setIssueJob}
-              onUpload={(file) => runAction((actor) => uploadProof(selectedDriverJob, file, actor))}
               onProfileUpdated={refreshCurrentProfile}
               onNotice={setDriverNotice}
             />
@@ -706,6 +707,8 @@ export default function Home() {
             <ContactBook key={profile.organizationId} actor={profile} />
           ) : adminScreen === "Reports" ? (
             <ReportsScreen jobs={jobs} dataState={jobsState} />
+          ) : adminScreen === "รายการเบิกค่าใช้จ่าย" ? (
+            <DriverExpenses jobs={jobs} actor={profile} adminView />
           ) : adminScreen === "User Management" ? (
             <AccessManagementScreen actor={profile} />
           ) : adminScreen === "Settings" ? (
@@ -746,7 +749,7 @@ const driverMenuDetails = [
   { label: driverMenu[0], description: "รายการใบงาน", icon: ListChecks },
   { label: driverMenu[1], description: "สถานะงานปัจจุบัน", icon: Truck },
   { label: driverMenu[2], description: "ตำแหน่งและเส้นทาง", icon: MapPin },
-  { label: driverMenu[3], description: "รูปและเอกสาร POD", icon: FileImage },
+  { label: driverMenu[3], description: "ค่าใช้จ่ายและรูปบิลของงานที่เสร็จแล้ว", icon: ReceiptText },
   { label: driverMenu[4], description: "งานที่ดำเนินการแล้ว", icon: Clock3 },
   { label: driverMenu[5], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound }
 ] as const;
@@ -764,7 +767,8 @@ const adminMenuDetails = [
   { label: adminMenu[8], description: "แจ้งเตือนจากคนขับและคำขอจากลูกค้า", icon: ShieldAlert },
   { label: adminMenu[9], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
   { label: adminMenu[10], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
-  { label: adminMenu[11], description: "ข้อมูลบริษัท", icon: Settings }
+  { label: adminMenu[11], description: "ข้อมูลบริษัท", icon: Settings },
+  { label: adminMenu[13], description: "ตรวจบิลและอนุมัติค่าใช้จ่ายคนขับ", icon: ReceiptText }
 ] as const;
 
 function SectionMenu({
@@ -807,7 +811,7 @@ function SectionMenu({
     : [
         { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
         { title: "งานคนขับ", items: [{ label: "แอดมินคนขับ", description: "ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง", icon: Truck }] },
-        { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "สมุดรายชื่อ", "Reports"].includes(item.label)) },
+        { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "สมุดรายชื่อ", "Reports", "รายการเบิกค่าใช้จ่าย"].includes(item.label)) },
         { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
       ];
   const displayLabels: Record<string, string> = { "Jobs / ใบงาน": "ใบงานขนส่ง", "Live Tracking": "ติดตามรถ", "User Management": "จัดการผู้ใช้งาน", "Settings": "ตั้งค่าระบบ", "Reports": "รายงาน" };
@@ -861,7 +865,6 @@ function DriverMobileScreen({
   onBackToJobs,
   onAction,
   onReportIssue,
-  onUpload,
   onProfileUpdated,
   onNotice
 }: {
@@ -877,7 +880,6 @@ function DriverMobileScreen({
   onBackToJobs: () => void;
   onAction: (status: JobStatus, job?: TransportJob) => void;
   onReportIssue: (job: TransportJob) => void;
-  onUpload: (file: File) => void;
   onProfileUpdated: () => Promise<void>;
   onNotice: (notice: DriverNotice) => void;
 }) {
@@ -887,6 +889,10 @@ function DriverMobileScreen({
 
   if (screen === "ประวัติงาน") {
     return <DriverHistory jobs={jobs} actor={profile} onNotice={onNotice} />;
+  }
+
+  if (screen === "แจ้งค่าใช้จ่าย") {
+    return <DriverExpenses jobs={jobs} actor={profile} />;
   }
 
   if (jobs.length === 0) {
@@ -901,10 +907,6 @@ function DriverMobileScreen({
     const currentJobs = jobs.filter(job => !["completed", "cancelled"].includes(job.status));
     const currentJob = currentJobs.find(job => job.id === selectedJobId) ?? currentJobs[0];
     return currentJob ? <MapScreen jobs={currentJobs} selectedJob={currentJob} selectedJobId={currentJob.id} onSelectJob={onSelectJob} driverView /> : <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="แผนที่จะปรากฏเมื่อเริ่มงานขนส่ง" />;
-  }
-
-  if (screen === "อัปเดตหลักฐาน") {
-    return <ProofScreen job={selectedJob} canWrite={canWrite} onUpload={onUpload} />;
   }
 
   if (["completed", "cancelled"].includes(selectedJob.status)) {
@@ -993,6 +995,8 @@ function AdminMobileScreen({
   if (screen === "สมุดรายชื่อ") return <ContactBook key={profile.organizationId} actor={profile} />;
 
   if (screen === "Reports") return <ReportsScreen jobs={allJobs} dataState={jobsState} />;
+
+  if (screen === "รายการเบิกค่าใช้จ่าย") return <DriverExpenses jobs={allJobs} actor={profile} adminView />;
 
   if (screen === "รถและคนขับ") {
     return <FleetAndDriversScreen actor={profile} />;
@@ -1934,65 +1938,6 @@ function MapScreen({
           <JobContacts job={selectedJob} />
         </div>
       </CompactJobCard>
-    </section>
-  );
-}
-
-function ProofScreen({
-  job,
-  canWrite,
-  onUpload
-}: {
-  job: TransportJob;
-  canWrite: boolean;
-  onUpload: (file: File) => void;
-}) {
-  return (
-    <section className="screen">
-      <div className="section-title">
-        <div>
-          <h1>อัปเดตหลักฐาน</h1>
-          <p>{job.workOrder} · {job.customer}</p>
-        </div>
-        <span className="status">{statusLabels[job.status]}</span>
-      </div>
-
-      <CompactJobCard
-        className="proof-card"
-        eyebrow={`POD / รูปหน้างาน · ${job.workOrder}`}
-        title="แนบไฟล์หลักฐานส่งของ"
-        subtitle={job.customer}
-        status={statusLabels[job.status]}
-        icon={<FileImage size={22} />}
-      >
-        <div className="proof-card-content">
-          <p>รูปต้นฉบับจะถูกบีบอัดเหลือไม่เกิน 1 MB · PDF ไม่เกิน 10 MB</p>
-          <label className="upload-button">
-            <FileImage size={17} />
-            เลือกไฟล์
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              disabled={!canWrite}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  onUpload(file);
-                  event.currentTarget.value = "";
-                }
-              }}
-            />
-          </label>
-        </div>
-      </CompactJobCard>
-
-      <article className="privacy-card">
-        <CheckCircle2 size={20} />
-        <div>
-          <strong>ไฟล์จะถูกผูกกับใบงานนี้</strong>
-          <p>เลือกงานอื่นจากเมนูงานวันนี้ก่อน หากต้องการอัปโหลดให้ใบงานอื่น</p>
-        </div>
-      </article>
     </section>
   );
 }

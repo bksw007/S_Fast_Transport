@@ -111,6 +111,56 @@ service cloud.firestore {
           && data.customerId == profile().data.customerId);
     }
 
+    // driver_expenses: one claim per completed job and driver. Money is in THB.
+    function validExpenseReceipt(path, data) {
+      return path is string
+        && path.matches('driver_expenses/' + data.jobId + '/' + data.driverUid + '/[^/]+');
+    }
+
+    function validDriverExpense(data) {
+      return data.keys().hasAll([
+          "jobId", "workOrder", "organizationId", "driverUid", "driverName",
+          "completedMonth", "amount", "note", "receiptPaths", "status",
+          "reviewNote", "createdAt", "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "jobId", "workOrder", "organizationId", "driverUid", "driverName",
+          "completedMonth", "amount", "note", "receiptPaths", "status",
+          "reviewNote", "createdAt", "updatedAt", "reviewedByUid", "reviewedByName", "reviewedAt"
+        ])
+        && data.jobId is string && data.jobId.size() > 0
+        && data.workOrder is string && data.workOrder.size() > 0 && data.workOrder.size() <= 80
+        && data.organizationId is string && data.organizationId.size() > 0
+        && data.driverUid is string && data.driverUid.size() > 0
+        && data.driverName is string && data.driverName.size() <= 160
+        && data.completedMonth is string && data.completedMonth.matches('[0-9]{4}-[0-9]{2}')
+        && data.amount is number && data.amount > 0 && data.amount <= 1000000
+        && data.note is string && data.note.size() <= 500
+        && data.receiptPaths is list && data.receiptPaths.size() >= 1 && data.receiptPaths.size() <= 5
+        && validExpenseReceipt(data.receiptPaths[0], data)
+        && (data.receiptPaths.size() < 2 || validExpenseReceipt(data.receiptPaths[1], data))
+        && (data.receiptPaths.size() < 3 || validExpenseReceipt(data.receiptPaths[2], data))
+        && (data.receiptPaths.size() < 4 || validExpenseReceipt(data.receiptPaths[3], data))
+        && (data.receiptPaths.size() < 5 || validExpenseReceipt(data.receiptPaths[4], data))
+        && data.status in ["pending", "approved", "rejected", "paid"]
+        && data.reviewNote is string && data.reviewNote.size() <= 500
+        && (!data.keys().hasAny(["reviewedByUid"]) || data.reviewedByUid is string)
+        && (!data.keys().hasAny(["reviewedByName"]) || data.reviewedByName is string)
+        && (!data.keys().hasAny(["reviewedAt"]) || data.reviewedAt is timestamp)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function completedExpenseJob(data) {
+      let job = get(/databases/$(database)/documents/today_jobs/$(data.jobId)).data;
+      return job.status == "completed"
+        && job.assignedDriverUid == data.driverUid
+        && (
+          (job.keys().hasAny(["organizationId"]) && job.organizationId == data.organizationId)
+          || (!job.keys().hasAny(["organizationId"]) && data.organizationId == "main")
+        )
+        && job.workOrder == data.workOrder;
+    }
+
     function validProfilePhoto(data) {
       return !data.keys().hasAny(["photoURL"])
         || data.photoURL == ""
@@ -351,6 +401,57 @@ service cloud.firestore {
             && request.resource.data.deliveryProof.signerName is string
           ))
         );
+    }
+
+    match /driver_expenses/{expenseId} {
+      allow read: if activeUser() && (
+        resource.data.driverUid == request.auth.uid
+        || isMainAdmin()
+        || (isSubcontractAdmin() && sameOrganization(resource.data))
+      );
+      allow create: if activeUser()
+        && role() != "customer"
+        && expenseId == request.resource.data.jobId + "_" + request.auth.uid
+        && request.resource.data.driverUid == request.auth.uid
+        && request.resource.data.organizationId == organizationId()
+        && request.resource.data.status == "pending"
+        && request.resource.data.reviewNote == ""
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validDriverExpense(request.resource.data)
+        && completedExpenseJob(request.resource.data);
+      allow update: if activeUser()
+        && validDriverExpense(request.resource.data)
+        && request.resource.data.jobId == resource.data.jobId
+        && request.resource.data.driverUid == resource.data.driverUid
+        && request.resource.data.organizationId == resource.data.organizationId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            resource.data.driverUid == request.auth.uid
+            && resource.data.status == "rejected"
+            && request.resource.data.status == "pending"
+            && request.resource.data.reviewNote == ""
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "amount", "note", "receiptPaths", "status", "reviewNote", "updatedAt"
+            ])
+            && completedExpenseJob(request.resource.data)
+          )
+          || (
+            (isMainAdmin() || (isSubcontractAdmin() && sameOrganization(resource.data)))
+            && (
+              (resource.data.status == "pending" && request.resource.data.status in ["approved", "rejected"])
+              || (resource.data.status == "approved" && request.resource.data.status == "paid")
+            )
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status", "reviewNote", "reviewedByUid", "reviewedByName", "reviewedAt", "updatedAt"
+            ])
+            && request.resource.data.reviewedByUid == request.auth.uid
+            && request.resource.data.reviewedAt == request.time
+          )
+        );
+      allow delete: if false;
     }
 
     match /jobs/{jobId} {
