@@ -460,8 +460,7 @@ service cloud.firestore {
           || (
             (isMainAdmin() || (isSubcontractAdmin() && sameOrganization(resource.data)))
             && (
-              (resource.data.status == "pending" && request.resource.data.status in ["approved", "rejected"])
-              || (resource.data.status == "approved" && request.resource.data.status == "paid")
+              resource.data.status == "pending" && request.resource.data.status in ["approved", "rejected"]
             )
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               "status", "reviewNote", "reviewedByUid", "reviewedByName", "reviewedAt", "updatedAt"

@@ -10,7 +10,7 @@ import type { UserProfile } from "@/lib/transport-repository";
 import "./driver-expenses.css";
 
 const money = new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB" });
-const statusText: Record<ExpenseStatus, string> = { pending: "รอตรวจสอบ", approved: "อนุมัติแล้ว", rejected: "ไม่อนุมัติ", paid: "จ่ายแล้ว" };
+const statusText: Record<ExpenseStatus, string> = { pending: "รอตรวจสอบ", approved: "อนุมัติแล้ว", rejected: "ไม่อนุมัติ", paid: "อนุมัติแล้ว" };
 type AdminTab = "pending" | "approved" | "report";
 
 function ReceiptPreview({ path, index }: { path: string; index: number }) {
@@ -99,9 +99,9 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
     setReportMessage("เปิดรายงานแล้ว กด ‘พิมพ์ / บันทึกเป็น PDF’ เพื่อบันทึกไฟล์");
   }
 
-  async function review(claim: DriverExpense, status: "approved" | "rejected" | "paid") {
+  async function review(claim: DriverExpense, status: "approved" | "rejected") {
     if (reviewingId) return;
-    const reviewNote = status === "paid" ? claim.reviewNote : reviewNotes[claim.id] || "";
+    const reviewNote = reviewNotes[claim.id] || "";
     if (status === "rejected" && !reviewNote.trim()) { setError("กรุณาระบุเหตุผลก่อนปฏิเสธ"); return; }
     setReviewingId(claim.id);
     setError("");
@@ -111,7 +111,7 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
   }
 
   return <section className="screen driver-expenses-screen">
-    <header className="expense-hero"><span><ReceiptText size={17} /> {adminView ? "EXPENSE REVIEW" : "DRIVER EXPENSES"}</span><h1>{adminView ? "ตรวจค่าใช้จ่ายคนขับ" : "แจ้งค่าใช้จ่าย"}</h1><p>{adminView ? "ตรวจบิล อนุมัติ และติดตามการจ่ายตามใบงาน" : "เลือกงานที่วิ่งเสร็จแล้ว เพื่อส่งค่าใช้จ่ายและรูปบิลให้แอดมิน"}</p></header>
+    <header className="expense-hero"><span><ReceiptText size={17} /> {adminView ? "EXPENSE REVIEW" : "DRIVER EXPENSES"}</span><h1>{adminView ? "ตรวจค่าใช้จ่ายคนขับ" : "แจ้งค่าใช้จ่าย"}</h1><p>{adminView ? "ตรวจบิลและอนุมัติค่าใช้จ่ายตามใบงาน" : "เลือกงานที่วิ่งเสร็จแล้ว เพื่อส่งค่าใช้จ่ายและรูปบิลให้แอดมิน"}</p></header>
     <div className="expense-months" aria-label="เลือกเดือน">
       {months.map(value => {
         const monthlyClaims = claims.filter(claim => claim.completedMonth === value);
@@ -128,15 +128,15 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
         event.preventDefault(); setAdminTab(next); document.getElementById(`${tabsId}-${next}`)?.focus();
       }}>{label}<b>{count}</b></button>)}
     </div>}
-    {selectedMonth && (!adminView || adminTab !== "report") && <div className="expense-summary"><span><CircleDollarSign size={20} /> {adminView ? adminTab === "pending" ? "ยอดรอตรวจสอบ" : "ยอดอนุมัติและจ่ายแล้ว" : "ยอดแจ้งเดือนนี้"}</span><strong>{money.format(adminView ? (adminTab === "pending" ? pendingClaims : approvedClaims).reduce((sum, claim) => sum + claim.amount, 0) : total)}</strong><small>{adminView ? adminTab === "pending" ? pendingClaims.length : approvedClaims.length : visibleClaims.length} รายการ</small></div>}
+    {selectedMonth && (!adminView || adminTab !== "report") && <div className="expense-summary"><span><CircleDollarSign size={20} /> {adminView ? adminTab === "pending" ? "ยอดรอตรวจสอบ" : "ยอดอนุมัติแล้ว" : "ยอดแจ้งเดือนนี้"}</span><strong>{money.format(adminView ? (adminTab === "pending" ? pendingClaims : approvedClaims).reduce((sum, claim) => sum + claim.amount, 0) : total)}</strong><small>{adminView ? adminTab === "pending" ? pendingClaims.length : approvedClaims.length : visibleClaims.length} รายการ</small></div>}
     {error && <p className="expense-error" role="alert">{error}</p>}
     {loading && <p className="expense-empty">กำลังโหลดค่าใช้จ่าย…</p>}
     {!loading && !months.length && <p className="expense-empty">{adminView ? "ยังไม่มีคนขับแจ้งค่าใช้จ่าย" : "ยังไม่มีงานที่วิ่งเสร็จ"}</p>}
     {adminView && adminTab === "report" && !loading && <div role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-report`} className="expense-report">
       <div className="expense-report-head"><div><h2>รายงานค่าใช้จ่ายคนขับ</h2><p>เดือน {selectedMonth ? historyMonthLabel(selectedMonth) : "—"} · ทุกสถานะ</p></div><button type="button" className="expense-primary" disabled={!displayedReportRows.length} onClick={printExpenseReport}><Printer size={17} /> พิมพ์ / บันทึก PDF</button></div>
       <div className="expense-report-filters"><label>คนขับ<select value={driverFilter} onChange={event => { setDriverFilter(event.target.value); setVehicleFilter(""); }}><option value="">ทุกคนขับ</option>{reportDrivers.map(([uid, name]) => <option key={uid} value={uid}>{name}</option>)}</select></label><label>รถ<select value={selectedVehicleFilter} onChange={event => setVehicleFilter(event.target.value)}><option value="">ทุกรถ</option>{reportVehicles.map(plate => <option key={plate} value={plate}>{plate}</option>)}</select></label></div>
-      <div className="expense-report-metrics"><div><span>รายการ</span><strong>{displayedReportRows.length}</strong></div><div><span>ยอดแจ้งทั้งหมด</span><strong>{money.format(displayedReportSummary.total)}</strong></div><div><span>ยอดอนุมัติรวมจ่ายแล้ว</span><strong>{money.format(displayedReportSummary.approvedTotal)}</strong></div></div>
-      <p className="expense-report-counts">รอตรวจสอบ {displayedReportSummary.counts.pending} · อนุมัติแล้ว {displayedReportSummary.counts.approved} · จ่ายแล้ว {displayedReportSummary.counts.paid} · ไม่อนุมัติ {displayedReportSummary.counts.rejected}</p>
+      <div className="expense-report-metrics"><div><span>รายการ</span><strong>{displayedReportRows.length}</strong></div><div><span>ยอดแจ้งทั้งหมด</span><strong>{money.format(displayedReportSummary.total)}</strong></div><div><span>ยอดอนุมัติแล้ว</span><strong>{money.format(displayedReportSummary.approvedTotal)}</strong></div></div>
+      <p className="expense-report-counts">รอตรวจสอบ {displayedReportSummary.counts.pending} · อนุมัติแล้ว {displayedReportSummary.counts.approved} · ไม่อนุมัติ {displayedReportSummary.counts.rejected}</p>
       {displayedReportRows.length ? <div className="expense-report-table-wrap"><table className="expense-report-table"><thead><tr><th>ใบงาน</th><th>คนขับ</th><th>รถ</th><th>รายละเอียด</th><th>สถานะ</th><th>จำนวนเงิน</th></tr></thead><tbody>{displayedReportRows.map(({ claim, vehiclePlate }) => <tr key={claim.id}><td><strong>{claim.workOrder}</strong></td><td>{claim.driverName}</td><td>{vehiclePlate}</td><td>{claim.note || "—"}</td><td><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></td><td className="expense-report-amount">{money.format(claim.amount)}</td></tr>)}</tbody></table></div> : <p className="expense-empty">ไม่มีรายการตามตัวกรอง</p>}
       {reportMessage && <p role="status" className="expense-report-message">{reportMessage}</p>}
     </div>}
@@ -146,7 +146,6 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
         <div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p></div>
         <div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>
         {claim.status === "pending" && <div className="expense-review"><label>หมายเหตุการตรวจสอบ<textarea rows={2} maxLength={500} value={reviewNotes[claim.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="ระบุเหตุผลหากไม่อนุมัติ" /></label><div><button type="button" disabled={Boolean(reviewingId)} onClick={() => void review(claim, "rejected")}>ไม่อนุมัติ</button><button type="button" className="expense-primary" disabled={Boolean(reviewingId)} onClick={() => void review(claim, "approved")}>อนุมัติ</button></div></div>}
-        {claim.status === "approved" && <button type="button" className="expense-primary expense-paid" disabled={Boolean(reviewingId)} onClick={() => void review(claim, "paid")}>ทำเครื่องหมายว่าจ่ายแล้ว</button>}
         {claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}
       </article>) : visibleJobs.map(job => {
         const claim = claimsByJob.get(job.id);

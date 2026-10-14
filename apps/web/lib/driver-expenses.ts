@@ -110,7 +110,7 @@ export async function submitDriverExpense(job: TransportJob, actor: UserProfile,
   if (existing.exists()) await Promise.allSettled((existing.data().receiptPaths as string[] || []).map(path => deleteObject(ref(storage, path))));
 }
 
-export async function reviewDriverExpense(expense: DriverExpense, actor: UserProfile, status: "approved" | "rejected" | "paid", reviewNote: string) {
+export async function reviewDriverExpense(expense: DriverExpense, actor: UserProfile, status: "approved" | "rejected", reviewNote: string) {
   if (!hasApprovedAccess(actor) || !(isMainAdmin(actor) || actor.role === "subcontract_admin" && actor.organizationId === expense.organizationId)) throw new Error("ไม่มีสิทธิ์ตรวจค่าใช้จ่าย");
   if (reviewNote.trim().length > 500) throw new Error("หมายเหตุต้องไม่เกิน 500 ตัวอักษร");
   await runTransaction(db, async transaction => {
@@ -118,7 +118,7 @@ export async function reviewDriverExpense(expense: DriverExpense, actor: UserPro
     const current = await transaction.get(target);
     if (!current.exists()) throw new Error("ไม่พบรายการค่าใช้จ่าย");
     const previous = current.data().status;
-    if (!(previous === "pending" && ["approved", "rejected"].includes(status) || previous === "approved" && status === "paid")) throw new Error("สถานะรายการเปลี่ยนแล้ว กรุณาโหลดใหม่");
+    if (previous !== "pending") throw new Error("สถานะรายการเปลี่ยนแล้ว กรุณาโหลดใหม่");
     transaction.update(target, {
       status,
       reviewNote: reviewNote.trim(),
