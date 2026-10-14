@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp, where, type DocumentData, type Unsubscribe } from "firebase/firestore";
+import { collection, deleteField, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp, where, type DocumentData, type Unsubscribe } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { jobHistoryMonth, type TransportJob } from "@s-fast-transport/shared";
 import { db, storage } from "./firebase";
@@ -67,6 +67,12 @@ function fromDocument(id: string, data: DocumentData): DriverExpense {
   };
 }
 
+function matchesExpenseVersion(data: DocumentData, expected: DriverExpense) {
+  return data.status === expected.status
+    && asIso(data.updatedAt) === expected.updatedAt
+    && JSON.stringify(data.receiptPaths) === JSON.stringify(expected.receiptPaths);
+}
+
 export function subscribeDriverExpenses(actor: UserProfile, adminView: boolean, onChange: (items: DriverExpense[]) => void, onError: (message: string) => void): Unsubscribe {
   if (!hasApprovedAccess(actor)) throw new Error("ไม่มีสิทธิ์ดูค่าใช้จ่าย");
   const expenses = collection(db, "driver_expenses");
@@ -78,16 +84,18 @@ export function subscribeDriverExpenses(actor: UserProfile, adminView: boolean, 
   }, error => onError(error.message));
 }
 
-export async function submitDriverExpense(job: TransportJob, actor: UserProfile, amount: number, note: string, receipts: File[]) {
+export async function submitDriverExpense(job: TransportJob, actor: UserProfile, amount: number, note: string, receipts: File[], keptReceiptPaths: string[] = [], existing?: DriverExpense) {
   const organizationId = job.organizationId || "main";
   if (!hasApprovedAccess(actor) || job.assignedDriverUid !== actor.uid || job.status !== "completed" || organizationId !== actor.organizationId) throw new Error("เลือกได้เฉพาะงานของคุณที่จบแล้ว");
   const roundedAmount = Math.round(amount * 100) / 100;
   if (!Number.isFinite(roundedAmount) || roundedAmount <= 0 || roundedAmount > 1_000_000) throw new Error("กรุณาระบุค่าใช้จ่ายระหว่าง 0.01 ถึง 1,000,000 บาท");
-  if (!receipts.length || receipts.length > 5) throw new Error("กรุณาแนบรูปบิล 1–5 รูป");
+  if (receipts.length + keptReceiptPaths.length < 1 || receipts.length + keptReceiptPaths.length > 5) throw new Error("กรุณาแนบรูปบิล 1–5 รูป");
   if (note.trim().length > 500) throw new Error("รายละเอียดต้องไม่เกิน 500 ตัวอักษร");
   const expenseRef = doc(db, "driver_expenses", claimId(job.id, actor.uid));
-  const existing = await getDoc(expenseRef);
-  if (existing.exists() && existing.data().status !== "rejected") throw new Error("งานนี้แจ้งค่าใช้จ่ายแล้ว");
+  const saved = await getDoc(expenseRef);
+  if (existing && (existing.id !== expenseRef.id || existing.driverUid !== actor.uid || existing.expenseKind === "other")) throw new Error("รายการนี้แก้ไขไม่ได้");
+  if (saved.exists() !== Boolean(existing) || saved.exists() && existing && !matchesExpenseVersion(saved.data(), existing)) throw new Error("รายการมีการเปลี่ยนแปลง กรุณาโหลดใหม่");
+  if (keptReceiptPaths.some(path => !existing?.receiptPaths.includes(path)) || new Set(keptReceiptPaths).size !== keptReceiptPaths.length) throw new Error("รูปบิลเดิมไม่ถูกต้อง");
 
   const uploadedPaths: string[] = [];
   try {
@@ -100,18 +108,22 @@ export async function submitDriverExpense(job: TransportJob, actor: UserProfile,
     }
     await runTransaction(db, async transaction => {
       const current = await transaction.get(expenseRef);
-      if (current.exists() && current.data().status !== "rejected") throw new Error("งานนี้แจ้งค่าใช้จ่ายแล้ว");
+      if (current.exists() !== Boolean(existing) || current.exists() && existing && !matchesExpenseVersion(current.data(), existing)) throw new Error("รายการมีการเปลี่ยนแปลง กรุณาโหลดใหม่");
       const editable = {
         amount: roundedAmount,
         note: note.trim(),
-        receiptPaths: uploadedPaths,
+        receiptPaths: [...keptReceiptPaths, ...uploadedPaths],
         status: "pending" as const,
         reviewNote: "",
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        reviewedByUid: deleteField(),
+        reviewedByName: deleteField(),
+        reviewedAt: deleteField()
       };
       if (current.exists()) transaction.update(expenseRef, editable);
       else transaction.set(expenseRef, {
-        ...editable,
+        amount: roundedAmount, note: note.trim(), receiptPaths: uploadedPaths,
+        status: "pending", reviewNote: "", updatedAt: serverTimestamp(),
         jobId: job.id,
         workOrder: job.workOrder,
         organizationId,
@@ -125,10 +137,10 @@ export async function submitDriverExpense(job: TransportJob, actor: UserProfile,
     await Promise.allSettled(uploadedPaths.map(path => deleteObject(ref(storage, path))));
     throw error;
   }
-  if (existing.exists()) await Promise.allSettled((existing.data().receiptPaths as string[] || []).map(path => deleteObject(ref(storage, path))));
+  if (existing) await Promise.allSettled(existing.receiptPaths.filter(path => !keptReceiptPaths.includes(path)).map(path => deleteObject(ref(storage, path))));
 }
 
-export async function submitOtherDriverExpense(actor: UserProfile, category: OtherExpenseCategory, expenseDate: string, vehiclePlate: string, amount: number, note: string, receipts: File[], existing?: DriverExpense) {
+export async function submitOtherDriverExpense(actor: UserProfile, category: OtherExpenseCategory, expenseDate: string, vehiclePlate: string, amount: number, note: string, receipts: File[], keptReceiptPaths: string[] = [], existing?: DriverExpense) {
   if (!hasApprovedAccess(actor) || actor.role === "customer" || !actor.organizationId) throw new Error("ไม่มีสิทธิ์แจ้งค่าใช้จ่าย");
   if (!otherExpenseCategories.some(item => item.value === category)) throw new Error("กรุณาเลือกประเภทค่าใช้จ่าย");
   const parsedDate = new Date(`${expenseDate}T00:00:00Z`);
@@ -136,10 +148,11 @@ export async function submitOtherDriverExpense(actor: UserProfile, category: Oth
   if (vehiclePlate.trim().length > 40) throw new Error("ทะเบียนรถต้องไม่เกิน 40 ตัวอักษร");
   const roundedAmount = Math.round(amount * 100) / 100;
   if (!Number.isFinite(roundedAmount) || roundedAmount <= 0 || roundedAmount > 1_000_000) throw new Error("กรุณาระบุค่าใช้จ่ายระหว่าง 0.01 ถึง 1,000,000 บาท");
-  if (!receipts.length || receipts.length > 5) throw new Error("กรุณาแนบรูปบิล 1–5 รูป");
+  if (receipts.length + keptReceiptPaths.length < 1 || receipts.length + keptReceiptPaths.length > 5) throw new Error("กรุณาแนบรูปบิล 1–5 รูป");
   if (note.trim().length > 500) throw new Error("รายละเอียดต้องไม่เกิน 500 ตัวอักษร");
   const jobId = existing?.jobId || `other_${crypto.randomUUID()}`;
-  if (existing && (existing.expenseKind !== "other" || existing.status !== "rejected" || existing.driverUid !== actor.uid || existing.category !== category || existing.expenseDate !== expenseDate || (existing.vehiclePlate || "") !== vehiclePlate.trim())) throw new Error("รายการนี้ส่งใหม่ไม่ได้");
+  if (existing && (existing.expenseKind !== "other" || existing.driverUid !== actor.uid || existing.id !== claimId(jobId, actor.uid))) throw new Error("รายการนี้แก้ไขไม่ได้");
+  if (keptReceiptPaths.some(path => !existing?.receiptPaths.includes(path)) || new Set(keptReceiptPaths).size !== keptReceiptPaths.length) throw new Error("รูปบิลเดิมไม่ถูกต้อง");
   const expenseRef = doc(db, "driver_expenses", claimId(jobId, actor.uid));
   const uploadedPaths: string[] = [];
   try {
@@ -152,11 +165,11 @@ export async function submitOtherDriverExpense(actor: UserProfile, category: Oth
     }
     await runTransaction(db, async transaction => {
       const current = await transaction.get(expenseRef);
-      if (current.exists() && (current.data().status !== "rejected" || !existing)) throw new Error("รายการนี้แจ้งค่าใช้จ่ายแล้ว");
-      const editable = { amount: roundedAmount, note: note.trim(), receiptPaths: uploadedPaths, status: "pending" as const, reviewNote: "", updatedAt: serverTimestamp() };
+      if (current.exists() !== Boolean(existing) || current.exists() && existing && !matchesExpenseVersion(current.data(), existing)) throw new Error("รายการมีการเปลี่ยนแปลง กรุณาโหลดใหม่");
+      const editable = { amount: roundedAmount, note: note.trim(), receiptPaths: [...keptReceiptPaths, ...uploadedPaths], status: "pending" as const, reviewNote: "", updatedAt: serverTimestamp(), category, expenseDate, vehiclePlate: vehiclePlate.trim(), completedMonth: expenseDate.slice(0, 7), reviewedByUid: deleteField(), reviewedByName: deleteField(), reviewedAt: deleteField() };
       if (current.exists()) transaction.update(expenseRef, editable);
       else transaction.set(expenseRef, {
-        ...editable, jobId, workOrder: "ค่าใช้จ่ายอื่น", organizationId: actor.organizationId,
+        amount: roundedAmount, note: note.trim(), receiptPaths: uploadedPaths, status: "pending", reviewNote: "", updatedAt: serverTimestamp(), jobId, workOrder: "ค่าใช้จ่ายอื่น", organizationId: actor.organizationId,
         driverUid: actor.uid, driverName: actor.fullName || actor.displayName,
         completedMonth: expenseDate.slice(0, 7), expenseKind: "other", category,
         expenseDate, vehiclePlate: vehiclePlate.trim(), createdAt: serverTimestamp()
@@ -166,7 +179,7 @@ export async function submitOtherDriverExpense(actor: UserProfile, category: Oth
     await Promise.allSettled(uploadedPaths.map(path => deleteObject(ref(storage, path))));
     throw error;
   }
-  if (existing) await Promise.allSettled(existing.receiptPaths.map(path => deleteObject(ref(storage, path))));
+  if (existing) await Promise.allSettled(existing.receiptPaths.filter(path => !keptReceiptPaths.includes(path)).map(path => deleteObject(ref(storage, path))));
 }
 
 export async function reviewDriverExpense(expense: DriverExpense, actor: UserProfile, status: "approved" | "rejected", reviewNote: string) {

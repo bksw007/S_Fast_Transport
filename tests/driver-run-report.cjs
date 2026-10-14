@@ -8,7 +8,7 @@ const shared = { exports: {}, Date, Intl };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
 const context = { exports: {}, Date, Intl, require: name => name === '@s-fast-transport/shared' ? shared.exports : require(name) };
 vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/driver-run-report.ts', 'utf8')), context);
-const { driverRunReportRows, driverRunReportSummary, driverRunExpenseLabel, driverRunPickupDate, driverRunReportHtml } = context.exports;
+const { driverRunReportRows, driverRunOtherExpenses, driverRunReportSummary, driverRunExpenseLabel, driverRunPickupDate, driverRunReportHtml } = context.exports;
 
 const base = { status: 'completed', assignedDriverUid: 'driver-1', vehicleType: 'รถ 6 ล้อ', vehiclePlate: '72-2211', customer: 'ลูกค้า A', pickupLocation: 'ต้นทาง', deliveryLocation: 'ปลายทาง' };
 const jobs = [
@@ -23,7 +23,10 @@ const expenses = [
   { jobId: 'a', driverUid: 'driver-1', amount: 100, status: 'approved' },
   { jobId: 'b', driverUid: 'driver-1', amount: 50, status: 'pending' },
   { jobId: 'f', driverUid: 'driver-1', amount: 25, status: 'rejected' },
-  { jobId: 'd', driverUid: 'driver-2', amount: 999, status: 'approved' }
+  { jobId: 'd', driverUid: 'driver-2', amount: 999, status: 'approved' },
+  { id: 'other-1', jobId: 'other-1', driverUid: 'driver-1', expenseKind: 'other', category: 'repair', completedMonth: '2026-10', expenseDate: '2026-10-12', vehiclePlate: '72-2211', note: '<script>test</script>', amount: 75, status: 'approved', createdAt: '2026-10-12T03:00:00Z' },
+  { id: 'other-2', jobId: 'other-2', driverUid: 'driver-1', expenseKind: 'other', category: 'wash', completedMonth: '2026-10', expenseDate: '2026-10-13', vehiclePlate: '', note: 'ล้างรถ', amount: 40, status: 'pending', createdAt: '2026-10-13T03:00:00Z' },
+  { id: 'other-3', jobId: 'other-3', driverUid: 'driver-2', expenseKind: 'other', category: 'equipment', completedMonth: '2026-10', expenseDate: '2026-10-14', vehiclePlate: '', note: '', amount: 500, status: 'pending', createdAt: '2026-10-14T03:00:00Z' }
 ];
 const october = driverRunReportRows(jobs, expenses, 'driver-1', '2026-10', '');
 assert.deepEqual(Array.from(october, row => row.job.id), ['a', 'b', 'f']);
@@ -34,6 +37,13 @@ assert.equal(driverRunReportSummary(october).jobs, 3);
 assert.equal(driverRunReportSummary(october).claimed, 175);
 assert.equal(driverRunReportSummary(october).approved, 100);
 assert.equal(driverRunReportSummary(october).pending, 50);
+const octoberOther = driverRunOtherExpenses(expenses, 'driver-1', '2026-10');
+assert.deepEqual(Array.from(octoberOther, expense => expense.id), ['other-1', 'other-2']);
+assert.deepEqual(Array.from(driverRunOtherExpenses(expenses, 'driver-1', '2026-09'), expense => expense.id), []);
+assert.equal(driverRunReportSummary(october, octoberOther).jobs, 3);
+assert.equal(driverRunReportSummary(october, octoberOther).claimed, 290);
+assert.equal(driverRunReportSummary(october, octoberOther).approved, 175);
+assert.equal(driverRunReportSummary(october, octoberOther).pending, 90);
 assert.equal(driverRunExpenseLabel(), 'ยังไม่แจ้งค่าใช้จ่าย');
 assert.equal(driverRunExpenseLabel({ status: 'paid' }), 'อนุมัติแล้ว');
 assert.equal(driverRunExpenseLabel({ status: 'rejected' }), 'ไม่อนุมัติ');
@@ -53,6 +63,16 @@ assert.ok(html.includes('@page{size:A4 portrait'));
 assert.ok(html.indexOf('class="footnote"') < html.indexOf('<table>'), 'report note stays with the summary, not on an extra last page');
 assert.ok(html.includes('@media print'));
 assert.ok(!html.includes('JN-B'), 'PDF follows the selected rows');
+const htmlWithOther = driverRunReportHtml([{ job: { ...jobs[0], pickupDate: '2026-10-14' }, expense: expenses[0] }], { name: 'นายคนขับ' }, 'ตุลาคม 2569', '', new Date('2026-10-14T00:00:00Z'), octoberOther);
+assert.ok(htmlWithOther.indexOf('JN-A') < htmlWithOther.indexOf('ค่าใช้จ่ายอื่น (2 รายการ)'), 'standalone expenses follow completed jobs');
+assert.ok(htmlWithOther.includes('ค่าซ่อมรถ'));
+assert.ok(htmlWithOther.includes('ค่าล้างรถ'));
+assert.ok(htmlWithOther.includes('&lt;script&gt;test&lt;/script&gt;'));
+assert.ok(!htmlWithOther.includes('<script>test</script>'));
+assert.ok(htmlWithOther.includes('฿215.00'), 'report total includes standalone expenses');
+const onlyOtherHtml = driverRunReportHtml([], { name: 'นายคนขับ' }, 'ตุลาคม 2569', '', new Date('2026-10-14T00:00:00Z'), octoberOther);
+assert.ok(onlyOtherHtml.includes('ค่าใช้จ่ายอื่น (2 รายการ)'), 'report can contain standalone expenses without completed jobs');
+assert.ok(onlyOtherHtml.includes('฿115.00'));
 
 const unsortedRows = [
   { job: { ...base, id: 'late', workOrder: 'JN-LATE', pickupDate: '2026-10-20' } },

@@ -31,36 +31,38 @@ function SelectedReceipt({ file, onRemove, disabled }: { file: File; onRemove: (
   return <div><span className="expense-selected-thumb"><FileImage size={17} /></span><span>{file.name}</span><button type="button" disabled={disabled} onClick={onRemove} aria-label={`ลบรูป ${file.name}`}><X size={15} /></button></div>;
 }
 
-function ReceiptPicker({ receipts, onChange, onError, disabled }: { receipts: File[]; onChange: (files: File[]) => void; onError: (message: string) => void; disabled: boolean }) {
+function ReceiptPicker({ receipts, onChange, keptPaths, onKeptChange, onError, disabled }: { receipts: File[]; onChange: (files: File[]) => void; keptPaths: string[]; onKeptChange: (paths: string[]) => void; onError: (message: string) => void; disabled: boolean }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   function addFiles(files: FileList | null) {
     const selected = Array.from(files ?? []);
     if (!selected.length) return;
-    if (receipts.length + selected.length > 5) { onError("แนบรูปบิลได้ไม่เกิน 5 รูป"); return; }
+    if (keptPaths.length + receipts.length + selected.length > 5) { onError("แนบรูปบิลได้ไม่เกิน 5 รูป"); return; }
     if (selected.some(file => !isImageFile(file) || file.size <= 0 || file.size > MAX_SOURCE_IMAGE_BYTES)) { onError("รูปบิลต้องเป็นไฟล์ภาพและไม่เกิน 20 MB ต่อรูป"); return; }
     onChange([...receipts, ...selected]);
     onError("");
   }
   return <div className="expense-photo-picker">
-    <span>รูปบิล {receipts.length}/5 รูป</span>
+    <span>รูปบิล {keptPaths.length + receipts.length}/5 รูป</span>
     <div className="expense-photo-actions">
-      <button type="button" disabled={disabled || receipts.length >= 5} onClick={() => cameraRef.current?.click()}><Camera size={18} /> เพิ่มด้วยกล้อง</button>
-      <button type="button" disabled={disabled || receipts.length >= 5} onClick={() => fileRef.current?.click()}><FolderOpen size={18} /> เพิ่มด้วยไฟล์</button>
+      <button type="button" disabled={disabled || keptPaths.length + receipts.length >= 5} onClick={() => cameraRef.current?.click()}><Camera size={18} /> เพิ่มด้วยกล้อง</button>
+      <button type="button" disabled={disabled || keptPaths.length + receipts.length >= 5} onClick={() => fileRef.current?.click()}><FolderOpen size={18} /> เพิ่มด้วยไฟล์</button>
     </div>
     <input ref={cameraRef} className="expense-hidden-input" type="file" accept="image/*" capture="environment" disabled={disabled} tabIndex={-1} aria-hidden="true" onChange={event => { addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
     <input ref={fileRef} className="expense-hidden-input" type="file" accept="image/*" multiple disabled={disabled} tabIndex={-1} aria-hidden="true" onChange={event => { addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
-    {receipts.length ? <div className="expense-selected-files">{receipts.map((file, index) => <SelectedReceipt key={`${file.name}-${file.lastModified}-${index}`} file={file} disabled={disabled} onRemove={() => onChange(receipts.filter((_, position) => position !== index))} />)}</div> : <small>รองรับรูปจากโทรศัพท์ · รูปต้นฉบับไม่เกิน 20 MB ต่อรูป</small>}
+    {keptPaths.length + receipts.length ? <div className="expense-selected-files">{keptPaths.map((path, index) => <div key={path}><ReceiptPreview path={path} index={index} /><span>รูปบิลเดิม {index + 1}</span><button type="button" disabled={disabled} onClick={() => onKeptChange(keptPaths.filter(item => item !== path))} aria-label={`ลบรูปบิลเดิม ${index + 1}`}><X size={15} /></button></div>)}{receipts.map((file, index) => <SelectedReceipt key={`${file.name}-${file.lastModified}-${index}`} file={file} disabled={disabled} onRemove={() => onChange(receipts.filter((_, position) => position !== index))} />)}</div> : <small>รองรับรูปจากโทรศัพท์ · รูปต้นฉบับไม่เกิน 20 MB ต่อรูป</small>}
   </div>;
 }
 
-function ExpenseForm({ job, actor, claim, onDone }: { job?: TransportJob; actor: UserProfile; claim?: DriverExpense; onDone: () => void }) {
+function ExpenseForm({ job, actor, claim, onDone }: { job?: TransportJob; actor: UserProfile; claim?: DriverExpense; onDone: (month?: string) => void }) {
+  const [originalClaim] = useState(claim);
   const [amount, setAmount] = useState(claim ? String(claim.amount) : "");
   const [note, setNote] = useState(claim?.note || "");
   const [category, setCategory] = useState<OtherExpenseCategory>(claim?.category || "repair");
   const [expenseDate, setExpenseDate] = useState(() => claim?.expenseDate || new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10));
   const [vehiclePlate, setVehiclePlate] = useState(claim?.vehiclePlate || "");
   const [receipts, setReceipts] = useState<File[]>([]);
+  const [keptPaths, setKeptPaths] = useState<string[]>(claim?.receiptPaths || []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function submit(event: React.FormEvent) {
@@ -69,9 +71,9 @@ function ExpenseForm({ job, actor, claim, onDone }: { job?: TransportJob; actor:
     setBusy(true);
     setError("");
     try {
-      if (job) await submitDriverExpense(job, actor, Number(amount), note, receipts);
-      else await submitOtherDriverExpense(actor, category, expenseDate, vehiclePlate, Number(amount), note, receipts, claim);
-      onDone();
+      if (job) await submitDriverExpense(job, actor, Number(amount), note, receipts, keptPaths, originalClaim);
+      else await submitOtherDriverExpense(actor, category, expenseDate, vehiclePlate, Number(amount), note, receipts, keptPaths, originalClaim);
+      onDone(job ? undefined : expenseDate.slice(0, 7));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "ส่งค่าใช้จ่ายไม่สำเร็จ");
     } finally {
@@ -79,13 +81,14 @@ function ExpenseForm({ job, actor, claim, onDone }: { job?: TransportJob; actor:
     }
   }
   return <form className="expense-form" onSubmit={event => void submit(event)}>
-    <div className="expense-form-head"><strong>{claim?.status === "rejected" ? "ส่งคำขอใหม่" : job ? "แจ้งค่าใช้จ่ายงานนี้" : "แจ้งค่าใช้จ่ายอื่น"}</strong><button type="button" onClick={onDone} aria-label="ปิดแบบฟอร์ม"><X size={18} /></button></div>
-    {!job && <div className="expense-other-fields"><label><span>ประเภทค่าใช้จ่าย</span><select value={category} disabled={busy || Boolean(claim)} onChange={event => setCategory(event.target.value as OtherExpenseCategory)}>{otherExpenseCategories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label><span>วันที่ค่าใช้จ่าย</span><input type="date" value={expenseDate} disabled={busy || Boolean(claim)} onChange={event => setExpenseDate(event.target.value)} required /></label><label><span>ทะเบียนรถ (ถ้ามี)</span><input value={vehiclePlate} maxLength={40} disabled={busy || Boolean(claim)} onChange={event => setVehiclePlate(event.target.value)} placeholder="ระบุทะเบียนรถ" /></label></div>}
+    <div className="expense-form-head"><strong>{claim ? "แก้ไขค่าใช้จ่าย" : job ? "แจ้งค่าใช้จ่ายงานนี้" : "แจ้งค่าใช้จ่ายอื่น"}</strong><button type="button" onClick={() => onDone()} aria-label="ปิดแบบฟอร์ม"><X size={18} /></button></div>
+    {!job && <div className="expense-other-fields"><label><span>ประเภทค่าใช้จ่าย</span><select value={category} disabled={busy} onChange={event => setCategory(event.target.value as OtherExpenseCategory)}>{otherExpenseCategories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label><span>วันที่ค่าใช้จ่าย</span><input type="date" value={expenseDate} disabled={busy} onChange={event => setExpenseDate(event.target.value)} required /></label><label><span>ทะเบียนรถ (ถ้ามี)</span><input value={vehiclePlate} maxLength={40} disabled={busy} onChange={event => setVehiclePlate(event.target.value)} placeholder="ระบุทะเบียนรถ" /></label></div>}
     <label><span>จำนวนเงิน (บาท)</span><input type="number" inputMode="decimal" min="0.01" max="1000000" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} required placeholder="0.00" /></label>
     <label><span>รายละเอียดค่าใช้จ่าย</span><textarea value={note} onChange={event => setNote(event.target.value)} maxLength={500} rows={3} placeholder={job ? "เช่น ค่าทางด่วนหรือค่าที่จอดรถ" : "ระบุรายการที่ซื้อหรือซ่อม"} /></label>
-    <ReceiptPicker receipts={receipts} onChange={setReceipts} onError={setError} disabled={busy} />
+    <ReceiptPicker receipts={receipts} onChange={setReceipts} keptPaths={keptPaths} onKeptChange={setKeptPaths} onError={setError} disabled={busy} />
+    {claim?.status === "approved" && <small>เมื่อบันทึกการแก้ไข รายการจะกลับไปรอแอดมินตรวจสอบอีกครั้ง</small>}
     {error && <p role="alert" className="expense-error">{error}</p>}
-    <button type="submit" className="expense-primary" disabled={busy || !receipts.length}>{busy ? "กำลังส่งรูปและบันทึก…" : "ส่งให้แอดมินตรวจสอบ"}</button>
+    <button type="submit" className="expense-primary" disabled={busy || !receipts.length && !keptPaths.length}>{busy ? "กำลังส่งรูปและบันทึก…" : claim ? "บันทึกและส่งตรวจอีกครั้ง" : "ส่งให้แอดมินตรวจสอบ"}</button>
   </form>;
 }
 
@@ -185,8 +188,8 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
         {claim.status === "pending" && <div className="expense-review"><label>หมายเหตุการตรวจสอบ<textarea rows={2} maxLength={500} value={reviewNotes[claim.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="ระบุเหตุผลหากไม่อนุมัติ" /></label><div><button type="button" disabled={Boolean(reviewingId)} onClick={() => void review(claim, "rejected")}>ไม่อนุมัติ</button><button type="button" className="expense-primary" disabled={Boolean(reviewingId)} onClick={() => void review(claim, "approved")}>อนุมัติ</button></div></div>}
         {claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}
       </article>) : <>
-        <div className="expense-other-entry"><div><strong>ค่าใช้จ่ายอื่น</strong><small>ค่าซ่อมรถ ค่าอุปกรณ์ ค่าล้างรถ และรายการที่ไม่ผูกใบงาน</small></div><button type="button" className="expense-open" onClick={() => setEditingOtherId("new")} disabled={editingOtherId === "new"}><Plus size={17} /> เพิ่มอื่นๆ</button>{editingOtherId === "new" && <ExpenseForm actor={actor} onDone={() => setEditingOtherId("")} />}</div>
-        {visibleOtherClaims.map(claim => <article className="expense-card" key={claim.id}><div className="expense-card-head"><span className="expense-card-icon"><ReceiptText size={22} /></span><div><small>{claim.expenseDate || "ไม่ระบุวันที่"}{claim.vehiclePlate ? ` · ${claim.vehiclePlate}` : ""}</small><strong>{expenseTitle(claim)}</strong></div><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></div><div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p><div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>{claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}</div>{claim.status === "rejected" && (editingOtherId === claim.id ? <ExpenseForm key={claim.id} actor={actor} claim={claim} onDone={() => setEditingOtherId("")} /> : <button type="button" className="expense-open" onClick={() => setEditingOtherId(claim.id)}>แก้ไขและส่งใหม่</button>)}</article>)}
+        <div className="expense-other-entry"><div><strong>ค่าใช้จ่ายอื่น</strong><small>ค่าซ่อมรถ ค่าอุปกรณ์ ค่าล้างรถ และรายการที่ไม่ผูกใบงาน</small></div><button type="button" className="expense-open" onClick={() => setEditingOtherId("new")} disabled={editingOtherId === "new"}><Plus size={17} /> เพิ่มอื่นๆ</button>{editingOtherId === "new" && <ExpenseForm actor={actor} onDone={nextMonth => { setEditingOtherId(""); if (nextMonth) setMonth(nextMonth); }} />}</div>
+        {visibleOtherClaims.map(claim => <article className="expense-card" key={claim.id}><div className="expense-card-head"><span className="expense-card-icon"><ReceiptText size={22} /></span><div><small>{claim.expenseDate || "ไม่ระบุวันที่"}{claim.vehiclePlate ? ` · ${claim.vehiclePlate}` : ""}</small><strong>{expenseTitle(claim)}</strong></div><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></div><div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p><div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>{claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}</div>{editingOtherId === claim.id ? <ExpenseForm key={claim.id} actor={actor} claim={claim} onDone={nextMonth => { setEditingOtherId(""); if (nextMonth) setMonth(nextMonth); }} /> : <button type="button" className="expense-open" onClick={() => setEditingOtherId(claim.id)}>แก้ไขรายการ</button>}</article>)}
         {visibleJobs.map(job => {
         const claim = claimsByJob.get(job.id);
         return <article className="expense-card" key={job.id}>
@@ -194,7 +197,7 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
           <p className="expense-route">{job.pickupLocation} → {job.deliveryLocation}</p>
           <small className="expense-date">จบงาน {jobHistoryDate(job) ? new Date(jobHistoryDate(job) || "").toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) : "ไม่ระบุเวลา"}</small>
           {claim && <div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p><div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>{claim.reviewNote && <p className="expense-review-note">หมายเหตุแอดมิน: {claim.reviewNote}</p>}</div>}
-          {(!claim || claim.status === "rejected") && (editingJobId === job.id ? <ExpenseForm key={job.id} job={job} actor={actor} claim={claim} onDone={() => setEditingJobId("")} /> : <button type="button" className="expense-open" onClick={() => setEditingJobId(job.id)}>{claim ? "แก้ไขและส่งใหม่" : "แจ้งค่าใช้จ่ายงานนี้"}</button>)}
+          {editingJobId === job.id ? <ExpenseForm key={job.id} job={job} actor={actor} claim={claim} onDone={() => setEditingJobId("")} /> : <button type="button" className="expense-open" onClick={() => setEditingJobId(job.id)}>{claim ? "แก้ไขรายการ" : "แจ้งค่าใช้จ่ายงานนี้"}</button>}
         </article>;
         })}</>}
     </div>}
