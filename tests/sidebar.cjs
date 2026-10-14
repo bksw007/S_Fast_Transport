@@ -38,7 +38,8 @@ rendered.find(n => n.props?.['aria-label'] === 'ออกจากระบบ')
 rendered = menu('admin', 'subcontract_admin');
 assert.ok(!rendered.some(n => n.props?.title === 'สิทธิ์ Google Login' || n.props?.title === 'ซับคอนแท็ค' || n.props?.title === 'ลูกค้าและลิงก์ติดตาม'));
 rendered = menu('driver', 'driver');
-assert.equal(rendered.filter(n => n.type === 'button' && n.props.title).length, 7);
+assert.equal(rendered.filter(n => n.type === 'button' && n.props.title).length, 8);
+assert.ok(rendered.some(n => n.props?.title === 'สรุปงานวิ่งและค่าใช้จ่ายรายเดือน'));
 const adminDriverMenu = menu('driver', 'admin');
 adminDriverMenu.find(n => n.props.className === 'sidebar-return-admin').props.onClick();
 assert.equal(leftDriver, true);

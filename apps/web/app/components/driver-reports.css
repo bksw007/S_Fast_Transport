@@ -1,0 +1,51 @@
+.driver-reports-screen { min-width: 0; color: var(--text); }
+.driver-reports-hero { position: relative; overflow: hidden; margin-bottom: 18px; padding: 24px 27px; border-radius: 16px; color: #fff; background: linear-gradient(125deg, #244b48, #1d383a 70%, #162d31); }
+.driver-reports-hero::after { content: ""; position: absolute; width: 190px; height: 190px; right: -38px; top: -100px; border: 1px solid #ffffff30; border-radius: 50%; box-shadow: 0 0 0 40px #ffffff09, 0 0 0 80px #ffffff05; pointer-events: none; }
+.driver-reports-hero > span { display: inline-flex; align-items: center; gap: 7px; color: #d5c3a6; font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
+.driver-reports-hero h1 { position: relative; margin: 10px 0 5px; font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 650; }
+.driver-reports-hero p { position: relative; margin: 0; color: #d7e4de; font-size: .83rem; }
+.driver-reports-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 17px; }
+.driver-reports-filters label { display: grid; gap: 7px; min-width: 0; color: var(--muted); font-size: .78rem; }
+.driver-reports-filters label > span { display: flex; align-items: center; gap: 7px; }
+.driver-reports-filters select { width: 100%; min-width: 0; min-height: 44px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; font-size: .85rem; }
+.driver-reports-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 7px; }
+.driver-reports-summary > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 6px; min-width: 0; padding: 15px 17px; border: 1px solid #dbe3d9; border-radius: 12px; background: #f4f7f2; }
+.driver-reports-summary span { width: 100%; color: #58716a; font-size: .75rem; }
+.driver-reports-summary strong { color: #213d3b; font-size: clamp(1rem, 2vw, 1.25rem); overflow-wrap: anywhere; }
+.driver-reports-summary small { color: #58716a; font-size: .7rem; }
+.driver-reports-summary-note { margin: 0 0 23px; color: var(--muted); font-size: .72rem; }
+.driver-reports-list-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 13px; }
+.driver-reports-list-head h2 { margin: 0 0 3px; font-size: 1.08rem; }
+.driver-reports-list-head p { margin: 0; color: var(--muted); font-size: .78rem; }
+.driver-reports-list-head button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 9px 14px; border-radius: 9px; background: #264b49; color: #fff; font-size: .78rem; font-weight: 650; }
+.driver-reports-list-head button:disabled { opacity: .5; }
+.driver-reports-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.driver-reports-card { display: grid; gap: 12px; min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); box-shadow: 0 4px 18px #243d3608; }
+.driver-reports-card-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; min-width: 0; }
+.driver-reports-card-head > div { display: grid; gap: 3px; min-width: 0; }
+.driver-reports-card-head small { color: #55776e; font-size: .72rem; font-weight: 700; }
+.driver-reports-card-head strong { overflow-wrap: anywhere; font-size: .91rem; }
+.driver-reports-card-head > span { flex: none; color: var(--muted); font-size: .72rem; text-align: right; }
+.driver-reports-route { margin: 0; color: var(--text); font-size: .79rem; overflow-wrap: anywhere; }
+.driver-reports-vehicle { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .77rem; }
+.driver-reports-vehicle span { min-width: 0; overflow-wrap: anywhere; }
+.driver-reports-expense { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 11px; border-top: 1px solid var(--border); }
+.driver-reports-expense > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: .75rem; }
+.driver-reports-expense strong { color: var(--text); font-size: .86rem; }
+.driver-reports-expense em { flex: none; padding: 6px 9px; border-radius: 999px; background: #f3eee5; color: #8a6a44; font-size: .68rem; font-style: normal; font-weight: 700; }
+.driver-reports-expense em.status-approved, .driver-reports-expense em.status-paid { background: #e8f0ea; color: #326752; }
+.driver-reports-expense em.status-rejected { background: #f7e9e6; color: #a3544c; }
+.driver-reports-expense em.status-none { background: #eff2ef; color: #667872; }
+.driver-reports-empty { display: grid; justify-items: center; gap: 8px; padding: 34px 18px; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface); color: var(--muted); text-align: center; }
+.driver-reports-empty strong { color: var(--text); }
+.driver-reports-empty p { margin: 0; font-size: .8rem; }
+.driver-reports-error { padding: 12px 14px; border-radius: 9px; background: #f8ece9; color: #a3544c; font-size: .8rem; }
+.driver-reports-message { color: #315b52; font-size: .8rem; }
+.driver-premium-shell[data-theme="dark"] .driver-reports-summary > div { border-color: var(--border); background: var(--surface); }
+.driver-premium-shell[data-theme="dark"] .driver-reports-summary :is(span, small) { color: var(--muted); }
+.driver-premium-shell[data-theme="dark"] .driver-reports-summary strong,
+.driver-premium-shell[data-theme="dark"] .driver-reports-expense strong { color: var(--text); }
+.driver-premium-shell[data-theme="dark"] .driver-reports-expense em.status-none { background: #293636; color: var(--muted); }
+.driver-premium-shell[data-theme="dark"] .driver-reports-message { color: #a8d5c7; }
+@media (max-width: 900px) { .driver-reports-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .driver-reports-hero { padding: 21px; } .driver-reports-filters { grid-template-columns: 1fr; } .driver-reports-filters select { font-size: 16px; } .driver-reports-list { grid-template-columns: 1fr; } .driver-reports-list-head { align-items: stretch; flex-direction: column; } .driver-reports-list-head button { align-self: flex-start; } .driver-reports-card-head { flex-direction: column; gap: 5px; } .driver-reports-card-head > span { text-align: left; } .driver-reports-expense { flex-wrap: wrap; } }

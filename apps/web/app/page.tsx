@@ -9,6 +9,7 @@ import JobContacts from "./components/JobContacts";
 import DriverStopProof, { clearDriverProofDraft, clearDriverProofDrafts } from "./components/DriverStopProof";
 import DriverHistory from "./components/DriverHistory";
 import DriverExpenses from "./components/DriverExpenses";
+import DriverReports from "./components/DriverReports";
 import ReturnTripFields from "./components/ReturnTripFields";
 import { initialReturnTrip, activeLeg } from "@/lib/return-trip";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
@@ -635,6 +636,7 @@ export default function Home() {
               profile={profile}
               screen={driverScreen}
               jobs={ownDriverJobs}
+              dataState={jobsState}
               selectedJob={selectedDriverJob}
               selectedJobId={selectedDriverJob.id}
               canWrite={canWrite && ownDriverJobs.length > 0}
@@ -753,7 +755,8 @@ const driverMenuDetails = [
   { label: driverMenu[2], description: "ตำแหน่งและเส้นทาง", icon: MapPin },
   { label: driverMenu[3], description: "ค่าใช้จ่ายและรูปบิลของงานที่เสร็จแล้ว", icon: ReceiptText },
   { label: driverMenu[4], description: "งานที่ดำเนินการแล้ว", icon: Clock3 },
-  { label: driverMenu[5], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound }
+  { label: driverMenu[5], description: "สรุปงานวิ่งและค่าใช้จ่ายรายเดือน", icon: BarChart3 },
+  { label: driverMenu[6], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound }
 ] as const;
 
 const adminMenuDetails = [
@@ -858,6 +861,7 @@ function DriverMobileScreen({
   profile,
   screen,
   jobs,
+  dataState,
   selectedJob,
   selectedJobId,
   canWrite,
@@ -873,6 +877,7 @@ function DriverMobileScreen({
   profile: UserProfile;
   screen: DriverScreen;
   jobs: TransportJob[];
+  dataState: "loading" | "ready" | "error";
   selectedJob: TransportJob;
   selectedJobId: string;
   canWrite: boolean;
@@ -895,6 +900,10 @@ function DriverMobileScreen({
 
   if (screen === "แจ้งค่าใช้จ่าย") {
     return <DriverExpenses jobs={jobs} actor={profile} />;
+  }
+
+  if (screen === "รายงาน") {
+    return <DriverReports jobs={jobs} actor={profile} dataState={dataState} />;
   }
 
   if (jobs.length === 0) {

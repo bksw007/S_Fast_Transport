@@ -1,0 +1,46 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+const compile = source => ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const shared = { exports: {}, Date, Intl };
+vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
+const context = { exports: {}, Date, Intl, require: name => name === '@s-fast-transport/shared' ? shared.exports : require(name) };
+vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/driver-run-report.ts', 'utf8')), context);
+const { driverRunReportRows, driverRunReportSummary, driverRunExpenseLabel, driverRunReportHtml } = context.exports;
+
+const base = { status: 'completed', assignedDriverUid: 'driver-1', vehicleType: 'รถ 6 ล้อ', vehiclePlate: '72-2211', customer: 'ลูกค้า A', pickupLocation: 'ต้นทาง', deliveryLocation: 'ปลายทาง' };
+const jobs = [
+  { ...base, id: 'a', workOrder: 'JN-A', completedAt: '2026-10-14T03:00:00Z' },
+  { ...base, id: 'b', workOrder: 'JN-B', vehicleType: 'รถ 4 ล้อ', completedAt: '2026-10-13T03:00:00Z' },
+  { ...base, id: 'c', workOrder: 'JN-C', completedAt: '2026-09-13T03:00:00Z' },
+  { ...base, id: 'd', workOrder: 'JN-D', assignedDriverUid: 'driver-2', completedAt: '2026-10-12T03:00:00Z' },
+  { ...base, id: 'e', workOrder: 'JN-E', status: 'cancelled', completedAt: '2026-10-11T03:00:00Z' },
+  { ...base, id: 'f', workOrder: 'JN-F', vehicleType: '', completedAt: '2026-10-10T03:00:00Z' }
+];
+const expenses = [
+  { jobId: 'a', driverUid: 'driver-1', amount: 100, status: 'approved' },
+  { jobId: 'b', driverUid: 'driver-1', amount: 50, status: 'pending' },
+  { jobId: 'f', driverUid: 'driver-1', amount: 25, status: 'rejected' },
+  { jobId: 'd', driverUid: 'driver-2', amount: 999, status: 'approved' }
+];
+const october = driverRunReportRows(jobs, expenses, 'driver-1', '2026-10', '');
+assert.deepEqual(Array.from(october, row => row.job.id), ['a', 'b', 'f']);
+assert.deepEqual(Array.from(driverRunReportRows(jobs, expenses, 'driver-1', '2026-10', 'รถ 6 ล้อ'), row => row.job.id), ['a']);
+assert.deepEqual(Array.from(driverRunReportRows(jobs, expenses, 'driver-1', '2026-10', 'ไม่ระบุประเภทรถ'), row => row.job.id), ['f']);
+assert.deepEqual(Array.from(driverRunReportRows(jobs, expenses, 'driver-1', '2026-09', ''), row => row.job.id), ['c']);
+assert.equal(driverRunReportSummary(october).jobs, 3);
+assert.equal(driverRunReportSummary(october).claimed, 175);
+assert.equal(driverRunReportSummary(october).approved, 100);
+assert.equal(driverRunReportSummary(october).pending, 50);
+assert.equal(driverRunExpenseLabel(), 'ยังไม่แจ้งค่าใช้จ่าย');
+assert.equal(driverRunExpenseLabel({ status: 'paid' }), 'อนุมัติแล้ว');
+assert.equal(driverRunExpenseLabel({ status: 'rejected' }), 'ไม่อนุมัติ');
+const html = driverRunReportHtml([{ job: { ...jobs[0], customer: '<script>alert(1)</script>' }, expense: expenses[0] }], 'นายคนขับ', 'ตุลาคม 2569', 'รถ 6 ล้อ', new Date('2026-10-14T00:00:00Z'));
+assert.ok(html.includes('JN-A'));
+assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+assert.ok(!html.includes('<script>alert(1)</script>'));
+assert.ok(html.includes('data-label="ค่าใช้จ่าย"'));
+assert.ok(html.includes('@media print'));
+assert.ok(!html.includes('JN-B'), 'PDF follows the selected rows');
