@@ -5,8 +5,8 @@ export type ReportProof = { photos: string[]; signature?: string };
 export type CompletionReportJob = Pick<TransportJob,
   "status" | "workOrder" | "customer" | "carrierName" | "jobDate" | "cargoType" | "tripCount" |
   "pickupLocation" | "pickupDate" | "pickupTime" | "deliveryLocation" | "deliveryDate" | "deliveryTime" |
-  "vehiclePlate" | "vehicleType" | "driverName" | "routeDistanceMeters" | "arrivedDeliveryAt" | "completedAt"
-> & { pickupProof?: Pick<StopProof, "signerName" | "signedAt">; deliveryProof?: Pick<StopProof, "signerName" | "signedAt"> };
+  "vehiclePlate" | "vehicleType" | "driverName" | "routeDistanceMeters" | "arrivedDeliveryAt" | "completedAt" | "returnTrip" | "returnArrivedDeliveryAt"
+> & { pickupProof?: Pick<StopProof, "signerName" | "signedAt">; deliveryProof?: Pick<StopProof, "signerName" | "signedAt">; returnPickupProof?: Pick<StopProof, "signerName" | "signedAt">; returnDeliveryProof?: Pick<StopProof, "signerName" | "signedAt"> };
 
 const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 const text = (value: unknown) => value === undefined || value === null || value === "" ? "ไม่บันทึก" : escapeHtml(value);
@@ -26,7 +26,7 @@ function evidence(title: string, location: string, proof: Pick<StopProof, "signe
   return `<section class="evidence page-break"><div class="section-label">หลักฐานการขนส่ง</div><h2>${escapeHtml(title)}</h2><p class="location">${escapeHtml(location)}</p><div class="photos">${photoCards}</div><div class="signoff"><div><span>ผู้ลงลายเซ็น</span><strong>${text(proof?.signerName)}</strong><small>ลงนาม ${dateTime(proof?.signedAt)}</small></div>${images.signature ? `<img src="${escapeHtml(images.signature)}" alt="ลายเซ็น ${escapeHtml(proof?.signerName || title)}">` : `<span class="missing">ไม่มีไฟล์ลายเซ็น</span>`}</div></section>`;
 }
 
-export function completionReportHtml(job: CompletionReportJob, pickup: ReportProof, delivery: ReportProof, logoUrl: string, generatedAt = new Date()): string {
+export function completionReportHtml(job: CompletionReportJob, pickup: ReportProof, delivery: ReportProof, logoUrl: string, generatedAt = new Date(), returnEvidence?: { pickup: ReportProof; delivery: ReportProof }): string {
   if (job.status !== "completed") throw new Error("สร้างรายงานลูกค้าได้เฉพาะใบงานที่เสร็จแล้ว");
   const reportDate = dateTime(generatedAt.toISOString());
   const result = deliveryResult(job, generatedAt.getTime());
@@ -55,10 +55,12 @@ export function completionReportHtml(job: CompletionReportJob, pickup: ReportPro
   <main class="sheet"><header class="head"><div class="brand"><img src="${escapeHtml(logoUrl)}" alt="S Fast Transport"><div><strong>S Fast Transport</strong><span>TRANSPORT COMPLETION REPORT</span></div></div><div class="meta">สร้างรายงาน ${reportDate}</div></header>
   <div class="hero"><div><p class="eyebrow">รายงานส่งมอบสินค้า</p><h1>งานขนส่งเสร็จสมบูรณ์</h1><p class="sub">ใบงาน ${text(job.workOrder)} · ${text(job.customer)}</p></div><span class="badge">ส่งสำเร็จ</span></div>
   <section class="section"><h3>ข้อมูลใบงาน</h3><div class="grid">${detail("เลขที่ใบงาน", job.workOrder)}${detail("ลูกค้า", job.customer)}${detail("บริษัทขนส่ง", job.carrierName)}${detail("วันที่งาน", job.jobDate)}${detail("ประเภทสินค้า", job.cargoType)}${detail("จำนวนเที่ยว", job.tripCount || 1)}</div></section>
-  <section class="section"><h3>เส้นทางและกำหนดการ</h3><div class="route"><div class="stop"><small>จุดรับสินค้า</small><strong>${text(job.pickupLocation)}</strong><span>กำหนดรับ ${schedule(job.pickupDate, job.pickupTime)}</span></div><div class="stop"><small>จุดส่งสินค้า</small><strong>${text(job.deliveryLocation)}</strong><span>กำหนดส่ง ${schedule(job.deliveryDate, job.deliveryTime)}</span></div></div></section>
-  <section class="section"><h3>รถและผู้ปฏิบัติงาน</h3><div class="grid">${detail("ทะเบียนรถ", job.vehiclePlate)}${detail("ประเภทรถ", job.vehicleType)}${detail("คนขับ", job.driverName)}${detail("ระยะทางเส้นทางโดยประมาณ", job.routeDistanceMeters ? `${(job.routeDistanceMeters / 1000).toFixed(1)} กม.` : undefined)}</div></section>
-  <section class="section"><h3>ผลการส่งมอบ</h3><div class="grid">${detail("ถึงจุดส่งจริง", dateTime(job.arrivedDeliveryAt))}${detail("ปิดงาน", dateTime(job.completedAt))}${detail("ผลเทียบกำหนดส่ง", deliveryLabels[result])}${detail("หลักฐาน", `จุดรับ ${pickup.photos.length} ภาพ · จุดส่ง ${delivery.photos.length} ภาพ`)}</div></section>
+  <section class="section"><h3>${job.returnTrip ? "เที่ยวขาไป" : "เส้นทางและกำหนดการ"}</h3><div class="route"><div class="stop"><small>จุดรับสินค้า</small><strong>${text(job.pickupLocation)}</strong><span>กำหนดรับ ${schedule(job.pickupDate, job.pickupTime)}</span></div><div class="stop"><small>จุดส่งสินค้า</small><strong>${text(job.deliveryLocation)}</strong><span>กำหนดส่ง ${schedule(job.deliveryDate, job.deliveryTime)}</span></div></div></section>
+  ${job.returnTrip ? `<section class="section"><h3>เที่ยวขากลับ · รับสินค้ากลับ</h3><div class="route"><div class="stop"><small>จุดรับสินค้าขากลับ</small><strong>${text(job.returnTrip.pickupLocation)}</strong><span>กำหนดรับ ${schedule(job.returnTrip.pickupDate, job.returnTrip.pickupTime)}</span></div><div class="stop"><small>จุดส่งสินค้าขากลับ</small><strong>${text(job.returnTrip.deliveryLocation)}</strong><span>กำหนดส่ง ${schedule(job.returnTrip.deliveryDate, job.returnTrip.deliveryTime)}</span></div></div></section>` : ""}
+  <section class="section"><h3>รถและผู้ปฏิบัติงาน</h3><div class="grid">${detail("ทะเบียนรถ", job.vehiclePlate)}${detail("ประเภทรถ", job.vehicleType)}${detail("คนขับ", job.driverName)}${detail(job.returnTrip ? "ระยะทางขาไปโดยประมาณ" : "ระยะทางเส้นทางโดยประมาณ", job.routeDistanceMeters ? `${(job.routeDistanceMeters / 1000).toFixed(1)} กม.` : undefined)}</div></section>
+  <section class="section"><h3>ผลการส่งมอบ</h3><div class="grid">${detail(job.returnTrip ? "ถึงจุดส่งขาไปจริง" : "ถึงจุดส่งจริง", dateTime(job.arrivedDeliveryAt))}${job.returnTrip ? detail("ถึงจุดส่งขากลับจริง", dateTime(job.returnArrivedDeliveryAt)) : ""}${detail("ปิดงาน", dateTime(job.completedAt))}${detail("ผลเทียบกำหนดส่งขาไป", deliveryLabels[result])}${detail("หลักฐานขาไป", `จุดรับ ${pickup.photos.length} ภาพ · จุดส่ง ${delivery.photos.length} ภาพ`)}${job.returnTrip ? detail("หลักฐานขากลับ", `จุดรับ ${returnEvidence?.pickup.photos.length ?? 0} ภาพ · จุดส่ง ${returnEvidence?.delivery.photos.length ?? 0} ภาพ`) : ""}</div></section>
   <footer class="footer"><span>รายงานจากข้อมูลใบงานและหลักฐานที่บันทึกในระบบ</span><span>${text(job.workOrder)}</span></footer>
   ${evidence("จุดรับสินค้า", job.pickupLocation, job.pickupProof, pickup)}${evidence("จุดส่งสินค้า", job.deliveryLocation, job.deliveryProof, delivery)}
+  ${job.returnTrip ? `${evidence("จุดรับสินค้าขากลับ", job.returnTrip.pickupLocation, job.returnPickupProof, returnEvidence?.pickup ?? { photos: [] })}${evidence("จุดส่งสินค้าขากลับ", job.returnTrip.deliveryLocation, job.returnDeliveryProof, returnEvidence?.delivery ?? { photos: [] })}` : ""}
   </main></body></html>`;
 }

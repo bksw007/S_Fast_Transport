@@ -17,11 +17,14 @@ const context = {
   React,
   useState: () => [true, () => {}],
   formatPhoneNumber: value => value,
+  activeLeg: value => value.returnTrip && value.activeLeg === 2 ? 2 : 1,
   statusLabels: { assigned: 'มอบหมายแล้ว', accepted: 'รับงานแล้ว', to_delivery: 'กำลังไปจุดส่ง' },
   driverActions: [
     { id: 'start_tracking', label: 'เริ่มแชร์ตำแหน่ง', nextStatus: 'accepted' },
     { id: 'arrived_pickup', label: 'ถึงจุดรับสินค้า', nextStatus: 'arrived_pickup' },
-    { id: 'arrived_delivery', label: 'ถึงจุดส่งสินค้า', nextStatus: 'arrived_delivery' }
+    { id: 'arrived_delivery', label: 'ถึงจุดส่งสินค้า', nextStatus: 'arrived_delivery' },
+    { id: 'start_return', label: 'เริ่มเดินทางไปรับสินค้าขากลับ', nextStatus: 'to_pickup' },
+    { id: 'completed', label: 'จบงาน', nextStatus: 'completed' }
   ],
   MapPin: () => null, ArrowRight: () => null, ChevronUp: () => null, ChevronDown: () => null,
   UserRound: () => null, Phone: () => null, Truck: () => null, CircleDot: () => null,
@@ -49,6 +52,8 @@ assert.equal(context.exports.nextDriverAction(job('assigned')).nextStatus, 'acce
 assert.equal(context.exports.nextDriverAction(job('accepted')).nextStatus, 'arrived_pickup');
 assert.equal(context.exports.nextDriverAction(job('to_delivery')).nextStatus, 'arrived_delivery');
 assert.equal(context.exports.nextDriverAction(job('completed')), null);
+assert.equal(context.exports.nextDriverAction({ ...job('ready_to_close'), returnTrip: { pickupLocation: 'Freezone', deliveryLocation: 'FMT' }, activeLeg: 1 }).id, 'start_return');
+assert.equal(context.exports.nextDriverAction({ ...job('ready_to_close'), returnTrip: { pickupLocation: 'Freezone', deliveryLocation: 'FMT' }, activeLeg: 2 }).id, 'completed');
 assert.equal(context.exports.activeDriverStop(job('assigned')), 'pickup');
 assert.equal(context.exports.activeDriverStop(job('loading')), 'pickup');
 assert.equal(context.exports.activeDriverStop(job('to_delivery')), 'delivery');

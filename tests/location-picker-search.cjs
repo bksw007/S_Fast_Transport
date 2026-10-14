@@ -33,7 +33,7 @@ let tree;
 function render() { cursor = 0; tree = context.exports.LocationPicker({ value: '', title: 'รับงาน', organizationId: 'main', onChange: (name, place) => { changed = { name, place }; } }); }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(className) { const node = nodes().find(item => item.props?.className === className); assert.ok(node, `Missing ${className}`); return node; }
-function optionNames() { return nodes().filter(item => item.props?.className === 'location-picker-option').map(item => React.Children.toArray(item.props.children).find(child => child?.type === 'span')?.props.children); }
+function optionNames() { return nodes().filter(item => item.props?.className === 'location-picker-option').map(item => React.Children.toArray(React.Children.toArray(item.props.children).find(child => child?.type === 'span')?.props.children).find(child => typeof child === 'string')); }
 
 slots[0] = locations;
 render();

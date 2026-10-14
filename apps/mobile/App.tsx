@@ -30,11 +30,12 @@ import { auth, storage } from "./src/firebase";
 import {
   flushPendingPoints,
   getActiveTrackingSession,
+  setActiveTrackingLeg,
   startJobTracking,
   stopJobTracking,
   type TrackingSession
 } from "./src/location-tracking";
-import { currentDriverStep, driverProgress, driverSteps } from "./src/driver-workflow";
+import { currentDriverStep, driverProgress, driverStepCount } from "./src/driver-workflow";
 import { signatureViewBox } from "./src/signature-paths";
 import {
   ensureMobileProfile,
@@ -50,6 +51,8 @@ import {
 } from "./src/transport-repository";
 
 WebBrowser.maybeCompleteAuthSession();
+
+type SavedProofStage = "pickup" | "delivery" | "returnPickup" | "returnDelivery";
 
 const colors = {
   bg: "#f3f5f7",
@@ -265,10 +268,12 @@ export default function App() {
       if (!step || step.nextStatus !== status) throw new Error("ขั้นตอนนี้ยังไม่พร้อมดำเนินการ");
       if (step.photoStage) {
         if (!checkInPhotos || checkInPhotos.jobId !== selectedJob.id || checkInPhotos.stage !== step.photoStage || checkInPhotos.uris.length < 2 || !signatureConfirmed || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("กรุณาถ่ายรูปสินค้า 2 รูปและขอลายเซ็นก่อน");
-        const proof = await uploadDriverStopProof(selectedJob, profile, step.photoStage, checkInPhotos.uris, signaturePaths, signerName);
+        const proofStage = selectedJob.returnTrip && selectedJob.activeLeg === 2 ? step.photoStage === "pickup" ? "returnPickup" : "returnDelivery" : step.photoStage;
+        const proof = await uploadDriverStopProof(selectedJob, profile, proofStage, checkInPhotos.uris, signaturePaths, signerName);
         await updateDriverJobStatus(selectedJob, status, profile, proof);
-        setMessage(step.photoStage === "pickup" ? "บันทึกหลักฐานจุดรับแล้ว เดินทางไปจุดส่งได้" : "บันทึกหลักฐานจุดส่งแล้ว กดจบงานได้");
-        setDriverNotice({ title: step.photoStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: step.photoStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success" });
+        const nextMessage = step.photoStage === "pickup" ? "บันทึกหลักฐานจุดรับแล้ว เดินทางไปจุดส่งได้" : selectedJob.returnTrip && selectedJob.activeLeg !== 2 ? "บันทึกหลักฐานขาไปแล้ว เริ่มรับสินค้าขากลับได้" : "บันทึกหลักฐานจุดส่งแล้ว กดจบงานได้";
+        setMessage(nextMessage);
+        setDriverNotice({ title: step.photoStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: nextMessage, tone: "success" });
         setCheckInPhotos(null);
         setSignaturePaths([]);
         setSignatureConfirmed(false);
@@ -284,6 +289,14 @@ export default function App() {
         setCheckInPhotos(null);
         return;
       }
+      if (step.id === "start_return") {
+        await updateDriverJobStatus(selectedJob, status, profile);
+        await setActiveTrackingLeg(2);
+        setActiveSession(current => current ? { ...current, leg: 2 } : current);
+        setMessage("เริ่มเที่ยวขากลับแล้ว เดินทางไปรับสินค้าได้");
+        setDriverNotice({ title: "เริ่มขากลับแล้ว", detail: "เดินทางไปรับสินค้าขากลับ", tone: "success" });
+        return;
+      }
 
       await updateDriverJobStatus(selectedJob, status, profile);
       if (isStart && !activeSession) {
@@ -291,7 +304,8 @@ export default function App() {
           jobId: selectedJob.id,
           driverUid: profile.uid,
           organizationId: selectedJob.organizationId ?? profile.organizationId ?? "main",
-          workOrder: selectedJob.workOrder
+          workOrder: selectedJob.workOrder,
+          leg: 1
         };
         await startJobTracking(session);
         setActiveSession(session);
@@ -343,7 +357,7 @@ export default function App() {
     }
   }
 
-  async function pickReplacementPhoto(job: TransportJob, stage: "pickup" | "delivery", index: number, source: "camera" | "library") {
+  async function pickReplacementPhoto(job: TransportJob, stage: SavedProofStage, index: number, source: "camera" | "library") {
     if (!profile || busy) return;
     const permission = source === "camera" ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -358,14 +372,14 @@ export default function App() {
     try {
       const uri = await prepareCheckInPhoto(result.assets[0]);
       await replaceDriverStopProofPhoto(job, profile, stage, index, uri);
-      setDriverNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว ระบบกำลังลบรูปเดิม`, tone: "success" });
+      setDriverNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage.toLowerCase().includes("pickup") ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว ระบบกำลังลบรูปเดิม`, tone: "success" });
     } catch (error) {
       setDriverNotice({ title: "เปลี่ยนรูปไม่สำเร็จ", detail: toMessage(error), tone: "error" });
     } finally { setBusy(false); }
   }
 
-  function promptReplacePhoto(job: TransportJob, stage: "pickup" | "delivery", index: number) {
-    Alert.alert("เปลี่ยนรูปหลักฐาน", `เลือกรูปใหม่สำหรับ${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}\nรูปเดิมจะถูกลบหลังบันทึกรูปใหม่สำเร็จ`, [
+  function promptReplacePhoto(job: TransportJob, stage: SavedProofStage, index: number) {
+    Alert.alert("เปลี่ยนรูปหลักฐาน", `เลือกรูปใหม่สำหรับ${stage.toLowerCase().includes("pickup") ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}\nรูปเดิมจะถูกลบหลังบันทึกรูปใหม่สำเร็จ`, [
       { text: "ถ่ายรูป", onPress: () => void pickReplacementPhoto(job, stage, index, "camera") },
       { text: "เลือกจากเครื่อง", onPress: () => void pickReplacementPhoto(job, stage, index, "library") },
       { text: "ยกเลิก", style: "cancel" }
@@ -478,7 +492,7 @@ export default function App() {
                     onSignerNameChange={setSignerName}
                     onRemovePhoto={(index) => setCheckInPhotos(current => current ? { ...current, uris: current.uris.filter((_, slot) => slot !== index) } : null)}
                     onToggle={() => setJobExpanded((value) => !value)}
-                    onAction={(status) => status === "completed" ? Alert.alert("ตรวจทานก่อนจบงาน", `จุดรับ: ${selectedJob.pickupProof?.photoPaths.length ?? 0} รูป · ${selectedJob.pickupProof?.signerName || "ไม่มีผู้เซ็น"}\nจุดส่ง: ${selectedJob.deliveryProof?.photoPaths.length ?? 0} รูป · ${selectedJob.deliveryProof?.signerName || "ไม่มีผู้เซ็น"}\n\nเมื่อจบงาน ระบบจะหยุดแชร์ตำแหน่ง`, [{ text: "กลับไปตรวจ", style: "cancel" }, { text: "ยืนยันจบงาน", onPress: () => void handleDriverAction(status) }]) : void handleDriverAction(status)}
+                    onAction={(status) => status === "completed" ? Alert.alert("ตรวจทานก่อนจบงาน", `ขาไป · จุดรับ: ${selectedJob.pickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: ${selectedJob.deliveryProof?.photoPaths.length ?? 0} รูป${selectedJob.returnTrip ? `\nขากลับ · จุดรับ: ${selectedJob.returnPickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: ${selectedJob.returnDeliveryProof?.photoPaths.length ?? 0} รูป` : ""}\n\nเมื่อจบงาน ระบบจะหยุดแชร์ตำแหน่ง`, [{ text: "กลับไปตรวจ", style: "cancel" }, { text: "ยืนยันจบงาน", onPress: () => void handleDriverAction(status) }]) : void handleDriverAction(status)}
                     onPickPhoto={(source, stage) => void pickCheckInPhoto(source, stage)}
                     onReplacePhoto={(stage, index) => promptReplacePhoto(selectedJob, stage, index)}
                     onReportIssue={() => setIssueOpen(true)}
@@ -553,6 +567,7 @@ export default function App() {
                       <Text style={styles.historyDate}>{job.status === "completed" ? "จบงาน" : job.cancelledAt ? "ยกเลิกงาน" : "วันที่อ้างอิง"}: {jobHistoryDate(job) ? new Date(jobHistoryDate(job)!).toLocaleString("th-TH") : "ไม่ระบุเวลา"}</Text>
                       <View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View>
                       <View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View>
+                      {job.returnTrip && <><Text style={styles.historyDate}>ขากลับ: {job.returnTrip.pickupLocation} → {job.returnTrip.deliveryLocation}</Text><View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>ขากลับ · จุดรับ: {job.returnPickupProof ? `${job.returnPickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.returnPickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View><View style={styles.historyProofSummary}><Ionicons name="camera-outline" size={19} color={colors.accent} /><Text style={styles.historyProofText}>ขากลับ · จุดส่ง: {job.returnDeliveryProof ? `${job.returnDeliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.returnDeliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</Text></View></>}
                       {job.status === "completed" && <SavedProofPhotos job={job} busy={busy} onReplace={(stage, index) => promptReplacePhoto(job, stage, index)} />}
                     </View>}
                   </Pressable>
@@ -710,19 +725,22 @@ function JobPanel({
   onToggle: () => void;
   onAction: (status: JobStatus) => void;
   onPickPhoto: (source: "camera" | "library", stage: "pickup" | "delivery") => void;
-  onReplacePhoto: (stage: "pickup" | "delivery", index: number) => void;
+  onReplacePhoto: (stage: SavedProofStage, index: number) => void;
   onReportIssue: () => void;
 }) {
   const step = currentDriverStep(job);
   const completedStepCount = driverProgress(job);
+  const totalSteps = driverStepCount(job);
+  const returnLeg = Boolean(job.returnTrip && job.activeLeg === 2);
+  const route = returnLeg && job.returnTrip ? job.returnTrip : job;
   const selectedPhotos = step?.photoStage && checkInPhotos?.jobId === job.id && checkInPhotos.stage === step.photoStage ? checkInPhotos.uris : [];
   const [signatureOpen, setSignatureOpen] = useState(false);
   const hasSignature = signatureConfirmed && signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2);
   const actionDisabled = busy || (step?.id === "start_tracking" && Boolean(activeSession));
   const activeStop = step && ["start_tracking", "arrived_pickup", "to_delivery"].includes(step.id) ? "pickup" : step && ["arrived_delivery", "ready_to_close"].includes(step.id) ? "delivery" : null;
-  const stopLocation = activeStop === "pickup" ? job.pickupLocation : job.deliveryLocation;
-  const stopNavigationUrl = activeStop === "pickup" ? job.pickupPlace?.navigationUrl : job.deliveryPlace?.navigationUrl;
-  const stopPhone = activeStop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
+  const stopLocation = activeStop === "pickup" ? route.pickupLocation : route.deliveryLocation;
+  const stopNavigationUrl = activeStop === "pickup" ? route.pickupPlace?.navigationUrl : route.deliveryPlace?.navigationUrl;
+  const stopPhone = activeStop === "pickup" ? route.pickupContactPhone : route.deliveryContactPhone;
   return (
     <>
       <View style={styles.card}>
@@ -733,16 +751,17 @@ function JobPanel({
             <Text style={styles.cardTitle} numberOfLines={1}>{job.customer}</Text>
             <Text style={styles.muted} numberOfLines={1}>{job.vehiclePlate}</Text>
           </View>
-          <Text style={styles.jobStatus}>{statusLabels[job.status]}</Text>
+          <Text style={styles.jobStatus}>{job.returnTrip ? `${returnLeg ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</Text>
           <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={20} color={colors.muted} />
         </Pressable>
 
         {expanded && (
           <View style={styles.jobDetails}>
-            <Route icon="radio-button-on" label="จุดรับ" value={job.pickupLocation} />
+            {job.returnTrip && <Text style={styles.eyebrow}>{returnLeg ? "เที่ยวขากลับ" : "เที่ยวขาไป · มีรับสินค้ากลับ"}</Text>}
+            <Route icon="radio-button-on" label="จุดรับ" value={route.pickupLocation} />
             <View style={styles.routeLine} />
-            <Route icon="location" label="จุดส่ง" value={job.deliveryLocation} />
-            {[["ผู้ติดต่อจุดรับ", job.pickupContact, job.pickupContactPhone, job.pickupContactNotes], ["ผู้ติดต่อจุดส่ง", job.deliveryContact, job.deliveryContactPhone, job.deliveryContactNotes]].map(([label, name, phone, notes]) => <View key={label} style={{ marginTop: 12, gap: 6 }}><Text style={styles.muted}>{label}</Text><Text>{name || "ยังไม่ระบุผู้ติดต่อ"}</Text>{phone && <Pressable accessibilityRole="link" accessibilityLabel={`โทร ${name || label} ${phone}`} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => { void Linking.openURL(`tel:${phone.replace(/[^+\d]/g, "")}`).catch(() => Alert.alert("โทรไม่สำเร็จ", `กรุณาโทร ${phone}`)); }}><Text style={{ color: colors.orange }}>โทร {phone}</Text></Pressable>}{notes && <Text style={styles.muted}>{notes}</Text>}</View>)}
+            <Route icon="location" label="จุดส่ง" value={route.deliveryLocation} />
+            {[["ผู้ติดต่อจุดรับ", route.pickupContact, route.pickupContactPhone, route.pickupContactNotes], ["ผู้ติดต่อจุดส่ง", route.deliveryContact, route.deliveryContactPhone, route.deliveryContactNotes]].map(([label, name, phone, notes]) => <View key={label} style={{ marginTop: 12, gap: 6 }}><Text style={styles.muted}>{label}</Text><Text>{name || "ยังไม่ระบุผู้ติดต่อ"}</Text>{phone && <Pressable accessibilityRole="link" accessibilityLabel={`โทร ${name || label} ${phone}`} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => { void Linking.openURL(`tel:${phone.replace(/[^+\d]/g, "")}`).catch(() => Alert.alert("โทรไม่สำเร็จ", `กรุณาโทร ${phone}`)); }}><Text style={{ color: colors.orange }}>โทร {phone}</Text></Pressable>}{notes && <Text style={styles.muted}>{notes}</Text>}</View>)}
             <View style={styles.metrics}>
               <Metric label="ETA" value={job.eta} />
               <Metric label="ความเร็ว" value={`${job.currentLocation.speed} กม./ชม.`} />
@@ -768,10 +787,10 @@ function JobPanel({
         <View style={styles.workflowHeader}>
           <View>
             <Text style={styles.workflowKicker}>ขั้นตอนปัจจุบัน</Text>
-            <Text style={styles.workflowCount}>{step ? `${completedStepCount + 1} จาก ${driverSteps.length}` : "เสร็จสิ้น"}</Text>
+            <Text style={styles.workflowCount}>{step ? `${completedStepCount + 1} จาก ${totalSteps}` : "เสร็จสิ้น"}</Text>
           </View>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.round((completedStepCount / driverSteps.length) * 100)}%` }]} />
+            <View style={[styles.progressFill, { width: `${Math.round((completedStepCount / totalSteps) * 100)}%` }]} />
           </View>
         </View>
 
@@ -951,10 +970,10 @@ function IssueReportModal({
   );
 }
 
-function SavedProofPhotos({ job, busy, onReplace }: { job: TransportJob; busy: boolean; onReplace: (stage: "pickup" | "delivery", index: number) => void }) {
+function SavedProofPhotos({ job, busy, onReplace }: { job: TransportJob; busy: boolean; onReplace: (stage: SavedProofStage, index: number) => void }) {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState(false);
-  const paths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
+  const paths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? []), ...(job.returnPickupProof?.photoPaths ?? []), ...(job.returnDeliveryProof?.photoPaths ?? [])];
   const pathsKey = paths.join("|");
   useEffect(() => {
     let active = true;
@@ -971,11 +990,11 @@ function SavedProofPhotos({ job, busy, onReplace }: { job: TransportJob; busy: b
     <Pressable style={styles.savedProofToggle} onPress={event => { event.stopPropagation(); setExpanded(value => !value); }}><Ionicons name="images-outline" size={20} color={colors.accent} /><Text style={styles.savedProofTitle}>รูปหลักฐานที่บันทึกแล้ว</Text><Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={19} color={colors.accent} /></Pressable>
     {expanded && <Text style={styles.savedProofHint}>เปลี่ยนได้ทีละรูป ระบบจะลบรูปเดิมหลังบันทึกรูปใหม่สำเร็จ</Text>}
     {expanded && <>
-    {(["pickup", "delivery"] as const).map(stage => {
-      const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
+    {(["pickup", "delivery", "returnPickup", "returnDelivery"] as const).map(stage => {
+      const proof = job[`${stage}Proof`];
       if (!proof?.photoPaths.length) return null;
       return <View key={stage} style={styles.savedProofStage}>
-        <Text style={styles.savedProofStageTitle}>{stage === "pickup" ? "จุดรับสินค้า" : "จุดส่งสินค้า"}</Text>
+        <Text style={styles.savedProofStageTitle}>{stage.startsWith("return") ? "ขากลับ · " : job.returnTrip ? "ขาไป · " : ""}{stage.toLowerCase().includes("pickup") ? "จุดรับสินค้า" : "จุดส่งสินค้า"}</Text>
         <View style={styles.savedProofGrid}>{proof.photoPaths.map((path, index) => <View key={path} style={styles.savedProofItem}>
           {urls[path] ? <Image source={{ uri: urls[path] }} style={styles.savedProofImage} resizeMode="contain" /> : <View style={styles.savedProofImage}><Text style={styles.muted}>กำลังโหลดรูป</Text></View>}
           <Pressable disabled={busy} style={[styles.savedProofButton, busy && styles.disabled]} onPress={event => { event.stopPropagation(); onReplace(stage, index); }}><Ionicons name="refresh" size={16} color={colors.accent} /><Text style={styles.savedProofButtonText}>เปลี่ยนรูปที่ {index + 1}</Text></Pressable>

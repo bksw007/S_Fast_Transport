@@ -7,7 +7,10 @@ import type { JobRecord } from "@/lib/job-detail-repository";
 import { buildRecordedRoute } from "@/lib/route-history";
 
 export default function JobRouteHistory({ rows }: { rows: JobRecord[] }) {
-  const route = useMemo(() => buildRecordedRoute(rows), [rows]);
+  const [selectedLeg, setSelectedLeg] = useState<1 | 2>(1);
+  const hasReturn = rows.some(row => row.data.leg === 2);
+  const visibleRows = useMemo(() => hasReturn ? rows.filter(row => (row.data.leg === 2 ? 2 : 1) === selectedLeg) : rows, [rows, selectedLeg, hasReturn]);
+  const route = useMemo(() => buildRecordedRoute(visibleRows), [visibleRows]);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const routeLayersRef = useRef<LeafletLayerGroup | null>(null);
@@ -86,6 +89,7 @@ export default function JobRouteHistory({ rows }: { rows: JobRecord[] }) {
   const dateLabel = (timestamp: number) => new Date(timestamp).toLocaleString("th-TH");
 
   return <div className="job-route-history">
+    {hasReturn && <div className="job-route-history-legs" role="group" aria-label="เลือกเที่ยว"><button type="button" aria-pressed={selectedLeg === 1} onClick={() => setSelectedLeg(1)}>เที่ยวขาไป</button><button type="button" aria-pressed={selectedLeg === 2} onClick={() => setSelectedLeg(2)}>เที่ยวขากลับ</button></div>}
     <div className="job-route-history-heading">
       <div><h3><Route size={19} /> เส้นทางที่บันทึกจาก GPS</h3><p>ล่าสุดไม่เกิน 500 จุด · แสดง {route.points.length} จุด{first ? ` · ${dateLabel(first.recordedAt)} ถึง ${dateLabel(last.recordedAt)}` : " · ยังไม่มีพิกัดที่ใช้ได้"}</p></div>
       {route.gapCount > 0 && <span className="job-route-gap-count">GPS ขาดช่วง {route.gapCount} ครั้ง</span>}

@@ -9,6 +9,8 @@ import JobContacts from "./components/JobContacts";
 import DriverStopProof, { clearDriverProofDraft, clearDriverProofDrafts } from "./components/DriverStopProof";
 import DriverHistory from "./components/DriverHistory";
 import DriverExpenses from "./components/DriverExpenses";
+import ReturnTripFields from "./components/ReturnTripFields";
+import { initialReturnTrip, activeLeg } from "@/lib/return-trip";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { saveDriverProofDraft } from "@/lib/driver-proof-draft";
@@ -163,9 +165,9 @@ const driverNextActionByStatus: Partial<Record<JobStatus, (typeof driverActions)
   ready_to_close: "completed"
 };
 
-export function nextDriverAction(job: Pick<TransportJob, "status" | "issuePreviousStatus">) {
+export function nextDriverAction(job: Pick<TransportJob, "status" | "issuePreviousStatus" | "returnTrip" | "activeLeg">) {
   const status = job.status === "problem" && job.issuePreviousStatus ? job.issuePreviousStatus : job.status;
-  const actionId = driverNextActionByStatus[status];
+  const actionId = status === "ready_to_close" && job.returnTrip && activeLeg(job) === 1 ? "start_return" : driverNextActionByStatus[status];
   return driverActions.find(action => action.id === actionId) ?? null;
 }
 
@@ -1750,14 +1752,15 @@ function DriverView({
   onBackToJobs: () => void;
 }) {
   const nextAction = nextDriverAction(job);
+  const leg = activeLeg(job);
   const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
   const currentStep = Math.max(0, statusOrder.indexOf(effectiveStatus ?? job.status));
   const proofStage = effectiveStatus === "arrived_pickup" || effectiveStatus === "loading" ? "pickup" : effectiveStatus === "arrived_delivery" || effectiveStatus === "unloading" ? "delivery" : null;
   const showingProofForm = Boolean(proofStage && canWrite);
   const stop = activeDriverStop(job);
-  const stopLocation = stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
-  const stopPlace = stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
-  const stopPhone = stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
+  const stopLocation = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupLocation : job.returnTrip.deliveryLocation) : stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
+  const stopPlace = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupPlace : job.returnTrip.deliveryPlace) : stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
+  const stopPhone = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupContactPhone : job.returnTrip.deliveryContactPhone) : stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
   const canNavigate = Boolean(!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? ""));
   const backButton = <button className="driver-step-back" type="button" aria-label="กลับไปงานวันนี้" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับ</button>;
   const [finishOpen, setFinishOpen] = useState(false);
@@ -1773,14 +1776,14 @@ function DriverView({
       <div className="section-title">
         <div>
           <h1>กำลังขนส่ง</h1>
-          <p>{job.workOrder} · {job.vehiclePlate}</p>
+          <p>{job.workOrder} · {job.vehiclePlate}{job.returnTrip ? ` · เที่ยว${leg === 2 ? "ขากลับ" : "ขาไป"}` : ""}</p>
         </div>
         <span className="live-dot">{job.trackingEnabled ? "Live" : "Standby"}</span>
       </div>
 
       {showingProofForm && <div className="driver-step-actions solo">{backButton}</div>}
-      {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
-        const draftKey = `${profile.uid}-${job.id}-${proofStage}`;
+      {proofStage && canWrite ? <DriverStopProof key={`${job.id}-${leg}-${proofStage}`} draftKey={`${profile.uid}-${job.id}-${leg}-${proofStage}`} stage={proofStage} onError={message => onNotice({ title: "บันทึกหลักฐานไม่สำเร็จ", detail: `${message} รูปและลายเซ็นยังอยู่บนหน้านี้ กรุณาลองอีกครั้ง`, tone: "error" })} onSubmit={async (photos, signature, signerName) => {
+        const draftKey = `${profile.uid}-${job.id}-${leg}-${proofStage}`;
         let draftSaved = false;
         let draftSaveFailed = false;
         const showProgress = (progress: number, detail: string) => onNotice({ title: "กำลังบันทึกหลักฐาน", detail, tone: "pending", progress, draftSaved, draftSaveFailed });
@@ -1791,14 +1794,14 @@ function DriverView({
         } catch {
           draftSaveFailed = true;
         }
-        const proof = await uploadStopProof(job, proofStage, photos, signature, signerName, profile, showProgress);
+        const proof = await uploadStopProof(job, leg === 2 ? proofStage === "pickup" ? "returnPickup" : "returnDelivery" : proofStage, photos, signature, signerName, profile, showProgress);
         await updateJobStatus(job, proofStage === "pickup" ? "to_delivery" : "ready_to_close", profile, proof);
-        onNotice({ title: proofStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: proofStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success", progress: 100 });
+        onNotice({ title: proofStage === "pickup" ? "ยืนยันรับสินค้าแล้ว" : "ยืนยันส่งสินค้าแล้ว", detail: proofStage === "pickup" ? "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปเดินทางไปจุดส่ง" : leg === 1 && job.returnTrip ? "บันทึกหลักฐานขาไปแล้ว ขั้นต่อไปเริ่มรับสินค้าขากลับ" : "บันทึกรูปและลายเซ็นแล้ว ขั้นต่อไปกดจบงาน", tone: "success", progress: 100 });
         void clearDriverProofDraft(draftKey).catch(() => undefined);
       }} /> : nextAction && <div className="driver-current-action">
         <small>ขั้นตอนที่ต้องทำตอนนี้</small>
         <strong>{nextAction.id === "start_tracking" ? "รับงานและเริ่มเดินทางไปจุดรับ" : nextAction.label}</strong>
-        <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "completed" ? "หลักฐานครบแล้ว ตรวจทานก่อนจบงานและหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
+        <p>{nextAction.id === "arrived_pickup" ? "เมื่อถึงจุดรับ ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "arrived_delivery" ? "เมื่อถึงจุดส่ง ให้กดยืนยัน จากนั้นถ่ายรูปสินค้าและขอลายเซ็น" : nextAction.id === "start_return" ? "หลักฐานขาไปครบแล้ว เริ่มเที่ยวขากลับเพื่อไปรับสินค้า" : nextAction.id === "completed" ? "หลักฐานครบแล้ว ตรวจทานก่อนจบงานและหยุดแชร์ตำแหน่ง" : "ทำขั้นตอนนี้แล้วระบบจะแสดงสิ่งที่ต้องทำต่อ"}</p>
         <button className={nextAction.id === "start_tracking" ? "driver-action-accept" : nextAction.id === "completed" ? "driver-action-finish" : ""} disabled={!canWrite} onClick={() => nextAction.id === "completed" ? setFinishOpen(true) : onAction(nextAction.nextStatus)}>{nextAction.label}<ArrowRight size={18} /></button>
       </div>}
       {!showingProofForm && <div className={`driver-step-actions${canNavigate ? "" : " solo"}`}>
@@ -1825,8 +1828,10 @@ function DriverView({
           </a>}
         </div>
         <div className="route-block">
+          {job.returnTrip && <strong>เที่ยวขาไป</strong>}
           <RoutePoint title="รับสินค้า" value={job.pickupLocation} href={job.pickupPlace?.navigationUrl} />
           <RoutePoint title="ส่งสินค้า" value={job.deliveryLocation} href={job.deliveryPlace?.navigationUrl} />
+          {job.returnTrip && <><strong>เที่ยวขากลับ</strong><RoutePoint title="รับสินค้ากลับ" value={job.returnTrip.pickupLocation} href={job.returnTrip.pickupPlace?.navigationUrl} /><RoutePoint title="ส่งสินค้ากลับ" value={job.returnTrip.deliveryLocation} href={job.returnTrip.deliveryPlace?.navigationUrl} /></>}
           <JobContacts job={job} />
         </div>
         <div className="metric-row">
@@ -1850,7 +1855,7 @@ function DriverView({
         </div>
       </article>
       {finishOpen && <dialog ref={finishRef} className="driver-status-dialog" aria-labelledby="driver-finish-title" onCancel={event => { event.preventDefault(); setFinishOpen(false); }}>
-        <div className="driver-status-content"><span className="driver-status-icon"><CheckCircle2 size={31} /></span><h2 id="driver-finish-title">ตรวจทานก่อนจบงาน</h2><p>จุดรับ: {job.pickupProof?.photoPaths.length ?? 0} รูป · {job.pickupProof?.signerName || "ไม่มีผู้เซ็น"}<br />จุดส่ง: {job.deliveryProof?.photoPaths.length ?? 0} รูป · {job.deliveryProof?.signerName || "ไม่มีผู้เซ็น"}</p><div className="driver-finish-actions"><button type="button" onClick={() => setFinishOpen(false)}>กลับไปตรวจ</button><button type="button" disabled={!job.pickupProof || !job.deliveryProof} onClick={() => { setFinishOpen(false); onAction("completed"); }}>ยืนยันจบงาน</button></div></div>
+        <div className="driver-status-content"><span className="driver-status-icon"><CheckCircle2 size={31} /></span><h2 id="driver-finish-title">ตรวจทานก่อนจบงาน</h2><p>ขาไป · จุดรับ: {job.pickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: {job.deliveryProof?.photoPaths.length ?? 0} รูป{job.returnTrip && <><br />ขากลับ · จุดรับ: {job.returnPickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: {job.returnDeliveryProof?.photoPaths.length ?? 0} รูป</>}</p><div className="driver-finish-actions"><button type="button" onClick={() => setFinishOpen(false)}>กลับไปตรวจ</button><button type="button" disabled={!job.pickupProof || !job.deliveryProof || Boolean(job.returnTrip && (!job.returnPickupProof || !job.returnDeliveryProof))} onClick={() => { setFinishOpen(false); onAction("completed"); }}>ยืนยันจบงาน</button></div></div>
       </dialog>}
     </section>
   );
@@ -2009,8 +2014,10 @@ function JobSummaryCard({
   const activeStop = activeDriverStop(job);
   const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
   const needsProof = ["arrived_pickup", "loading", "arrived_delivery", "unloading"].includes(effectiveStatus ?? "");
-  const pickupPhone = formatPhoneNumber(job.pickupContactPhone || "");
-  const deliveryPhone = formatPhoneNumber(job.deliveryContactPhone || "");
+  const returnLeg = Boolean(job.returnTrip && job.activeLeg === 2);
+  const route = returnLeg && job.returnTrip ? job.returnTrip : job;
+  const pickupPhone = formatPhoneNumber(route.pickupContactPhone || "");
+  const deliveryPhone = formatPhoneNumber(route.deliveryContactPhone || "");
 
   function toggleDetails() {
     onSelect(job.id);
@@ -2023,13 +2030,13 @@ function JobSummaryCard({
         <span className="job-summary-toggle-icon"><MapPin size={19} /></span>
         <span className="job-summary-topline">
           <small>ใบงาน {job.workOrder}</small>
-          <span className={job.alerts.length ? "status danger" : "status"}>{statusLabels[job.status]}</span>
+          <span className={job.alerts.length ? "status danger" : "status"}>{job.returnTrip ? `${returnLeg ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</span>
         </span>
         <span className="job-summary-toggle-chevron" aria-hidden="true">
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </span>
         <strong className="job-summary-route">
-          {driverToday ? <><span className="driver-today-route-stop"><small>จุดรับสินค้า</small>{job.pickupLocation || "ยังไม่ระบุ"}</span><span className="driver-today-route-line" aria-hidden="true" /><span className="driver-today-route-stop"><small>จุดส่งสินค้า</small>{job.deliveryLocation || "ยังไม่ระบุ"}</span></> : <><span>{job.pickupLocation}</span><ArrowRight size={16} aria-hidden="true" /><span>{job.deliveryLocation}</span></>}
+          {driverToday ? <><span className="driver-today-route-stop"><small>จุดรับสินค้า</small>{route.pickupLocation || "ยังไม่ระบุ"}</span><span className="driver-today-route-line" aria-hidden="true" /><span className="driver-today-route-stop"><small>จุดส่งสินค้า</small>{route.deliveryLocation || "ยังไม่ระบุ"}</span></> : <><span>{route.pickupLocation}</span><ArrowRight size={16} aria-hidden="true" /><span>{route.deliveryLocation}</span></>}
         </strong>
       </button>
 
@@ -2053,36 +2060,37 @@ function JobSummaryCard({
               <span><strong>รายงานปัญหาแล้ว</strong><small>{job.lastIssue?.note || "ผู้ดูแลได้รับแจ้งแล้ว คุณยังทำขั้นตอนเดิมต่อได้"}</small></span>
             </div>
           )}
+          {job.returnTrip && <p className="job-return-trip-note">{returnLeg ? "กำลังดำเนินการเที่ยวขากลับ" : `รับสินค้ากลับ: ${job.returnTrip.pickupLocation} → ${job.returnTrip.deliveryLocation}`}</p>}
           <div className="job-stop-list">
             <article className={`job-stop-card pickup ${activeStop === "pickup" ? "current" : ""}`}>
               <header><span><MapPin size={18} /> จุดรับสินค้า</span>{activeStop === "pickup" && <b>จุดปัจจุบัน</b>}</header>
-              <h3>{job.pickupLocation}</h3>
-              <p><Clock3 size={16} /> {formatStopSchedule(job.pickupDate, job.pickupTime)}</p>
-              <a className="job-map-action" href={stopNavigationUrl(job.pickupLocation, job.pickupPlace)} target="_blank" rel="noreferrer">
+              <h3>{route.pickupLocation}</h3>
+              <p><Clock3 size={16} /> {formatStopSchedule(route.pickupDate, route.pickupTime)}</p>
+              <a className="job-map-action" href={stopNavigationUrl(route.pickupLocation, route.pickupPlace)} target="_blank" rel="noreferrer">
                 <Navigation size={18} /> เปิดแผนที่นำทาง
               </a>
               {activeStop === "pickup" && (
                 <div className="job-stop-contact">
                   <small>ผู้ติดต่อจุดรับ</small>
-                  <strong>{job.pickupContact || "ยังไม่ระบุผู้ติดต่อ"}</strong>
-                  {pickupPhone && <a href={`tel:${job.pickupContactPhone?.replace(/\D/g, "")}`}><Phone size={17} /> โทร {pickupPhone}</a>}
-                  {job.pickupContactNotes && <p>{job.pickupContactNotes}</p>}
+                  <strong>{route.pickupContact || "ยังไม่ระบุผู้ติดต่อ"}</strong>
+                  {pickupPhone && <a href={`tel:${route.pickupContactPhone?.replace(/\D/g, "")}`}><Phone size={17} /> โทร {pickupPhone}</a>}
+                  {route.pickupContactNotes && <p>{route.pickupContactNotes}</p>}
                 </div>
               )}
             </article>
             <article className={`job-stop-card delivery ${activeStop === "delivery" ? "current" : ""}`}>
               <header><span><MapPinned size={18} /> จุดส่งสินค้า</span>{activeStop === "delivery" && <b>จุดปัจจุบัน</b>}</header>
-              <h3>{job.deliveryLocation}</h3>
-              <p><Clock3 size={16} /> {formatStopSchedule(job.deliveryDate, job.deliveryTime)}</p>
-              <a className="job-map-action" href={stopNavigationUrl(job.deliveryLocation, job.deliveryPlace)} target="_blank" rel="noreferrer">
+              <h3>{route.deliveryLocation}</h3>
+              <p><Clock3 size={16} /> {formatStopSchedule(route.deliveryDate, route.deliveryTime)}</p>
+              <a className="job-map-action" href={stopNavigationUrl(route.deliveryLocation, route.deliveryPlace)} target="_blank" rel="noreferrer">
                 <Navigation size={18} /> เปิดแผนที่นำทาง
               </a>
               {activeStop === "delivery" && (
                 <div className="job-stop-contact">
                   <small>ผู้ติดต่อจุดส่ง</small>
-                  <strong>{job.deliveryContact || "ยังไม่ระบุผู้ติดต่อ"}</strong>
-                  {deliveryPhone && <a href={`tel:${job.deliveryContactPhone?.replace(/\D/g, "")}`}><Phone size={17} /> โทร {deliveryPhone}</a>}
-                  {job.deliveryContactNotes && <p>{job.deliveryContactNotes}</p>}
+                  <strong>{route.deliveryContact || "ยังไม่ระบุผู้ติดต่อ"}</strong>
+                  {deliveryPhone && <a href={`tel:${route.deliveryContactPhone?.replace(/\D/g, "")}`}><Phone size={17} /> โทร {deliveryPhone}</a>}
+                  {route.deliveryContactNotes && <p>{route.deliveryContactNotes}</p>}
                 </div>
               )}
             </article>
@@ -2469,6 +2477,9 @@ function AdminView({
                 onLocationChange={(name, place) => setDraft(current => ({ ...current, deliveryLocation: name, deliveryPlace: place }))}
               />
             </div>
+
+            <label className="return-trip-toggle"><input type="checkbox" checked={Boolean(draft.returnTrip)} onChange={event => setDraft(current => ({ ...current, returnTrip: event.target.checked ? initialReturnTrip(current) : undefined }))} /> รับสินค้ากลับ</label>
+            {draft.returnTrip && <ReturnTripFields value={draft.returnTrip} onChange={returnTrip => setDraft(current => ({ ...current, returnTrip }))} organizationId={organizationId} actor={profile} />}
 
             <div className="dispatch-general-grid assignment-grid">
               <DispatchField label="พนักงานขับรถ"><div className="driver-field-control"><select aria-label="พนักงานขับรถ" required value={draft.driverId} disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError)} onChange={event => {

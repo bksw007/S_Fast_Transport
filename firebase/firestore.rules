@@ -380,25 +380,44 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
             "currentLocation", "trackingStatus", "updatedAt", "arrivedDeliveryAt", "completedAt",
-            "issuePreviousStatus", "lastIssue", "alerts", "pickupProof", "deliveryProof"
+            "issuePreviousStatus", "lastIssue", "alerts", "pickupProof", "deliveryProof",
+            "activeLeg", "returnPickupProof", "returnDeliveryProof", "returnArrivedDeliveryAt"
           ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["activeLeg"]) || (
+            resource.data.returnTrip is map
+            && resource.data.activeLeg == 1
+            && request.resource.data.activeLeg == 2
+            && resource.data.status == "ready_to_close"
+            && request.resource.data.status == "to_pickup"
+            && resource.data.pickupProof is map
+            && resource.data.deliveryProof is map
+          ))
           && (
             !request.resource.data.diff(resource.data).changedKeys().hasAny(["currentLocation"])
             || validCurrentLocation(request.resource.data.currentLocation)
           )
           && (!(request.resource.data.status == "to_delivery" && resource.data.status != "to_delivery") || (
-            request.resource.data.pickupProof is map
-            && request.resource.data.pickupProof.photoPaths is list
-            && request.resource.data.pickupProof.photoPaths.size() >= 2
-            && request.resource.data.pickupProof.signaturePath is string
-            && request.resource.data.pickupProof.signerName is string
+            (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof) is map
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).photoPaths is list
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).photoPaths.size() >= 2
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).signaturePath is string
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).signerName is string
           ))
           && (!(request.resource.data.status == "ready_to_close" && resource.data.status != "ready_to_close") || (
-            request.resource.data.deliveryProof is map
-            && request.resource.data.deliveryProof.photoPaths is list
-            && request.resource.data.deliveryProof.photoPaths.size() >= 2
-            && request.resource.data.deliveryProof.signaturePath is string
-            && request.resource.data.deliveryProof.signerName is string
+            (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof) is map
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).photoPaths is list
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).photoPaths.size() >= 2
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).signaturePath is string
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).signerName is string
+          ))
+          && (!(request.resource.data.status == "completed" && resource.data.status != "completed") || (
+            request.resource.data.pickupProof is map
+            && request.resource.data.deliveryProof is map
+            && (!request.resource.data.keys().hasAny(["returnTrip"]) || (
+              request.resource.data.activeLeg == 2
+              && request.resource.data.returnPickupProof is map
+              && request.resource.data.returnDeliveryProof is map
+            ))
           ))
         );
     }
@@ -469,8 +488,9 @@ service cloud.firestore {
         && request.resource.data.driverUid == request.auth.uid
         && request.resource.data.keys().hasOnly([
           "driverUid", "lat", "lng", "speed", "heading", "accuracy",
-          "batteryLevel", "timestamp", "source"
+          "batteryLevel", "timestamp", "source", "leg"
         ])
+        && (!request.resource.data.keys().hasAny(["leg"]) || request.resource.data.leg in [1, 2])
         && validLocationPoint(request.resource.data);
       allow update, delete: if false;
     }

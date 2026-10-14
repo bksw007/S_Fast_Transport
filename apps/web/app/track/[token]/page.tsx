@@ -75,13 +75,13 @@ export default function PublicTrackingPage() {
   const mapUrl = tracking.location ? `https://www.google.com/maps?q=${tracking.location.lat},${tracking.location.lng}` : null;
   const callablePhone = details ? phoneHref(details.driverPhone) : null;
   const canDownloadReport = details?.status === "completed";
-  const statusLabel = details?.status && details.status in statusLabels ? statusLabels[details.status as JobStatus] : tracking.statusLabel;
+  const statusLabel = details?.status && details.status in statusLabels ? `${details.returnTrip ? `${details.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}${statusLabels[details.status as JobStatus]}` : tracking.statusLabel;
 
   function openReport() {
     if (!details || !canDownloadReport) return;
     const preview = window.open("", "_blank");
     if (!preview) { setDetailsError("กรุณาอนุญาตหน้าต่างใหม่เพื่อเปิดรายงาน"); return; }
-    const reportProof = (stage: "pickup" | "delivery", proof: PublicProof): ReportProof => ({
+    const reportProof = (stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", proof: PublicProof): ReportProof => ({
       photos: Array.from({ length: proof.photoCount }, (_, index) => publicTrackingAssetUrl(params.token, stage, "photo", index)),
       signature: proof.hasSignature ? publicTrackingAssetUrl(params.token, stage, "signature") : undefined
     });
@@ -90,13 +90,17 @@ export default function PublicTrackingPage() {
       jobDate: details.jobDate, cargoType: details.cargoType, tripCount: details.tripCount,
       pickupLocation: details.pickupLocation, pickupDate: details.pickupDate, pickupTime: details.pickupTime,
       deliveryLocation: details.deliveryLocation, deliveryDate: details.deliveryDate, deliveryTime: details.deliveryTime,
+      returnTrip: details.returnTrip ? { ...details.returnTrip } : undefined,
       vehiclePlate: details.vehiclePlate, vehicleType: details.vehicleType, driverName: details.driverName,
       routeDistanceMeters: details.routeDistanceMeters ?? undefined, arrivedDeliveryAt: details.arrivedDeliveryAt,
       completedAt: details.completedAt,
       pickupProof: { signerName: details.pickupProof.signerName, signedAt: details.pickupProof.signedAt },
-      deliveryProof: { signerName: details.deliveryProof.signerName, signedAt: details.deliveryProof.signedAt }
+      deliveryProof: { signerName: details.deliveryProof.signerName, signedAt: details.deliveryProof.signedAt },
+      returnPickupProof: { signerName: details.returnPickupProof?.signerName || "", signedAt: details.returnPickupProof?.signedAt || "" },
+      returnDeliveryProof: { signerName: details.returnDeliveryProof?.signerName || "", signedAt: details.returnDeliveryProof?.signedAt || "" },
+      returnArrivedDeliveryAt: details.returnArrivedDeliveryAt
     };
-    preview.document.write(completionReportHtml(reportJob, reportProof("pickup", details.pickupProof), reportProof("delivery", details.deliveryProof), `${window.location.origin}/icons/truck-logo.png`));
+    preview.document.write(completionReportHtml(reportJob, reportProof("pickup", details.pickupProof), reportProof("delivery", details.deliveryProof), `${window.location.origin}/icons/truck-logo.png`, new Date(), details.returnTrip ? { pickup: reportProof("returnPickup", details.returnPickupProof), delivery: reportProof("returnDelivery", details.returnDeliveryProof) } : undefined));
     preview.document.close();
     preview.focus();
   }
@@ -121,6 +125,7 @@ export default function PublicTrackingPage() {
           <div className="tracking-stop"><span className="origin" /><div><small>จุดรับสินค้า</small><strong>{tracking.pickupLocation}</strong>{tracking.pickupPlace && <a href={tracking.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดรับใน Google Maps</a>}</div></div>
           <div className="tracking-line" />
           <div className="tracking-stop"><span className="destination" /><div><small>จุดส่งสินค้า</small><strong>{tracking.deliveryLocation}</strong>{tracking.deliveryPlace && <a href={tracking.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดส่งใน Google Maps</a>}</div></div>
+          {details?.returnTrip && <><h3>เที่ยวขากลับ · รับสินค้ากลับ</h3><div className="tracking-stop"><span className="origin" /><div><small>รับสินค้ากลับ · {scheduledArrival(details.returnTrip.pickupDate, details.returnTrip.pickupTime)}</small><strong>{details.returnTrip.pickupLocation}</strong></div></div><div className="tracking-stop"><span className="destination" /><div><small>ส่งสินค้ากลับ · {scheduledArrival(details.returnTrip.deliveryDate, details.returnTrip.deliveryTime)}</small><strong>{details.returnTrip.deliveryLocation}</strong></div></div></>}
           {mapUrl && <a className="tracking-map-link" href={mapUrl} target="_blank" rel="noreferrer"><MapPin size={18} /> เปิดตำแหน่งล่าสุดใน Google Maps</a>}
         </article>
         <aside className="tracking-side">
@@ -143,14 +148,15 @@ export default function PublicTrackingPage() {
       <section className="tracking-evidence-grid" aria-label="หลักฐานการขนส่ง">
         <ProofCard token={params.token} stage="pickup" title="หลักฐานจากจุดรับ" proof={details?.pickupProof} loading={detailsLoading} />
         <ProofCard token={params.token} stage="delivery" title="หลักฐานจากจุดส่ง" proof={details?.deliveryProof} loading={detailsLoading} />
+        {details?.returnTrip && <><ProofCard token={params.token} stage="returnPickup" title="ขากลับ · หลักฐานจุดรับ" proof={details.returnPickupProof} loading={detailsLoading} /><ProofCard token={params.token} stage="returnDelivery" title="ขากลับ · หลักฐานจุดส่ง" proof={details.returnDeliveryProof} loading={detailsLoading} /></>}
       </section>
-      <section className="tracking-report"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็นทั้งสองจุด</span></div><button type="button" onClick={openReport} disabled={!canDownloadReport}><Download size={18} /> ดาวน์โหลดรายงานการขนส่ง</button>{!canDownloadReport && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
+      <section className="tracking-report"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็น{details?.returnTrip ? "ทั้งขาไปและขากลับ" : "ทั้งสองจุด"}</span></div><button type="button" onClick={openReport} disabled={!canDownloadReport}><Download size={18} /> ดาวน์โหลดรายงานการขนส่ง</button>{!canDownloadReport && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
       <footer className="tracking-footer">ลิงก์นี้แสดงข้อมูลเฉพาะใบงานนี้ รวมถึงเบอร์ติดต่อคนขับและหลักฐานการส่งมอบ จนกว่าลิงก์จะหมดอายุ</footer>
     </main>
   );
 }
 
-function ProofCard({ token, stage, title, proof, loading }: { token: string; stage: "pickup" | "delivery"; title: string; proof?: PublicProof; loading: boolean }) {
+function ProofCard({ token, stage, title, proof, loading }: { token: string; stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery"; title: string; proof?: PublicProof; loading: boolean }) {
   return <article className="tracking-proof-card">
     <div className="tracking-section-title"><Camera size={20} /><div><strong>{title}</strong><span>{proof?.photoCount ? `${proof.photoCount} ภาพ` : "ภาพถ่ายและลายเซ็น"}</span></div></div>
     {proof?.photoCount ? <div className="tracking-proof-photos">{Array.from({ length: proof.photoCount }, (_, index) => <a key={index} href={publicTrackingAssetUrl(token, stage, "photo", index)} target="_blank" rel="noreferrer"><Image unoptimized src={publicTrackingAssetUrl(token, stage, "photo", index)} alt={`${title} ภาพที่ ${index + 1}`} width={360} height={240} /></a>)}</div> : <p className="tracking-proof-empty">{loading ? "กำลังโหลดหลักฐาน..." : "ยังไม่มีภาพจากจุดนี้"}</p>}

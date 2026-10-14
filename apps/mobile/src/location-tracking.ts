@@ -24,6 +24,7 @@ export type TrackingSession = {
   driverUid: string;
   organizationId: string;
   workOrder: string;
+  leg?: 1 | 2;
 };
 
 type StoredPoint = {
@@ -31,6 +32,7 @@ type StoredPoint = {
   jobId: string;
   driverUid: string;
   organizationId: string;
+  leg: 1 | 2;
   lat: number;
   lng: number;
   speed: number;
@@ -128,6 +130,11 @@ export async function getActiveTrackingSession(): Promise<TrackingSession | null
   }
 }
 
+export async function setActiveTrackingLeg(leg: 1 | 2) {
+  const session = await getActiveTrackingSession();
+  if (session) await AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({ ...session, leg }));
+}
+
 export async function flushPendingPoints() {
   const pending = await readPendingPoints();
   if (!pending.length) return;
@@ -159,6 +166,7 @@ function toStoredPoint(
     jobId: session.jobId,
     driverUid: session.driverUid,
     organizationId: session.organizationId,
+    leg: session.leg === 2 ? 2 : 1,
     lat: location.coords.latitude,
     lng: location.coords.longitude,
     speed: Math.max(0, Math.round((location.coords.speed ?? 0) * 3.6)),
@@ -186,6 +194,7 @@ async function uploadPoint(point: StoredPoint) {
   const batch = writeBatch(db);
   batch.set(doc(db, "job_locations", point.jobId, "points", point.id), {
     driverUid: point.driverUid,
+    leg: point.leg === 2 ? 2 : 1,
     lat: point.lat,
     lng: point.lng,
     speed: point.speed,

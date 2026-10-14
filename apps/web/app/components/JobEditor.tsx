@@ -10,6 +10,8 @@ import { jobToEditDraft, type JobEditDraft } from "@/lib/job-edit";
 import { ListManagerComboBox } from "./ListManagerComboBox";
 import { LocationPicker } from "./LocationPicker";
 import ContactPicker from "./ContactPicker";
+import ReturnTripFields from "./ReturnTripFields";
+import { initialReturnTrip } from "@/lib/return-trip";
 
 export default function JobEditor({
   job,
@@ -93,6 +95,8 @@ export default function JobEditor({
         <EditField label="ผู้ติดต่อ"><ContactPicker actor={actor} value={{ id: draft.deliveryContactId, name: draft.deliveryContact, phone: draft.deliveryContactPhone, notes: draft.deliveryContactNotes }} onChange={contact => setDraft(current => ({ ...current, deliveryContactId: contact.id, deliveryContact: contact.name, deliveryContactPhone: contact.phone, deliveryContactNotes: contact.notes }))} /></EditField>
       </fieldset>
     </div>
+
+    <section className="job-edit-section"><label className="return-trip-toggle"><input type="checkbox" checked={Boolean(draft.returnTrip)} disabled={Boolean(job.status === "completed" || job.status === "cancelled" || job.activeLeg === 2 || job.returnPickupProof || job.returnDeliveryProof)} onChange={event => setDraft(current => ({ ...current, returnTrip: event.target.checked ? initialReturnTrip(current) : undefined }))} /> รับสินค้ากลับ</label>{draft.returnTrip && <ReturnTripFields value={draft.returnTrip} onChange={returnTrip => update("returnTrip", returnTrip)} organizationId={organizationId} actor={actor} />}</section>
 
     <section className="job-edit-section">
       <h4>รถ คนขับ และกำหนดการ</h4>

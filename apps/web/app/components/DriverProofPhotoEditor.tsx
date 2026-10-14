@@ -15,7 +15,7 @@ export default function DriverProofPhotoEditor({ job, actor, onNotice }: {
 }) {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [busyPath, setBusyPath] = useState("");
-  const paths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
+  const paths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? []), ...(job.returnPickupProof?.photoPaths ?? []), ...(job.returnDeliveryProof?.photoPaths ?? [])];
   const pathsKey = paths.join("|");
   useEffect(() => {
     let active = true;
@@ -33,13 +33,13 @@ export default function DriverProofPhotoEditor({ job, actor, onNotice }: {
   return <details className="driver-proof-editor">
     <summary><Camera size={19} /> <span>รูปหลักฐานที่บันทึกแล้ว</span><small>แตะเพื่อดูหรือเปลี่ยนรูป</small></summary>
     <p>แตะเปลี่ยนรูปที่ต้องการได้ ระบบจะลบรูปเดิมหลังบันทึกรูปใหม่สำเร็จ</p>
-    {(["pickup", "delivery"] as const).map(stage => {
-      const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
+    {(["pickup", "delivery", "returnPickup", "returnDelivery"] as const).map(stage => {
+      const proof = job[`${stage}Proof`];
       if (!proof?.photoPaths.length) return null;
       return <div key={stage} className="driver-proof-editor-stage">
-        <strong>{stage === "pickup" ? "จุดรับสินค้า" : "จุดส่งสินค้า"}</strong>
+        <strong>{stage.startsWith("return") ? "ขากลับ · " : job.returnTrip ? "ขาไป · " : ""}{stage.toLowerCase().includes("pickup") ? "จุดรับสินค้า" : "จุดส่งสินค้า"}</strong>
         <div className="driver-proof-editor-grid">{proof.photoPaths.map((path, index) => <div className="driver-proof-editor-photo" key={path}>
-          {urls[path] ? <Image unoptimized src={urls[path]} alt={`รูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} ${index + 1}`} width={320} height={220} /> : <span>กำลังโหลดรูป</span>}
+          {urls[path] ? <Image unoptimized src={urls[path]} alt={`รูป${stage.toLowerCase().includes("pickup") ? "จุดรับ" : "จุดส่ง"} ${index + 1}`} width={320} height={220} /> : <span>กำลังโหลดรูป</span>}
           <label className={busyPath ? "disabled" : ""}><RefreshCw size={16} /> {busyPath === path ? "กำลังเปลี่ยน..." : `เปลี่ยนรูปที่ ${index + 1}`}
             <input type="file" accept="image/*" disabled={Boolean(busyPath)} onChange={async event => {
               const file = event.currentTarget.files?.[0];
@@ -48,7 +48,7 @@ export default function DriverProofPhotoEditor({ job, actor, onNotice }: {
               setBusyPath(path);
               try {
                 await replaceStopProofPhoto(job, stage, index, file, actor);
-                onNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage === "pickup" ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว ระบบกำลังลบรูปเดิม`, tone: "success" });
+                onNotice({ title: "เปลี่ยนรูปแล้ว", detail: `บันทึกรูป${stage.toLowerCase().includes("pickup") ? "จุดรับ" : "จุดส่ง"}ที่ ${index + 1} แล้ว ระบบกำลังลบรูปเดิม`, tone: "success" });
               } catch (error) {
                 onNotice({ title: "เปลี่ยนรูปไม่สำเร็จ", detail: error instanceof Error ? error.message : "กรุณาลองอีกครั้ง", tone: "error" });
               } finally { setBusyPath(""); }

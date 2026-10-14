@@ -14,7 +14,7 @@ import type { UserProfile } from "@/lib/transport-repository";
 import CustomerJobRequests from "./CustomerJobRequests";
 import "./customer-portal.css";
 
-type Evidence = { pickup: ReportProof; delivery: ReportProof };
+type Evidence = { pickup: ReportProof; delivery: ReportProof; returnPickup: ReportProof; returnDelivery: ReportProof };
 const emptyProof: ReportProof = { photos: [] };
 const dateText = (value?: string) => value ? new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }) : "—";
 const dayText = (value?: string) => value && !Number.isNaN(new Date(`${value}T12:00:00+07:00`).getTime()) ? new Date(`${value}T12:00:00+07:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : value || "—";
@@ -36,7 +36,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
   const [view, setView] = useState<"overview" | "requests">("overview");
   const [selectedId, setSelectedId] = useState("");
   const [month, setMonth] = useState("");
-  const [evidence, setEvidence] = useState<Evidence>({ pickup: emptyProof, delivery: emptyProof });
+  const [evidence, setEvidence] = useState<Evidence>({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof });
   const [proofLoading, setProofLoading] = useState(false);
   const [issuePhoto, setIssuePhoto] = useState("");
   const [proofError, setProofError] = useState("");
@@ -51,7 +51,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
   const selected = visible.find(job => job.id === selectedId) ?? null;
 
   function openJob(jobId: string) {
-    setEvidence({ pickup: emptyProof, delivery: emptyProof });
+    setEvidence({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof });
     setProofLoading(true);
     setIssuePhoto("");
     setProofError("");
@@ -61,8 +61,8 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
   useEffect(() => {
     if (!selected) return;
     let live = true;
-    void Promise.all([loadProof(selected.pickupProof), loadProof(selected.deliveryProof)])
-      .then(([pickup, delivery]) => { if (live) setEvidence({ pickup, delivery }); })
+    void Promise.all([loadProof(selected.pickupProof), loadProof(selected.deliveryProof), loadProof(selected.returnPickupProof), loadProof(selected.returnDeliveryProof)])
+      .then(([pickup, delivery, returnPickup, returnDelivery]) => { if (live) setEvidence({ pickup, delivery, returnPickup, returnDelivery }); })
       .catch(() => { if (live) setProofError("โหลดภาพหลักฐานไม่สำเร็จ กรุณาลองเปิดใบงานอีกครั้ง"); })
       .finally(() => { if (live) setProofLoading(false); });
     const issue = selected.lastIssue;
@@ -85,9 +85,9 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
     preview.document.write("<p>กำลังเตรียมรายงานการขนส่ง…</p>");
     setReportBusy(true);
     try {
-      const [pickup, delivery] = await Promise.all([loadProof(job.pickupProof), loadProof(job.deliveryProof)]);
+      const [pickup, delivery, returnPickup, returnDelivery] = await Promise.all([loadProof(job.pickupProof), loadProof(job.deliveryProof), loadProof(job.returnPickupProof), loadProof(job.returnDeliveryProof)]);
       preview.document.open();
-      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`));
+      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }));
       preview.document.close();
     } catch {
       preview.close();
@@ -141,7 +141,7 @@ function CustomerJobDetail({ job, evidence, proofLoading, issuePhoto, proofError
       </div>
 
       <section className="customer-portal-detail-hero">
-        <div className="customer-portal-detail-intro"><span>งานขนส่ง {job.workOrder}</span><h2>{statusLabels[job.status]}</h2><p>{job.customer} · ดำเนินการโดย {job.carrierName || "S Fast Transportation"}</p></div>
+        <div className="customer-portal-detail-intro"><span>งานขนส่ง {job.workOrder}</span><h2>{job.returnTrip ? `${job.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</h2><p>{job.customer} · ดำเนินการโดย {job.carrierName || "S Fast Transportation"}</p></div>
         <div className="customer-portal-detail-arrivals">
           <div><Clock3 size={18} /><span>ถึงจุดรับโดยประมาณ</span><strong>{scheduledArrival(job.pickupDate, job.pickupTime)}</strong></div>
           <div><Clock3 size={18} /><span>ถึงจุดส่งโดยประมาณ</span><strong>{scheduledArrival(job.deliveryDate, job.deliveryTime, job.eta)}</strong></div>
@@ -154,6 +154,7 @@ function CustomerJobDetail({ job, evidence, proofLoading, issuePhoto, proofError
           <div className="customer-portal-detail-stop"><span className="origin" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "ยังไม่ระบุ"}</strong>{job.pickupPlace?.navigationUrl && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดรับใน Google Maps <ArrowUpRight size={14} /></a>}</div></div>
           <div className="customer-portal-detail-line" />
           <div className="customer-portal-detail-stop"><span className="destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "ยังไม่ระบุ"}</strong>{job.deliveryPlace?.navigationUrl && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดส่งใน Google Maps <ArrowUpRight size={14} /></a>}</div></div>
+          {job.returnTrip && <><h4>เที่ยวขากลับ · รับสินค้ากลับ</h4><div className="customer-portal-detail-stop"><span className="origin" /><div><small>รับสินค้ากลับ · {scheduledArrival(job.returnTrip.pickupDate, job.returnTrip.pickupTime)}</small><strong>{job.returnTrip.pickupLocation}</strong>{job.returnTrip.pickupPlace?.navigationUrl && <a href={job.returnTrip.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดรับขากลับ <ArrowUpRight size={14} /></a>}</div></div><div className="customer-portal-detail-stop"><span className="destination" /><div><small>ส่งสินค้ากลับ · {scheduledArrival(job.returnTrip.deliveryDate, job.returnTrip.deliveryTime)}</small><strong>{job.returnTrip.deliveryLocation}</strong>{job.returnTrip.deliveryPlace?.navigationUrl && <a href={job.returnTrip.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดส่งขากลับ <ArrowUpRight size={14} /></a>}</div></div></>}
           {mapUrl && <a className="customer-portal-map-link" href={mapUrl} target="_blank" rel="noreferrer"><MapPin size={17} /> เปิดตำแหน่งล่าสุดใน Google Maps <ArrowUpRight size={15} /></a>}
         </section>
         <aside className="customer-portal-detail-side">
@@ -169,14 +170,14 @@ function CustomerJobDetail({ job, evidence, proofLoading, issuePhoto, proofError
       {issue && <section className={`customer-portal-issue ${issue.resolvedAt ? "is-resolved" : ""}`} role="status"><AlertTriangle size={21} /><div><strong>{issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{driverIssueLabels[issue.type] || "ปัญหาการขนส่ง"}{issue.note ? ` · ${issue.note}` : ""}</p><small>แจ้งเมื่อ {dateText(issue.reportedAt)}{issue.resolvedAt ? ` · ดำเนินการแล้ว ${dateText(issue.resolvedAt)}` : ""}</small>{issue.resolutionNote && <p>การดำเนินการ: {issue.resolutionNote}</p>}{issueImageUrl && <a href={issueImageUrl} target="_blank" rel="noreferrer">ดูภาพประกอบปัญหา</a>}</div></section>}
 
       {proofError && <p role="alert" className="customer-portal-error">{proofError}</p>}
-      <div className="customer-portal-proof-grid" aria-label="หลักฐานการขนส่ง"><ProofBlock title="หลักฐานจากจุดรับ" proof={job.pickupProof} files={evidence.pickup} loading={proofLoading} /><ProofBlock title="หลักฐานจากจุดส่ง" proof={job.deliveryProof} files={evidence.delivery} loading={proofLoading} /></div>
-      <section className="customer-portal-report-panel"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็นทั้งสองจุด</span></div><button className="customer-portal-report" type="button" disabled={!completed || reportBusy} onClick={onReport}><Download size={18} /> {reportBusy ? "กำลังเตรียมรายงาน…" : "ดาวน์โหลดรายงานการขนส่ง"}</button>{!completed && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
+      <div className="customer-portal-proof-grid" aria-label="หลักฐานการขนส่ง"><ProofBlock title={job.returnTrip ? "ขาไป · หลักฐานจุดรับ" : "หลักฐานจากจุดรับ"} proof={job.pickupProof} files={evidence.pickup} loading={proofLoading} /><ProofBlock title={job.returnTrip ? "ขาไป · หลักฐานจุดส่ง" : "หลักฐานจากจุดส่ง"} proof={job.deliveryProof} files={evidence.delivery} loading={proofLoading} />{job.returnTrip && <><ProofBlock title="ขากลับ · หลักฐานจุดรับ" proof={job.returnPickupProof} files={evidence.returnPickup} loading={proofLoading} /><ProofBlock title="ขากลับ · หลักฐานจุดส่ง" proof={job.returnDeliveryProof} files={evidence.returnDelivery} loading={proofLoading} /></>}</div>
+      <section className="customer-portal-report-panel"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็น{job.returnTrip ? "ทั้งขาไปและขากลับ" : "ทั้งสองจุด"}</span></div><button className="customer-portal-report" type="button" disabled={!completed || reportBusy} onClick={onReport}><Download size={18} /> {reportBusy ? "กำลังเตรียมรายงาน…" : "ดาวน์โหลดรายงานการขนส่ง"}</button>{!completed && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
     </article>
   </div>;
 }
 
 function JobCard({ job, onOpen }: { job: TransportJob; onOpen: () => void }) {
-  return <button className="customer-portal-card" type="button" data-status={job.status} onClick={onOpen}><span className="customer-portal-card-top"><span><small>เลขที่ใบงาน</small><strong>{job.workOrder}</strong></span><span className="customer-portal-status"><span aria-hidden="true" />{statusLabels[job.status]}</span></span><span className="customer-portal-route"><span><MapPin size={16} /><span><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "ไม่ระบุจุดรับ"}</strong></span></span><span><MapPin size={16} /><span><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "ไม่ระบุจุดส่ง"}</strong></span></span></span><span className="customer-portal-card-bottom"><span><CalendarDays size={15} /> {dayText(job.jobDate)}</span><span>ดูรายละเอียด <ArrowUpRight size={16} /></span></span></button>;
+  return <button className="customer-portal-card" type="button" data-status={job.status} onClick={onOpen}><span className="customer-portal-card-top"><span><small>เลขที่ใบงาน</small><strong>{job.workOrder}</strong></span><span className="customer-portal-status"><span aria-hidden="true" />{job.returnTrip ? `${job.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</span></span><span className="customer-portal-route"><span><MapPin size={16} /><span><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "ไม่ระบุจุดรับ"}</strong></span></span><span><MapPin size={16} /><span><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "ไม่ระบุจุดส่ง"}</strong></span></span>{job.returnTrip && <span><MapPin size={16} /><span><small>รับสินค้ากลับ</small><strong>{job.returnTrip.pickupLocation} → {job.returnTrip.deliveryLocation}</strong></span></span>}</span><span className="customer-portal-card-bottom"><span><CalendarDays size={15} /> {dayText(job.jobDate)}</span><span>ดูรายละเอียด <ArrowUpRight size={16} /></span></span></button>;
 }
 
 function ProofBlock({ title, proof, files, loading }: { title: string; proof?: StopProof; files: ReportProof; loading: boolean }) {

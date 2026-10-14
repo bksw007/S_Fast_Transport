@@ -31,7 +31,7 @@ const context = {
     if (name === 'nodemailer') return { createTransport: options => {
       assert.equal(options.host, 'smtp.gmail.com');
       assert.equal(options.auth.user, 'company@gmail.com');
-      return { sendMail: async message => { calls.push(message); return { messageId: `email-${calls.length}` }; } };
+      return { sendMail: async message => { calls.push(message); return { messageId: `email-${calls.length}`, accepted: [message.to] }; }, close() {} };
     } };
     throw new Error(`Unexpected import ${name}`);
   }
@@ -44,6 +44,7 @@ const customerAuth = { auth: { uid: 'customer-user', token: { email: 'customer@e
 records.set('users/customer-user', { role: 'customer', active: true, approvalStatus: 'approved', customerId: 'customer-A', email: 'customer@example.com', fullName: 'ผู้แจ้ง' });
 records.set('customers/customer-A', { name: 'บริษัท A', active: true });
 records.set('organizations/main', { email: 'office@example.com' });
+records.set(`organizations/main/list_options/vehicle_type--${encodeURIComponent('รถหกล้อ')}`, { label: 'รถหกล้อ' });
 records.set('users/admin-user', { role: 'admin', active: true, approvalStatus: 'approved', organizationId: 'main' });
 
 (async () => {
@@ -58,19 +59,18 @@ records.set('users/admin-user', { role: 'admin', active: true, approvalStatus: '
   await assert.rejects(() => context.exports.submitCustomerJobRequest({ ...customerAuth, data: { ...input, recipientEmails: [] } }), /อีเมลผู้รับ/);
   await assert.rejects(() => context.exports.rejectCustomerJobRequest({ auth: { uid: 'customer-user' }, data: { id: 'request-1', reason: 'ไม่รับ' } }), /เฉพาะผู้ดูแล/);
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-1' }, data: { before: { data: () => undefined }, after: { data: () => request } } });
-  assert.equal(calls.length, 1, 'submission sends one message');
-  assert.equal(calls[0].to, 'office@example.com', 'main company receives the email directly');
-  assert.deepEqual(Array.from(calls[0].bcc), ['customer@example.com', 'other@example.com'], 'selected customer recipients receive a private copy');
+  assert.equal(calls.length, 3, 'submission sends a separate message to each recipient');
+  assert.deepEqual(calls.map(call => call.to), ['customer@example.com', 'other@example.com', 'office@example.com']);
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-1' }, data: { before: { data: () => undefined }, after: { data: () => request } } });
-  assert.equal(calls.length, 1, 'delivery log prevents duplicate email');
+  assert.equal(calls.length, 3, 'delivery log prevents duplicate email');
   await context.exports.rejectCustomerJobRequest({ auth: { uid: 'admin-user' }, data: { id: 'request-1', reason: 'รถไม่พร้อม' } });
   const rejected = records.get('customer_job_requests/request-1');
   assert.equal(rejected.status, 'rejected');
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-1' }, data: { before: { data: () => request }, after: { data: () => rejected } } });
-  assert.equal(calls.length, 2, 'decision mail reaches the same recipients');
+  assert.equal(calls.length, 6, 'decision mail reaches the same recipients');
   const accepted = { ...request, status: 'accepted', workOrder: 'JN-20261014001' };
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-2' }, data: { before: { data: () => request }, after: { data: () => accepted } } });
-  assert.equal(calls.length, 3, 'acceptance mail reaches every recipient too');
-  assert.match(calls[2].text, /JN-20261014001/);
+  assert.equal(calls.length, 9, 'acceptance mail reaches every recipient too');
+  assert.match(calls[6].text, /JN-20261014001/);
   console.log('PASS: customer request validation, two separate location stores, review permissions, and email recipients');
 })().catch(error => { console.error(error); process.exitCode = 1; });

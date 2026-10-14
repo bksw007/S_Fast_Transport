@@ -27,6 +27,8 @@ const context = { exports: {}, require: name => {
   if (name === '@/lib/resource-repository') return { subscribeDrivers: () => () => {} };
   if (name === '@/lib/profile-repository') return { formatPhoneNumber: value => value };
   if (name === '@/lib/job-edit') return { jobToEditDraft: draftFromJob };
+  if (name === '@/lib/return-trip') return { initialReturnTrip: () => ({}) };
+  if (name === './ReturnTripFields') return { default: stubComponent('return-trip-fields') };
   if (name === './ListManagerComboBox') return { ListManagerComboBox: stubComponent('list-manager') };
   if (name === './LocationPicker') return { LocationPicker: stubComponent('location-picker') };
   if (name === './ContactPicker') return stubComponent('contact-picker');

@@ -54,7 +54,7 @@ export async function startPwaJobTracking(
   if (initialPosition) await uploadPosition(job, profile, initialPosition, true);
 
   activeWatchId = navigator.geolocation.watchPosition(
-    (position) => void uploadPosition(job, profile, position),
+    (position) => { if (activeContext) void uploadPosition(activeContext.job, activeContext.profile, position); },
     () => undefined,
     { enableHighAccuracy: true, timeout: 30_000, maximumAge: 15_000 }
   );
@@ -69,7 +69,8 @@ export async function startPwaJobTracking(
 }
 
 export async function resumePwaJobTrackingIfAllowed(job: TransportJob, profile: UserProfile) {
-  if (activeJobId === job.id || window.localStorage.getItem(ACTIVE_JOB_KEY) !== job.id) return false;
+  if (activeJobId === job.id) { activeContext = { job, profile }; return false; }
+  if (window.localStorage.getItem(ACTIVE_JOB_KEY) !== job.id) return false;
   if (!job.trackingEnabled || ["completed", "cancelled"].includes(job.status)) return false;
 
   try {
@@ -140,6 +141,7 @@ async function uploadPosition(
 
   batch.set(doc(db, "job_locations", job.id, "points", pointId), {
     driverUid: profile.uid,
+    leg: job.returnTrip && job.activeLeg === 2 ? 2 : 1,
     lat: currentLocation.lat,
     lng: currentLocation.lng,
     speed: currentLocation.speed,

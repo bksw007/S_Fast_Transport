@@ -138,6 +138,8 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
     const current = snapshot.data();
     assertCurrentJobAccess(current, actor);
     if (String(current.organizationId ?? "main") !== organizationId) throw new Error("บริษัทของใบงานมีการเปลี่ยนแปลง กรุณาเปิดใหม่");
+    if (current.status === "completed" && Boolean(current.returnTrip) !== Boolean(values.returnTrip)) throw new Error("งานเสร็จแล้ว ไม่สามารถเปลี่ยนการรับสินค้ากลับได้");
+    if (current.returnTrip && !values.returnTrip && (current.activeLeg === 2 || current.returnPickupProof || current.returnDeliveryProof)) throw new Error("เริ่มงานขากลับแล้ว ไม่สามารถยกเลิกรับสินค้ากลับได้");
     const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(values.pickupPlace, values.deliveryPlace);
     transaction.update(jobRef, {
       customer: values.customer,
@@ -147,6 +149,8 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
       cargoType: values.cargoType,
       vehicleType: values.vehicleType,
       tripCount: values.tripCount,
+      returnTrip: values.returnTrip ?? deleteField(),
+      ...(!values.returnTrip ? { activeLeg: deleteField() } : current.activeLeg ? {} : { activeLeg: 1 }),
       vehiclePlate: values.vehiclePlate,
       pickupLocation: values.pickupLocation,
       pickupPlace: values.pickupPlace ?? deleteField(),

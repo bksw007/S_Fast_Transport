@@ -3,7 +3,11 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-const context = { exports: {}, require };
+const returnTripContext = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/return-trip.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS }
+}).outputText, returnTripContext);
+const context = { exports: {}, require: name => name === './return-trip' ? returnTripContext.exports : require(name) };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/job-edit.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true }
 }).outputText, context);
@@ -33,6 +37,13 @@ assert.throws(() => context.exports.validateJobEditDraft({ ...draft, customer: '
 assert.throws(() => context.exports.validateJobEditDraft({ ...draft, tripCount: '0' }), /จำนวนรอบ/);
 assert.throws(() => context.exports.validateJobEditDraft({ ...draft, pickupContact: '', pickupContactPhone: '0811111111' }), /ผู้ติดต่อจุดรับ/);
 assert.throws(() => context.exports.validateJobEditDraft({ ...draft, deliveryDate: '21\/09\/2026' }), /วันที่ส่ง/);
+const returnTrip = returnTripContext.exports.initialReturnTrip(job);
+assert.equal(returnTrip.pickupLocation, 'โรงงาน B');
+assert.equal(returnTrip.deliveryLocation, 'คลัง A');
+const returnDraft = { ...draft, returnTrip: { ...returnTrip, pickupTime: '15:00', deliveryTime: '18:00' } };
+assert.equal(context.exports.validateJobEditDraft(returnDraft).returnTrip.pickupDate, '2026-09-21');
+assert.throws(() => context.exports.validateJobEditDraft({ ...returnDraft, returnTrip: { ...returnDraft.returnTrip, pickupTime: '13:00' } }), /ไม่ก่อนเวลาส่งสินค้าขาไป/);
+assert.throws(() => context.exports.validateJobEditDraft({ ...returnDraft, returnTrip: { ...returnDraft.returnTrip, deliveryTime: '14:00' } }), /ไม่ก่อนเวลารับสินค้าขากลับ/);
 const repositorySource = fs.readFileSync('apps/web/lib/job-detail-repository.ts', 'utf8');
 const transportSource = fs.readFileSync('apps/web/lib/transport-repository.ts', 'utf8');
 assert.match(repositorySource, /routeDistanceMeters:\s*deleteField\(\)/, 'location changes invalidate cached road distance');

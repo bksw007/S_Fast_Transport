@@ -10,7 +10,7 @@ const output = ts.transpileModule(fs.readFileSync(fileName, 'utf8'), {
 const context = { exports: {}, require: () => ({}) };
 vm.runInNewContext(output, context);
 
-const { currentDriverStep, driverProgress, driverSteps } = context.exports;
+const { currentDriverStep, driverProgress, driverStepCount, driverSteps } = context.exports;
 const expected = {
   assigned: 'accepted', accepted: 'arrived_pickup', to_pickup: 'arrived_pickup',
   arrived_pickup: 'to_delivery', loading: 'to_delivery', to_delivery: 'arrived_delivery',
@@ -29,5 +29,12 @@ assert.equal(currentDriverStep({ status: 'arrived_delivery' }).photoStage, 'deli
 assert.equal(driverProgress({ status: 'assigned' }), 0);
 assert.equal(driverProgress({ status: 'completed' }), driverSteps.length);
 assert.equal(driverSteps.filter(step => step.photoStage).length, 2);
+const returnJob = { status: 'ready_to_close', returnTrip: { pickupLocation: 'B', deliveryLocation: 'A' }, activeLeg: 1 };
+assert.equal(currentDriverStep(returnJob).id, 'start_return');
+assert.equal(currentDriverStep(returnJob).nextStatus, 'to_pickup');
+assert.equal(currentDriverStep({ ...returnJob, status: 'to_pickup', activeLeg: 2 }).nextStatus, 'arrived_pickup');
+assert.equal(currentDriverStep({ ...returnJob, activeLeg: 2 }).nextStatus, 'completed');
+assert.equal(driverStepCount(returnJob), 11);
+assert.equal(driverProgress({ ...returnJob, activeLeg: 2 }), 10);
 
 console.log('PASS: mobile driver sees one gated next step with required pickup and delivery photos');

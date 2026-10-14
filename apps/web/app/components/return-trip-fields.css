@@ -1,0 +1,15 @@
+.return-trip-fields { min-width: 0; border: 1px solid var(--line, #d8e1dd); border-radius: 20px; padding: 20px; background: var(--surface-soft, #f5f7f4); }
+.return-trip-fields-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 16px; }
+.return-trip-fields-heading strong { font-size: 1.1rem; color: var(--ink, #203b38); }
+.return-trip-fields-heading span { color: var(--muted, #667775); font-size: .9rem; }
+.return-trip-stops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.return-trip-stops fieldset { min-width: 0; border: 1px solid var(--line, #d8e1dd); border-radius: 16px; padding: 16px; background: var(--surface, #fff); }
+.return-trip-stops legend { padding: 0 8px; color: var(--ink, #203b38); font-weight: 700; }
+.return-trip-stops label { display: block; min-width: 0; margin-top: 12px; color: var(--muted, #667775); font-size: .9rem; }
+.return-trip-field { min-width: 0; margin-top: 12px; color: var(--muted, #667775); font-size: .9rem; }
+.return-trip-field > span { display: block; margin-bottom: 6px; }
+.return-trip-stops label > input { display: block; width: 100%; min-width: 0; margin-top: 6px; }
+.return-trip-schedule { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.return-trip-toggle { display: flex; align-items: center; gap: 12px; width: fit-content; padding: 12px 16px; border: 1px solid var(--line, #d8e1dd); border-radius: 14px; color: var(--ink, #203b38); font-weight: 700; cursor: pointer; }
+.return-trip-toggle input { width: 19px; height: 19px; accent-color: #234f4b; }
+@media (max-width: 720px) { .return-trip-fields { padding: 14px; } .return-trip-stops, .return-trip-schedule { grid-template-columns: minmax(0, 1fr); } }

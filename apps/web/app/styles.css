@@ -4999,6 +4999,10 @@ textarea:focus {
 .job-edit-field textarea { resize: vertical; }
 .job-edit-field small { display: block; margin-top: 5px; color: var(--danger); line-height: 1.45; }
 .job-edit-stops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; gap: 14px; }
+.job-route-history-legs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.job-route-history-legs button { border: 1px solid #cbd9d4; border-radius: 999px; background: #fff; color: #355b54; padding: 8px 14px; cursor: pointer; }
+.job-route-history-legs button[aria-pressed="true"] { background: #234f4b; color: #fff; }
+.job-return-trip-note { margin: 12px 0; padding: 10px 14px; border-radius: 12px; background: #e8f1ed; color: #234f4b; font-weight: 700; overflow-wrap: anywhere; }
 .job-edit-form .location-picker, .job-edit-form .contact-picker { gap: 8px; }
 .job-edit-field .location-picker-search input { border: 0; background: transparent; }
 .job-edit-form .contact-picker-select > span { display: none; }

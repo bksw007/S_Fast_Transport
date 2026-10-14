@@ -42,6 +42,25 @@ export type JobPlace = {
   googlePlaceId?: string;
 };
 
+export type ReturnTrip = {
+  pickupLocation: string;
+  pickupPlace?: JobPlace;
+  pickupDate: string;
+  pickupTime: string;
+  pickupContact?: string;
+  pickupContactId?: string;
+  pickupContactPhone?: string;
+  pickupContactNotes?: string;
+  deliveryLocation: string;
+  deliveryPlace?: JobPlace;
+  deliveryDate: string;
+  deliveryTime: string;
+  deliveryContact?: string;
+  deliveryContactId?: string;
+  deliveryContactPhone?: string;
+  deliveryContactNotes?: string;
+};
+
 export type TransportJob = {
   id: string;
   workOrder: string;
@@ -99,6 +118,11 @@ export type TransportJob = {
   };
   pickupProof?: StopProof;
   deliveryProof?: StopProof;
+  returnTrip?: ReturnTrip;
+  activeLeg?: 1 | 2;
+  returnPickupProof?: StopProof;
+  returnDeliveryProof?: StopProof;
+  returnArrivedDeliveryAt?: string;
   assignedDriverUid?: string;
   driverPhotoUrl?: string;
   tripCount?: number;
@@ -171,6 +195,7 @@ export const driverActions = [
   { id: "to_delivery", label: "ออกจากจุดรับ", nextStatus: "to_delivery" },
   { id: "arrived_delivery", label: "ถึงจุดส่งสินค้า", nextStatus: "arrived_delivery" },
   { id: "unloading", label: "ส่งของเสร็จ", nextStatus: "ready_to_close" },
+  { id: "start_return", label: "เริ่มเดินทางไปรับสินค้าขากลับ", nextStatus: "to_pickup" },
   { id: "completed", label: "จบงาน", nextStatus: "completed" }
 ] as const;
 

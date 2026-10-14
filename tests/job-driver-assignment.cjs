@@ -3,9 +3,9 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const { webcrypto } = require('node:crypto');
-let records, writes, roadRequests, roadError;
+let records, writes, roadRequests, roadError, autoJobId;
 const firestore = {
-  doc: (...parts) => { const path = parts.length === 1 ? `${parts[0]}/auto-job` : parts.slice(1).join('/'); return { id: path.split('/').at(-1), path }; }, collection: (_, ...parts) => parts.join('/'),
+  doc: (...parts) => { const path = parts.length === 1 ? `${parts[0]}/auto-job${autoJobId++ || ''}` : parts.slice(1).join('/'); return { id: path.split('/').at(-1), path }; }, collection: (_, ...parts) => parts.join('/'),
   getDoc: async ref => ({ exists: () => Boolean(records[ref.path]), data: () => records[ref.path] }),
   runTransaction: async (_db, operation) => operation({
     get: async ref => ({ exists: () => Boolean(records[ref.path]), data: () => records[ref.path] }),
@@ -19,6 +19,7 @@ const context = { exports: {}, crypto: webcrypto, require: name => {
   if (name === 'firebase/firestore') return firestore;
   if (name === './settings-repository') return { loadCompanySettings: async () => ({ name: 'Company', trackingLinkDays: 7 }) };
   if (name === './customer-repository') return { resolveCustomerId: async () => 'customer-1' };
+  if (name === './return-trip') return { validateReturnTrip: trip => trip };
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
   if (name === './google-routes-distance') return { coordinateFingerprint: (from, to) => from && to && Number.isFinite(from.lat) && Number.isFinite(from.lng) && Number.isFinite(to.lat) && Number.isFinite(to.lng) ? `${from.lat},${from.lng}>${to.lat},${to.lng}` : null };
   if (name === './job-road-distance-client') return { requestJobRoadDistance: async (...args) => { roadRequests.push(args); if (roadError) throw roadError; return 24567; } };
@@ -28,6 +29,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/transport-re
 const actor = { uid: 'admin', organizationId: 'main', role: 'admin', active: true, approvalStatus: 'approved' };
 const draft = { driverId: 'driver-b', driverName: 'Stale name', driverPhone: 'old', workOrder: 'WO-1' };
 function reset() {
+  autoJobId = 0;
   writes = [];
   roadRequests = [];
   roadError = null;

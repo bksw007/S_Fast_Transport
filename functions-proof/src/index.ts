@@ -22,7 +22,7 @@ export const removeReplacedProofPhoto = onDocumentCreated({
   const stage = data.metadata?.stage;
   const previousPath = data.metadata?.previousPath;
   const replacementPath = data.metadata?.path;
-  if (!jobId || !["pickup", "delivery"].includes(stage)
+  if (!jobId || !["pickup", "delivery", "returnPickup", "returnDelivery"].includes(stage)
     || typeof previousPath !== "string" || typeof replacementPath !== "string"
     || previousPath === replacementPath
     || !previousPath.startsWith(`proof_of_delivery/${jobId}/`)
@@ -35,7 +35,9 @@ export const removeReplacedProofPhoto = onDocumentCreated({
   if (!job.exists) return;
   const currentPaths = [
     ...(job.data()?.pickupProof?.photoPaths ?? []),
-    ...(job.data()?.deliveryProof?.photoPaths ?? [])
+    ...(job.data()?.deliveryProof?.photoPaths ?? []),
+    ...(job.data()?.returnPickupProof?.photoPaths ?? []),
+    ...(job.data()?.returnDeliveryProof?.photoPaths ?? [])
   ];
   if (currentPaths.includes(previousPath)) {
     logger.warn("Proof photo is still in use; cleanup deferred", { jobId, previousPath });

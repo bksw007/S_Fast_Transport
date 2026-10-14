@@ -18,6 +18,8 @@ export const driverSteps: readonly DriverStep[] = [
   { id: "completed", label: "จบงาน", description: "ปิดงานและหยุดแชร์ตำแหน่ง", nextStatus: "completed", icon: "checkmark-circle" }
 ] as const;
 
+const returnStartStep: DriverStep = { id: "start_return", label: "เริ่มเดินทางไปรับสินค้าขากลับ", description: "หลักฐานขาไปครบแล้ว เริ่มเที่ยวขากลับเพื่อไปรับสินค้า", nextStatus: "to_pickup", icon: "navigate" };
+
 const stepIndexByStatus: Partial<Record<JobStatus, number>> = {
   assigned: 0,
   accepted: 1,
@@ -34,13 +36,18 @@ export function effectiveDriverStatus(job: Pick<TransportJob, "status" | "issueP
   return job.status === "problem" && job.issuePreviousStatus ? job.issuePreviousStatus : job.status;
 }
 
-export function currentDriverStep(job: Pick<TransportJob, "status" | "issuePreviousStatus">): DriverStep | null {
+export function currentDriverStep(job: Pick<TransportJob, "status" | "issuePreviousStatus" | "returnTrip" | "activeLeg">): DriverStep | null {
+  if (effectiveDriverStatus(job) === "ready_to_close" && job.returnTrip && job.activeLeg !== 2) return returnStartStep;
   const index = stepIndexByStatus[effectiveDriverStatus(job)];
   return typeof index === "number" ? driverSteps[index] : null;
 }
 
-export function driverProgress(job: Pick<TransportJob, "status" | "issuePreviousStatus">) {
+export function driverStepCount(job: Pick<TransportJob, "returnTrip">) { return job.returnTrip ? 11 : driverSteps.length; }
+
+export function driverProgress(job: Pick<TransportJob, "status" | "issuePreviousStatus" | "returnTrip" | "activeLeg">) {
   const step = currentDriverStep(job);
-  if (!step) return driverSteps.length;
-  return driverSteps.findIndex((candidate) => candidate.id === step.id);
+  if (!step) return driverStepCount(job);
+  if (step.id === "start_return") return 5;
+  const index = driverSteps.findIndex((candidate) => candidate.id === step.id);
+  return job.returnTrip && job.activeLeg === 2 ? index + 5 : index;
 }

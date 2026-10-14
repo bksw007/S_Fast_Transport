@@ -19,7 +19,7 @@ function Proofs({ job }: { job: TransportJob }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => subscribeJobRecords(job.id, "proofs", rows => { setRecords(rows); setLoading(false); }, cause => { setError(cause.message); setLoading(false); }), [job.id]);
-  const currentPaths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? [])];
+  const currentPaths = [...(job.pickupProof?.photoPaths ?? []), ...(job.deliveryProof?.photoPaths ?? []), ...(job.returnPickupProof?.photoPaths ?? []), ...(job.returnDeliveryProof?.photoPaths ?? [])];
   const visibleRecords = records.filter(({ data }) => !["photo", "photo_revision"].includes(String(data.proofKind)) || currentPaths.includes(String(data.storagePath)));
   if (loading) return <p className="driver-history-proof-message">กำลังโหลดหลักฐาน...</p>;
   if (error) return <p className="driver-history-proof-message" role="alert">โหลดหลักฐานไม่สำเร็จ: {error}</p>;
@@ -27,7 +27,7 @@ function Proofs({ job }: { job: TransportJob }) {
   return <div className="driver-history-proofs">{visibleRecords.map(({ id, data }) => {
     const url = typeof data.downloadUrl === "string" && data.downloadUrl.startsWith("https://") ? data.downloadUrl : "";
     const isImage = typeof data.contentType === "string" && data.contentType.startsWith("image/");
-    const stage = data.proofStage === "pickup" || data.checkInStage === "pickup" ? "จุดรับ" : data.proofStage === "delivery" || data.checkInStage === "delivery" ? "จุดส่ง" : "เอกสารอื่น";
+    const stage = data.proofStage === "returnPickup" ? "ขากลับ · จุดรับ" : data.proofStage === "returnDelivery" ? "ขากลับ · จุดส่ง" : data.proofStage === "pickup" || data.checkInStage === "pickup" ? "จุดรับ" : data.proofStage === "delivery" || data.checkInStage === "delivery" ? "จุดส่ง" : "เอกสารอื่น";
     const name = data.proofKind === "signature" ? `ลายเซ็น ${data.signerName || ""}` : data.proofKind === "photo" || data.proofKind === "photo_revision" ? "รูปสินค้า" : data.proofKind === "issue" ? "รูปแจ้งปัญหา" : data.fileName || "ไฟล์แนบ";
     const content = <><span className="driver-history-proof-image">{url && isImage ? <Image unoptimized src={url} alt={`${stage} ${name}`} width={420} height={260} /> : <FileImage size={32} />}</span><span className="driver-history-proof-caption"><small>{stage}</small><strong>{name}</strong><em>{url ? "แตะเพื่อเปิดไฟล์" : "ไม่มีลิงก์ไฟล์"}</em></span></>;
     return url ? <a href={url} target="_blank" rel="noreferrer" key={id} className="driver-history-proof">{content}</a> : <div key={id} className="driver-history-proof">{content}</div>;
@@ -63,6 +63,7 @@ export default function DriverHistory({ jobs, actor, onNotice }: { jobs: Transpo
       {expandedId === job.id && <div className="driver-history-details" id={`driver-history-details-${job.id}`}>
         <div className="driver-history-route"><p><MapPin size={17} /> <span><small>จุดรับ</small><strong>{job.pickupLocation}</strong></span></p><p><MapPin size={17} /> <span><small>จุดส่ง</small><strong>{job.deliveryLocation}</strong></span></p></div>
         <div className="driver-history-proof-status"><span><Camera size={17} /> จุดรับ: {job.pickupProof ? `${job.pickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.pickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</span><span><Camera size={17} /> จุดส่ง: {job.deliveryProof ? `${job.deliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.deliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</span></div>
+        {job.returnTrip && <><div className="driver-history-route"><p><MapPin size={17} /> <span><small>ขากลับ · จุดรับ</small><strong>{job.returnTrip.pickupLocation}</strong></span></p><p><MapPin size={17} /> <span><small>ขากลับ · จุดส่ง</small><strong>{job.returnTrip.deliveryLocation}</strong></span></p></div><div className="driver-history-proof-status"><span><Camera size={17} /> ขากลับ · จุดรับ: {job.returnPickupProof ? `${job.returnPickupProof.photoPaths.length} รูป · ผู้เซ็น ${job.returnPickupProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</span><span><Camera size={17} /> ขากลับ · จุดส่ง: {job.returnDeliveryProof ? `${job.returnDeliveryProof.photoPaths.length} รูป · ผู้เซ็น ${job.returnDeliveryProof.signerName}` : "ไม่มีข้อมูลยืนยัน"}</span></div></>}
         {job.status === "completed" && <DriverProofPhotoEditor job={job} actor={actor} onNotice={onNotice} />}
         <h3>ประวัติไฟล์หลักฐาน</h3><Proofs job={job} />
       </div>}

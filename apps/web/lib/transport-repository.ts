@@ -26,7 +26,8 @@ import { resolveCustomerId } from "./customer-repository";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES, MAX_STORED_IMAGE_BYTES } from "./image-upload";
 import { coordinateFingerprint } from "./google-routes-distance";
 import { requestJobRoadDistance } from "./job-road-distance-client";
-import { statusLabels, type DriverIssueType, type JobPlace, type JobStatus, type StopProof, type TransportJob } from "@s-fast-transport/shared";
+import { statusLabels, type DriverIssueType, type JobPlace, type JobStatus, type ReturnTrip, type StopProof, type TransportJob } from "@s-fast-transport/shared";
+import { validateReturnTrip } from "./return-trip";
 
 export type UserRole = "owner" | "admin" | "dispatcher" | "subcontract_admin" | "driver" | "customer";
 export type OrganizationType = "main" | "subcontract";
@@ -93,6 +94,7 @@ export type JobDraft = {
   cargoType: string;
   vehicleType: string;
   tripCount: string;
+  returnTrip?: ReturnTrip;
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;
@@ -426,7 +428,8 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     }
   }
   const customerId = organizationId === "main" && !draft.sourceRequestId ? await resolveCustomerId(draft.customer, actor) : null;
-  const { pickupPlace, deliveryPlace, submissionId, ...jobFields } = draft;
+  const { pickupPlace, deliveryPlace, returnTrip, submissionId, ...jobFields } = draft;
+  const checkedReturnTrip = validateReturnTrip(returnTrip, draft.deliveryDate, draft.deliveryTime);
   const jobRef = submissionId ? doc(db, "today_jobs", submissionId) : doc(collection(db, "today_jobs"));
   const trackingToken = crypto.randomUUID().replaceAll("-", "");
   const trackingLinkRef = doc(db, "tracking_share_links", trackingToken);
@@ -465,6 +468,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       ...((source?.customerId || customerId) ? { customerId: source?.customerId || customerId } : {}),
       ...(pickupPlace ? { pickupPlace } : {}),
       ...(deliveryPlace ? { deliveryPlace } : {}),
+      ...(checkedReturnTrip ? { returnTrip: checkedReturnTrip, activeLeg: 1 } : {}),
       workOrder: nextWorkOrder,
       assignedDriverUid: driver.userUid,
       driverName: assignedUser.fullName || driver.name,
@@ -686,6 +690,7 @@ export async function deleteListOption(
 
 export async function updateJobStatus(job: TransportJob, status: JobStatus, actor: UserProfile, proof?: StopProof) {
   const trackingEnabled = status !== "completed" && status !== "cancelled";
+  const startingReturnEvent = status === "to_pickup" && Boolean(job.returnTrip) && job.activeLeg !== 2;
 
   const jobRef = doc(db, "today_jobs", job.id);
   await runTransaction(db, async (transaction) => {
@@ -693,18 +698,24 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const existing = snapshot.data();
     const effectiveStatus = existing.status === "problem" ? existing.issuePreviousStatus : existing.status;
+    const currentLeg = existing.returnTrip && existing.activeLeg === 2 ? 2 : 1;
+    const startingReturn = status === "to_pickup" && effectiveStatus === "ready_to_close" && Boolean(existing.returnTrip) && currentLeg === 1;
+    if (status === "to_pickup" && !startingReturn && existing.returnTrip) throw new Error("ยังไม่สามารถเริ่มขากลับได้");
     const stage = status === "to_delivery" ? "pickup" : status === "ready_to_close" ? "delivery" : null;
     if (stage) {
-      const saved = proof ?? existing[`${stage}Proof`];
+      const proofField = currentLeg === 2 ? `return${stage === "pickup" ? "Pickup" : "Delivery"}Proof` : `${stage}Proof`;
+      const saved = proof ?? existing[proofField];
       if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 2 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 2 รูปและลายเซ็นก่อนดำเนินการต่อ");
       if (stage === "pickup" && !["arrived_pickup", "loading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดรับ");
       if (stage === "delivery" && !["arrived_delivery", "unloading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดส่ง");
     }
-    if (status === "completed" && !existing.deliveryProof) throw new Error("กรุณายืนยันหลักฐานที่จุดส่งก่อนจบงาน");
+    if (status === "completed" && (effectiveStatus !== "ready_to_close" && effectiveStatus !== "completed" || !existing.pickupProof || !existing.deliveryProof || (existing.returnTrip && (currentLeg !== 2 || !existing.returnPickupProof || !existing.returnDeliveryProof)))) throw new Error("กรุณายืนยันหลักฐานรับและส่งสินค้าทั้งสองเที่ยวก่อนจบงาน");
     transaction.update(jobRef, {
       status,
-      ...(stage && proof ? { [`${stage}Proof`]: proof } : {}),
-      ...(status === "arrived_delivery" && !existing.arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
+      ...(startingReturn ? { activeLeg: 2 } : {}),
+      ...(stage && proof ? { [currentLeg === 2 ? `return${stage === "pickup" ? "Pickup" : "Delivery"}Proof` : `${stage}Proof`]: proof } : {}),
+      ...(status === "arrived_delivery" && currentLeg === 1 && !existing.arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
+      ...(status === "arrived_delivery" && currentLeg === 2 && !existing.returnArrivedDeliveryAt ? { returnArrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "completed" && !existing.completedAt ? { completedAt: serverTimestamp() } : {}),
       trackingEnabled,
       trackingStatus: toTrackingStatus(status),
@@ -717,20 +728,20 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
   await addDoc(collection(db, "job_events"), {
     jobId: job.id,
     type: status,
-    message: `เปลี่ยนสถานะเป็น ${statusLabels[status]}`,
+    message: `${job.returnTrip ? (startingReturnEvent || job.activeLeg === 2 ? "ขากลับ · " : "ขาไป · ") : ""}เปลี่ยนสถานะเป็น ${statusLabels[status]}`,
     actorUid: actor.uid,
     actorName: actor.displayName,
     organizationId: actor.organizationId ?? "main",
     lat: job.currentLocation.lat,
     lng: job.currentLocation.lng,
     timestamp: serverTimestamp(),
-    metadata: { status }
+    metadata: { status, leg: startingReturnEvent ? 2 : job.activeLeg === 2 ? 2 : 1 }
   });
 
   await syncActiveShareLinks(job, status);
 }
 
-export async function uploadStopProof(job: TransportJob, stage: "pickup" | "delivery", photos: File[], signature: Blob, signerName: string, actor: UserProfile, onProgress?: (percent: number, detail: string) => void): Promise<StopProof> {
+export async function uploadStopProof(job: TransportJob, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", photos: File[], signature: Blob, signerName: string, actor: UserProfile, onProgress?: (percent: number, detail: string) => void): Promise<StopProof> {
   if (photos.length < 2 || !signerName.trim() || !signature.size) throw new Error("ต้องมีรูปอย่างน้อย 2 รูป ชื่อผู้เซ็น และลายเซ็น");
   if (signature.size > MAX_STORED_IMAGE_BYTES) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
   onProgress?.(0, "กำลังเตรียมรูปหลักฐาน");
@@ -820,8 +831,8 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
   return { photoPaths, signaturePath, signerName: signerName.trim(), signedAt: new Date().toISOString() };
 }
 
-export async function replaceStopProofPhoto(job: TransportJob, stage: "pickup" | "delivery", index: number, file: File, actor: UserProfile) {
-  const proof = stage === "pickup" ? job.pickupProof : job.deliveryProof;
+export async function replaceStopProofPhoto(job: TransportJob, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", index: number, file: File, actor: UserProfile) {
+  const proof = job[`${stage}Proof`];
   const previousPath = proof?.photoPaths[index];
   if (!previousPath || !Number.isInteger(index) || index < 0) throw new Error("ไม่พบรูปที่ต้องการเปลี่ยน");
   if (!isImageFile(file) || file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("กรุณาเลือกรูปภาพที่มีขนาดไม่เกินกำหนด");
@@ -838,13 +849,13 @@ export async function replaceStopProofPhoto(job: TransportJob, stage: "pickup" |
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const data = snapshot.data();
     if (data.assignedDriverUid !== actor.uid || data.status === "cancelled") throw new Error("ไม่สามารถแก้ไขรูปของงานนี้ได้");
-    const current = data[stage === "pickup" ? "pickupProof" : "deliveryProof"] as StopProof | undefined;
+    const current = data[`${stage}Proof`] as StopProof | undefined;
     if (current?.photoPaths[index] !== previousPath) throw new Error("รูปนี้ถูกเปลี่ยนไปแล้ว กรุณาโหลดหน้าใหม่");
     const photoPaths = [...current.photoPaths];
     photoPaths[index] = path;
-    transaction.update(jobRef, { [stage === "pickup" ? "pickupProof" : "deliveryProof"]: { ...current, photoPaths }, updatedAt: serverTimestamp() });
+    transaction.update(jobRef, { [`${stage}Proof`]: { ...current, photoPaths }, updatedAt: serverTimestamp() });
     transaction.set(proofRef, { jobId: job.id, organizationId: job.organizationId ?? actor.organizationId ?? "main", uploadedByUid: actor.uid, uploadedByName: actor.displayName, fileName: `${stage}-photo-${index + 1}-revision.${extension}`, storagePath: path, downloadUrl, contentType: compressed.type, size: compressed.size, proofStage: stage, proofKind: "photo_revision", replacesPath: previousPath, photoIndex: index, createdAt: serverTimestamp() });
-    transaction.set(eventRef, { jobId: job.id, type: "proof_photo_replaced", message: `คนขับเปลี่ยนรูปหลักฐาน${stage === "pickup" ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}`, actorUid: actor.uid, actorName: actor.displayName, organizationId: job.organizationId ?? actor.organizationId ?? "main", timestamp: serverTimestamp(), metadata: { stage, index, previousPath, path, source: "driver_web" } });
+    transaction.set(eventRef, { jobId: job.id, type: "proof_photo_replaced", message: `คนขับเปลี่ยนรูปหลักฐาน${stage.startsWith("return") ? "ขากลับ" : "ขาไป"}${stage.toLowerCase().includes("pickup") ? "จุดรับ" : "จุดส่ง"} รูปที่ ${index + 1}`, actorUid: actor.uid, actorName: actor.displayName, organizationId: job.organizationId ?? actor.organizationId ?? "main", timestamp: serverTimestamp(), metadata: { stage, index, previousPath, path, source: "driver_web" } });
   });
 }
 
@@ -986,8 +997,8 @@ async function syncActiveShareLinks(job: TransportJob, status: JobStatus) {
 
   const batch = writeBatch(db);
   activeLinks.docs.filter(linkDoc => linkDoc.data().enabled === true && (linkDoc.data().expiresAt?.toMillis?.() ?? 0) > Date.now()).forEach((linkDoc) => batch.update(linkDoc.ref, {
-    statusLabel: statusLabels[status],
-    eta: job.eta,
+    statusLabel: job.returnTrip ? `${status === "to_pickup" || job.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ${statusLabels[status]}` : statusLabels[status],
+    eta: job.returnTrip && (status === "to_pickup" || job.activeLeg === 2) ? `${job.returnTrip.deliveryDate} ${job.returnTrip.deliveryTime}` : job.eta,
     lastUpdatedAt: new Date().toISOString(),
     currentLocation: {
       lat: job.currentLocation.lat,
@@ -1054,6 +1065,11 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     lastIssue: data.lastIssue ?? undefined,
     pickupProof: data.pickupProof ?? undefined,
     deliveryProof: data.deliveryProof ?? undefined,
+    returnTrip: data.returnTrip ?? undefined,
+    activeLeg: data.activeLeg === 2 ? 2 : 1,
+    returnPickupProof: data.returnPickupProof ?? undefined,
+    returnDeliveryProof: data.returnDeliveryProof ?? undefined,
+    returnArrivedDeliveryAt: timestampToIso(data.returnArrivedDeliveryAt),
     assignedDriverUid: data.assignedDriverUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,
     notes: data.notes ?? "",
