@@ -94,6 +94,19 @@ assert.deepEqual(visibleOrders(), ['WO-pending-issue'], 'unanswered driver issue
 nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('กำลังดำเนินงาน')).props.onClick(); render(issueJobs);
 assert.deepEqual(visibleOrders(), ['WO-resolved-issue', 'WO-delivery-stage'], 'answered issue returns to the normal active tab');
 
+const twoDaysKey = new Date(today.getTime() + 2 * 86400000).toISOString().slice(0, 10);
+slots = []; render([
+  { ...makeJob('today-date-only', 'assigned'), pickupDate: todayKey },
+  { ...makeJob('tomorrow-date-only', 'assigned'), pickupDate: tomorrowKey },
+  { ...makeJob('two-days-date-only', 'assigned'), pickupDate: twoDaysKey },
+  { ...makeJob('delivery-date-only', 'to_delivery'), deliveryDate: twoDaysKey }
+]);
+const dateOnlyCards = renderToStaticMarkup(tree);
+assert.ok(dateOnlyCards.includes('ETA รับสินค้า วันนี้'), 'pickup date is shown even without a time');
+assert.ok(dateOnlyCards.includes('ETA รับสินค้า พรุ่งนี้'));
+assert.ok(dateOnlyCards.includes('ETA รับสินค้า อีก 2 วัน'));
+assert.ok(dateOnlyCards.includes('ETA ส่งสินค้า อีก 2 วัน'), 'delivery date is shown after pickup');
+
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const file = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let desktop, mobile, modal;
