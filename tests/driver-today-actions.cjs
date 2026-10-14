@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const React = require('react');
+const schedule = { exports: {}, Date, Intl };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/job-card-schedule.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, schedule);
 
 const sourceText = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const source = ts.createSourceFile('page.tsx', sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -15,6 +17,8 @@ const code = `${statements.map(node => node.getText(source)).join('\n')}\nexport
 const context = {
   exports: {},
   React,
+  driverJobCardTone: schedule.exports.driverJobCardTone,
+  nextStopSchedule: schedule.exports.nextStopSchedule,
   useState: () => [true, () => {}],
   formatPhoneNumber: value => value,
   activeLeg: value => value.returnTrip && value.activeLeg === 2 ? 2 : 1,
@@ -84,6 +88,14 @@ assert.ok(!renderedNodes.some(node => node.props?.children === 'คุณส่�
 assert.ok(!renderedNodes.some(node => node.props?.children === 'ETA'));
 assert.ok(!renderedNodes.some(node => node.props?.children === 'อัปเดตล่าสุด'));
 assert.ok(!renderedNodes.some(node => node.props?.children === 'การแจ้งเตือน'));
+const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const todayCard = context.exports.JobSummaryCard({ job: { ...job('assigned'), pickupDate: today, pickupTime: '09:30' }, selected: false, canWrite: true, onSelect: () => {}, driverToday: true });
+assert.ok(todayCard.props.className.includes('tone-today'));
+assert.ok(nodes(todayCard).some(node => node.props?.className === 'driver-today-card-eta'));
+const acceptedCard = context.exports.JobSummaryCard({ job: { ...job('accepted'), pickupDate: today }, selected: false, canWrite: true, onSelect: () => {}, driverToday: true });
+assert.ok(acceptedCard.props.className.includes('tone-active'));
+const futureCard = context.exports.JobSummaryCard({ job: { ...job('assigned'), pickupDate: '2099-01-01' }, selected: false, canWrite: true, onSelect: () => {}, driverToday: true });
+assert.ok(futureCard.props.className.includes('tone-upcoming'));
 const issueButton = renderedNodes.find(node => node.props?.className === 'job-report-issue');
 assert.ok(issueButton, 'active job exposes issue reporting');
 issueButton.props.onClick();

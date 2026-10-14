@@ -12,6 +12,7 @@ import DriverExpenses from "./components/DriverExpenses";
 import DriverReports from "./components/DriverReports";
 import ReturnTripFields from "./components/ReturnTripFields";
 import { initialReturnTrip, activeLeg } from "@/lib/return-trip";
+import { driverJobCardTone, nextStopSchedule } from "@/lib/job-card-schedule";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { saveDriverProofDraft } from "@/lib/driver-proof-draft";
@@ -332,7 +333,7 @@ export default function Home() {
       const assigned = ownDriverJobs.find(job => !seenDriverJobs.current.has(job.id) && job.status === "assigned");
       if (changed) setDriverNotice({ title: "แอดมินตอบกลับแล้ว", detail: `ใบงาน ${changed.workOrder}: ${changed.lastIssue?.resolutionNote}`, tone: "success" });
       else if (cancelled) setDriverNotice({ title: "งานถูกยกเลิก", detail: `ใบงาน ${cancelled.workOrder} ย้ายไปอยู่ในประวัติงานแล้ว`, tone: "warning" });
-      else if (assigned) setDriverNotice({ title: "ได้รับงานใหม่", detail: `ใบงาน ${assigned.workOrder} · เปิดงานวันนี้เพื่อดูขั้นตอนแรก`, tone: "success" });
+      else if (assigned) setDriverNotice({ title: "ได้รับงานใหม่", detail: `ใบงาน ${assigned.workOrder} · เปิดงานของฉันเพื่อดูขั้นตอนแรก`, tone: "success" });
     }
     seenResolution.current = new Map(issued.map(job => [job.id, job.lastIssue?.resolvedAt ?? ""]));
     seenDriverJobs.current = new Map(ownDriverJobs.map(job => [job.id, job.status]));
@@ -625,7 +626,7 @@ export default function Home() {
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
           onAdminScreenChange={(screen) => { setJobDetailOpen(false); setAdminScreen(screen); }}
-          onEnterDriverMode={() => { setJobDetailOpen(false); setDriverScreen("งานวันนี้"); setSelectedJobId(ownDriverJobs[0]?.id ?? ""); setAdminDriverMode(true); }}
+          onEnterDriverMode={() => { setJobDetailOpen(false); setDriverScreen("งานของฉัน"); setSelectedJobId(ownDriverJobs[0]?.id ?? ""); setAdminDriverMode(true); }}
           onLeaveDriverMode={() => { setAdminDriverMode(false); setSelectedJobId(""); }}
           onNavigate={() => setMobileMenuOpen(false)}
         />
@@ -643,7 +644,7 @@ export default function Home() {
               trackingMessage={trackingMessage}
               onSelectJob={setSelectedJobId}
               onOpenWorkflow={() => setDriverScreen("กำลังขนส่ง")}
-              onBackToJobs={() => setDriverScreen("งานวันนี้")}
+              onBackToJobs={() => setDriverScreen("งานของฉัน")}
               onAction={(status, job) => handleDriverAction(status, job ?? selectedDriverJob)}
               onReportIssue={setIssueJob}
               onProfileUpdated={refreshCurrentProfile}
@@ -910,7 +911,7 @@ function DriverMobileScreen({
     return <EmptyState title="ยังไม่มีงานที่ได้รับมอบหมาย" description="งานใหม่จะปรากฏที่นี่หลังจากผู้ดูแลมอบหมายให้คุณ" />;
   }
 
-  if (screen === "งานวันนี้") {
+  if (screen === "งานของฉัน") {
     return <TodayJobs jobs={jobs.filter(job => !["completed", "cancelled"].includes(job.status))} selectedJobId={selectedJobId} canWrite={canWrite} onSelectJob={onSelectJob} onOpenWorkflow={onOpenWorkflow} onAction={onAction} onReportIssue={onReportIssue} />;
   }
 
@@ -1771,7 +1772,7 @@ function DriverView({
   const stopPlace = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupPlace : job.returnTrip.deliveryPlace) : stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
   const stopPhone = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupContactPhone : job.returnTrip.deliveryContactPhone) : stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
   const canNavigate = Boolean(!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? ""));
-  const backButton = <button className="driver-step-back" type="button" aria-label="กลับไปงานวันนี้" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับ</button>;
+  const backButton = <button className="driver-step-back" type="button" aria-label="กลับไปงานของฉัน" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับ</button>;
   const [finishOpen, setFinishOpen] = useState(false);
   const finishRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -1891,7 +1892,7 @@ function TodayJobs({
     <section className="screen driver-today-screen">
       <header className="driver-today-hero">
         <span className="driver-today-eyebrow"><span aria-hidden="true" /> พื้นที่ทำงานคนขับ</span>
-        <div className="driver-today-hero-content"><div><h1>งานวันนี้</h1><p>ดูเส้นทาง ติดต่อจุดรับ–ส่ง และอัปเดตงานของคุณจากที่นี่</p></div><div className="driver-today-total"><strong>{jobs.length.toLocaleString("th-TH")}</strong><span>งานที่ต้องทำ</span></div></div>
+        <div className="driver-today-hero-content"><div><h1>งานของฉัน</h1><p>ดูเส้นทาง ติดต่อจุดรับ–ส่ง และอัปเดตงานของคุณจากที่นี่</p></div><div className="driver-today-total"><strong>{jobs.length.toLocaleString("th-TH")}</strong><span>งานที่ต้องทำ</span></div></div>
       </header>
       <div className="driver-today-list-head"><div><span>YOUR ASSIGNMENTS / 01</span><h2>ใบงานที่ได้รับมอบหมาย</h2></div><small>{jobs.length} งาน</small></div>
 
@@ -2025,6 +2026,8 @@ function JobSummaryCard({
   const needsProof = ["arrived_pickup", "loading", "arrived_delivery", "unloading"].includes(effectiveStatus ?? "");
   const returnLeg = Boolean(job.returnTrip && job.activeLeg === 2);
   const route = returnLeg && job.returnTrip ? job.returnTrip : job;
+  const cardTone = driverToday ? driverJobCardTone(job) : null;
+  const eta = driverToday ? nextStopSchedule(job) : null;
   const pickupPhone = formatPhoneNumber(route.pickupContactPhone || "");
   const deliveryPhone = formatPhoneNumber(route.deliveryContactPhone || "");
 
@@ -2034,7 +2037,7 @@ function JobSummaryCard({
   }
 
   return (
-    <article className={`job-summary-card ${selected ? "selected-job" : ""} ${expanded ? "expanded" : ""} ${driverToday ? "driver-today-card" : ""}`}>
+    <article className={`job-summary-card ${selected ? "selected-job" : ""} ${expanded ? "expanded" : ""} ${driverToday ? `driver-today-card tone-${cardTone}` : ""}`}>
       <button className="job-summary-toggle" type="button" aria-expanded={expanded} onClick={toggleDetails}>
         <span className="job-summary-toggle-icon"><MapPin size={19} /></span>
         <span className="job-summary-topline">
@@ -2047,6 +2050,7 @@ function JobSummaryCard({
         <strong className="job-summary-route">
           {driverToday ? <><span className="driver-today-route-stop"><small>จุดรับสินค้า</small>{route.pickupLocation || "ยังไม่ระบุ"}</span><span className="driver-today-route-line" aria-hidden="true" /><span className="driver-today-route-stop"><small>จุดส่งสินค้า</small>{route.deliveryLocation || "ยังไม่ระบุ"}</span></> : <><span>{route.pickupLocation}</span><ArrowRight size={16} aria-hidden="true" /><span>{route.deliveryLocation}</span></>}
         </strong>
+        {driverToday && eta && <span className="driver-today-card-footer"><span className="driver-today-card-tone-label">{cardTone === "active" ? "กำลังทำ" : cardTone === "today" ? "งานวันนี้ · ยังไม่รับงาน" : "งานวันอื่น · ยังไม่รับงาน"}</span><span className="driver-today-card-eta"><Clock3 size={15} /> ETA {eta.label} {eta.value}</span></span>}
       </button>
 
       {expanded && (

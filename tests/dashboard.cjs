@@ -7,10 +7,13 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const compile = text => ts.transpileModule(text, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
 const shared = { exports: {} };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
+const schedule = { exports: {}, Date, Intl };
+vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/job-card-schedule.ts', 'utf8')), schedule);
 let slots = [], cursor = 0, selected, permanentlyDeleted, dismissMessage;
 const context = { React, exports: {}, window: { setTimeout: fn => { dismissMessage = fn; return 1; }, clearTimeout: () => {} }, require: name => {
   if (name === 'react') return { ...React, useEffect: fn => fn(), useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], value => { slots[index] = value; }]; } };
   if (name === '@s-fast-transport/shared') return shared.exports;
+  if (name === '@/lib/job-card-schedule') return schedule.exports;
   return require(name);
 }};
 vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboard.tsx', 'utf8')), context);

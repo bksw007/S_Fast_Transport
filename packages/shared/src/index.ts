@@ -217,7 +217,7 @@ export const adminMenu = [
 ] as const;
 
 export const driverMenu = [
-  "งานวันนี้",
+  "งานของฉัน",
   "กำลังขนส่ง",
   "แผนที่งานของฉัน",
   "แจ้งค่าใช้จ่าย",
