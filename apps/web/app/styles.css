@@ -1673,7 +1673,7 @@ h2 {
 .location-picker { display: grid; flex: 1; min-width: 0; gap: 7px; }
 .location-picker > input { width: 100%; min-height: 40px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; }
 .location-picker-select { min-width: 0; }
-.location-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); text-align: left; font: inherit; cursor: pointer; }
+.location-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); text-align: left; font: inherit; font-size: .86rem; cursor: pointer; }
 .location-picker-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .location-picker-trigger svg { flex: none; color: var(--muted); }
 .location-picker-trigger[aria-expanded="true"] { border-color: var(--accent); }

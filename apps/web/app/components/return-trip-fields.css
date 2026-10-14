@@ -10,6 +10,6 @@
 .return-trip-field > span { display: block; margin-bottom: 6px; }
 .return-trip-stops label > input { display: block; width: 100%; min-width: 0; margin-top: 6px; }
 .return-trip-schedule { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.return-trip-toggle { display: flex; align-items: center; gap: 12px; width: fit-content; padding: 12px 16px; border: 1px solid var(--line, #d8e1dd); border-radius: 14px; color: var(--ink, #203b38); font-weight: 700; cursor: pointer; }
-.return-trip-toggle input { width: 19px; height: 19px; accent-color: #234f4b; }
+.return-trip-toggle { display: flex; align-items: center; gap: 8px; width: fit-content; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line, #d8e1dd); border-radius: 8px; color: var(--ink, #203b38); font-size: .86rem; font-weight: 700; cursor: pointer; }
+.return-trip-toggle input { flex: none; width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: #234f4b; }
 @media (max-width: 720px) { .return-trip-fields { padding: 14px; } .return-trip-stops, .return-trip-schedule { grid-template-columns: minmax(0, 1fr); } }
