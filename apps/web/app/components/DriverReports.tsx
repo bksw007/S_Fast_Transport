@@ -34,7 +34,7 @@ export default function DriverReports({ jobs, actor, dataState }: { jobs: Transp
   function printReport() {
     if (!ready || !rows.length) return;
     try {
-      const html = driverRunReportHtml(rows, actor.fullName || actor.displayName || "คนขับ", historyMonthLabel(selectedMonth), selectedVehicleType);
+      const html = driverRunReportHtml(rows, { name: actor.fullName || actor.displayName || "คนขับ", photoURL: actor.photoURL }, historyMonthLabel(selectedMonth), selectedVehicleType);
       const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
       const preview = window.open(url, "_blank");
       if (!preview) { URL.revokeObjectURL(url); setMessage("เบราว์เซอร์บล็อกหน้ารายงาน กรุณาอนุญาตป๊อปอัปแล้วลองใหม่"); return; }
