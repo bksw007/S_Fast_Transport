@@ -569,7 +569,7 @@ export default function Home() {
   const mode = profile.role === "driver" || adminDriverMode ? "driver" : "admin";
 
   return (
-    <main className={`app-shell ${mode === "driver" ? "driver-shell driver-premium-shell" : "admin-shell admin-premium-shell"} ${siteFont.variable}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
+    <main className={`app-shell ${mode === "driver" ? `driver-shell driver-premium-shell${adminDriverMode ? " admin-driver-shell" : ""}` : "admin-shell admin-premium-shell"} ${siteFont.variable}`} data-theme={theme} style={{ "--font-scale": fontScale } as React.CSSProperties}>
       <section className="phone-frame">
         <header className="topbar">
           <div className="brand">

@@ -550,3 +550,97 @@ button, input, select, textarea { font-family: inherit; }
   .driver-premium-shell .driver-history-heading { flex-basis: calc(100% - 75px); }
   .driver-premium-shell .driver-history-status { margin-left: 54px; }
 }
+
+/* An admin using driver mode gets a desktop workspace instead of a phone-sized column. */
+@media (min-width: 1051px) {
+  .app-shell.driver-shell.admin-driver-shell {
+    width: 100%;
+    padding: 20px;
+  }
+
+  .admin-driver-shell > .phone-frame {
+    position: relative;
+    top: auto;
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+    width: 100%;
+    height: auto;
+    min-height: calc(100dvh - 40px);
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .admin-driver-shell .topbar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding: 18px 24px;
+    border: 1px solid #e3e5df;
+    border-radius: 16px;
+    box-shadow: 0 6px 24px #1a2b2b0b;
+  }
+
+  .admin-driver-shell .brand { gap: 12px; }
+  .admin-driver-shell .brand-logo { width: 44px; height: 44px; border-radius: 11px; }
+  .admin-driver-shell .brand strong { font-size: 1rem; }
+  .admin-driver-shell .brand span { margin-top: 2px; font-size: .7rem; }
+
+  .admin-driver-shell .sidebar-navigation.section-menu {
+    position: sticky;
+    top: 20px;
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    height: calc(100dvh - 132px);
+    max-height: 900px;
+    min-height: 0;
+    margin: 0;
+    border: 1px solid #e3e5df;
+    border-radius: 16px;
+    background: #fbfaf7;
+    box-shadow: 0 6px 24px #1a2b2b0b;
+  }
+
+  .admin-driver-shell .mobile-primary-content {
+    display: block;
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    min-height: calc(100dvh - 132px);
+    border: 1px solid #e3e5df;
+    border-radius: 16px;
+    background: #f7f6f2;
+    box-shadow: 0 6px 24px #1a2b2b0b;
+  }
+
+  .admin-driver-shell .mobile-primary-content > .screen {
+    height: auto;
+    min-height: calc(100dvh - 134px);
+    overflow: visible;
+    padding: 26px clamp(24px, 3vw, 42px) 42px;
+    border-radius: 16px;
+  }
+
+  .admin-driver-shell[data-theme="dark"] .topbar,
+  .admin-driver-shell[data-theme="dark"] .sidebar-navigation.section-menu,
+  .admin-driver-shell[data-theme="dark"] .mobile-primary-content {
+    border-color: #3e504b;
+    background: #172222;
+  }
+}
+
+@media (min-width: 1440px) {
+  .admin-driver-shell .driver-today-screen .job-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .admin-driver-shell .driver-today-screen .job-list > .empty-state {
+    grid-column: 1 / -1;
+  }
+}
