@@ -41,14 +41,14 @@ export type ReportFilters = { start: string; end: string; organization: string; 
 export function filterReportJobs(jobs: TransportJob[], filters: ReportFilters, now: number) {
   const term = filters.search.trim().toLocaleLowerCase("th");
   return jobs.filter(job => {
-    if ((filters.start || filters.end) && !job.jobDate) return false;
-    if (filters.start && job.jobDate! < filters.start || filters.end && job.jobDate! > filters.end) return false;
+    if ((filters.start || filters.end) && !job.pickupDate) return false;
+    if (filters.start && job.pickupDate! < filters.start || filters.end && job.pickupDate! > filters.end) return false;
     if (filters.organization && (job.organizationId || "unknown") !== filters.organization) return false;
     if (filters.customer && job.customer !== filters.customer) return false;
     if (filters.status === "delayed" && !["late", "overdue"].includes(deliveryResult(job, now))) return false;
     if (filters.status && filters.status !== "delayed" && job.status !== filters.status) return false;
     return !term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th").includes(term));
-  }).sort((a, b) => (b.jobDate || "").localeCompare(a.jobDate || "") || a.workOrder.localeCompare(b.workOrder, "th"));
+  }).sort((a, b) => (b.pickupDate || "").localeCompare(a.pickupDate || "") || a.workOrder.localeCompare(b.workOrder, "th"));
 }
 export type GroupBy = "vehicle" | "driver" | "company" | "customer";
 export function groupReportJobs(jobs: TransportJob[], groupBy: GroupBy, now: number) {
