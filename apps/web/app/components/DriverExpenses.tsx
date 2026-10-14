@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Image from "next/image";
-import { CalendarDays, CheckCircle2, CircleDollarSign, FileImage, ReceiptText, Truck, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, CircleDollarSign, FileImage, Printer, ReceiptText, Truck, X } from "lucide-react";
 import { historyMonthLabel, jobHistoryDate, jobHistoryMonth, type TransportJob } from "@s-fast-transport/shared";
 import { getExpenseReceiptUrl, reviewDriverExpense, submitDriverExpense, subscribeDriverExpenses, type DriverExpense, type ExpenseStatus } from "@/lib/driver-expenses";
+import { driverExpenseReportHtml, expenseReportRows, expenseReportSummary } from "@/lib/driver-expense-report";
 import type { UserProfile } from "@/lib/transport-repository";
 import "./driver-expenses.css";
 
 const money = new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB" });
 const statusText: Record<ExpenseStatus, string> = { pending: "รอตรวจสอบ", approved: "อนุมัติแล้ว", rejected: "ไม่อนุมัติ", paid: "จ่ายแล้ว" };
+type AdminTab = "pending" | "approved" | "report";
 
 function ReceiptPreview({ path, index }: { path: string; index: number }) {
   const [url, setUrl] = useState("");
@@ -55,6 +57,7 @@ function ExpenseForm({ job, actor, claim, onDone }: { job: TransportJob; actor: 
 }
 
 export default function DriverExpenses({ jobs, actor, adminView = false }: { jobs: TransportJob[]; actor: UserProfile; adminView?: boolean }) {
+  const tabsId = useId();
   const [claims, setClaims] = useState<DriverExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,6 +65,10 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
   const [editingJobId, setEditingJobId] = useState("");
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [reviewingId, setReviewingId] = useState("");
+  const [adminTab, setAdminTab] = useState<AdminTab>("pending");
+  const [driverFilter, setDriverFilter] = useState("");
+  const [vehicleFilter, setVehicleFilter] = useState("");
+  const [reportMessage, setReportMessage] = useState("");
 
   useEffect(() => subscribeDriverExpenses(actor, adminView, items => { setClaims(items); setLoading(false); setError(""); }, message => { setError(`โหลดค่าใช้จ่ายไม่สำเร็จ: ${message}`); setLoading(false); }), [actor, adminView]);
 
@@ -70,8 +77,27 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
   const selectedMonth = months.includes(month) ? month : months[0] || "";
   const visibleJobs = completedJobs.filter(job => jobHistoryMonth(job) === selectedMonth);
   const visibleClaims = claims.filter(claim => claim.completedMonth === selectedMonth);
+  const pendingClaims = visibleClaims.filter(claim => claim.status === "pending");
+  const approvedClaims = visibleClaims.filter(claim => claim.status === "approved" || claim.status === "paid");
+  const reportRows = expenseReportRows(claims, jobs, selectedMonth, driverFilter, vehicleFilter);
+  const reportSummary = expenseReportSummary(reportRows);
+  const reportDrivers = [...new Map(visibleClaims.map(claim => [claim.driverUid, claim.driverName || "ไม่ระบุชื่อคนขับ"])).entries()].sort((a, b) => a[1].localeCompare(b[1], "th"));
+  const reportVehicles = [...new Set(expenseReportRows(claims, jobs, selectedMonth, driverFilter).map(row => row.vehiclePlate))].sort((a, b) => a.localeCompare(b, "th"));
+  const selectedVehicleFilter = vehicleFilter && reportVehicles.includes(vehicleFilter) ? vehicleFilter : "";
+  const displayedReportRows = selectedVehicleFilter === vehicleFilter ? reportRows : expenseReportRows(claims, jobs, selectedMonth, driverFilter);
+  const displayedReportSummary = selectedVehicleFilter === vehicleFilter ? reportSummary : expenseReportSummary(displayedReportRows);
   const claimsByJob = new Map(claims.map(claim => [claim.jobId, claim]));
   const total = visibleClaims.reduce((sum, claim) => sum + claim.amount, 0);
+
+  function printExpenseReport() {
+    if (!displayedReportRows.length) return;
+    const preview = window.open("", "_blank");
+    if (!preview) { setReportMessage("เบราว์เซอร์บล็อกหน้าต่างรายงาน กรุณาอนุญาตป๊อปอัปแล้วลองใหม่"); return; }
+    preview.document.write(driverExpenseReportHtml(displayedReportRows, historyMonthLabel(selectedMonth), reportDrivers.find(([uid]) => uid === driverFilter)?.[1] || "ทุกคนขับ", selectedVehicleFilter || "ทุกรถ"));
+    preview.document.close();
+    preview.focus();
+    setReportMessage("เปิดรายงานแล้ว กด ‘พิมพ์ / บันทึกเป็น PDF’ เพื่อบันทึกไฟล์");
+  }
 
   async function review(claim: DriverExpense, status: "approved" | "rejected" | "paid") {
     if (reviewingId) return;
@@ -93,12 +119,29 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
         return <button type="button" key={value} className={selectedMonth === value ? "selected" : ""} aria-pressed={selectedMonth === value} onClick={() => { setMonth(value); setEditingJobId(""); }}><CalendarDays size={16} /><span>{historyMonthLabel(value)}</span><b>{count}</b></button>;
       })}
     </div>
-    {selectedMonth && <div className="expense-summary"><span><CircleDollarSign size={20} /> ยอดแจ้งเดือนนี้</span><strong>{money.format(total)}</strong><small>{visibleClaims.length} รายการ{adminView ? ` · รอตรวจสอบ ${visibleClaims.filter(claim => claim.status === "pending").length}` : ""}</small></div>}
+    {adminView && <div className="expense-tabs" role="tablist" aria-label="สถานะค่าใช้จ่าย">
+      {([["pending", "รอตรวจสอบ", pendingClaims.length], ["approved", "อนุมัติแล้ว", approvedClaims.length], ["report", "รายงาน", visibleClaims.length]] as const).map(([value, label, count]) => <button type="button" role="tab" key={value} id={`${tabsId}-${value}`} aria-controls={`${tabsId}-panel`} aria-selected={adminTab === value} tabIndex={adminTab === value ? 0 : -1} className={adminTab === value ? "selected" : ""} onClick={() => { setAdminTab(value); setReportMessage(""); }} onKeyDown={event => {
+        const values: AdminTab[] = ["pending", "approved", "report"];
+        const current = values.indexOf(value);
+        const next = event.key === "ArrowRight" ? values[(current + 1) % values.length] : event.key === "ArrowLeft" ? values[(current + values.length - 1) % values.length] : event.key === "Home" ? values[0] : event.key === "End" ? values[values.length - 1] : null;
+        if (!next) return;
+        event.preventDefault(); setAdminTab(next); document.getElementById(`${tabsId}-${next}`)?.focus();
+      }}>{label}<b>{count}</b></button>)}
+    </div>}
+    {selectedMonth && (!adminView || adminTab !== "report") && <div className="expense-summary"><span><CircleDollarSign size={20} /> {adminView ? adminTab === "pending" ? "ยอดรอตรวจสอบ" : "ยอดอนุมัติและจ่ายแล้ว" : "ยอดแจ้งเดือนนี้"}</span><strong>{money.format(adminView ? (adminTab === "pending" ? pendingClaims : approvedClaims).reduce((sum, claim) => sum + claim.amount, 0) : total)}</strong><small>{adminView ? adminTab === "pending" ? pendingClaims.length : approvedClaims.length : visibleClaims.length} รายการ</small></div>}
     {error && <p className="expense-error" role="alert">{error}</p>}
     {loading && <p className="expense-empty">กำลังโหลดค่าใช้จ่าย…</p>}
     {!loading && !months.length && <p className="expense-empty">{adminView ? "ยังไม่มีคนขับแจ้งค่าใช้จ่าย" : "ยังไม่มีงานที่วิ่งเสร็จ"}</p>}
-    {!loading && <div className="expense-list">
-      {adminView ? visibleClaims.map(claim => <article className="expense-card" key={claim.id}>
+    {adminView && adminTab === "report" && !loading && <div role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-report`} className="expense-report">
+      <div className="expense-report-head"><div><h2>รายงานค่าใช้จ่ายคนขับ</h2><p>เดือน {selectedMonth ? historyMonthLabel(selectedMonth) : "—"} · ทุกสถานะ</p></div><button type="button" className="expense-primary" disabled={!displayedReportRows.length} onClick={printExpenseReport}><Printer size={17} /> พิมพ์ / บันทึก PDF</button></div>
+      <div className="expense-report-filters"><label>คนขับ<select value={driverFilter} onChange={event => { setDriverFilter(event.target.value); setVehicleFilter(""); }}><option value="">ทุกคนขับ</option>{reportDrivers.map(([uid, name]) => <option key={uid} value={uid}>{name}</option>)}</select></label><label>รถ<select value={selectedVehicleFilter} onChange={event => setVehicleFilter(event.target.value)}><option value="">ทุกรถ</option>{reportVehicles.map(plate => <option key={plate} value={plate}>{plate}</option>)}</select></label></div>
+      <div className="expense-report-metrics"><div><span>รายการ</span><strong>{displayedReportRows.length}</strong></div><div><span>ยอดแจ้งทั้งหมด</span><strong>{money.format(displayedReportSummary.total)}</strong></div><div><span>ยอดอนุมัติรวมจ่ายแล้ว</span><strong>{money.format(displayedReportSummary.approvedTotal)}</strong></div></div>
+      <p className="expense-report-counts">รอตรวจสอบ {displayedReportSummary.counts.pending} · อนุมัติแล้ว {displayedReportSummary.counts.approved} · จ่ายแล้ว {displayedReportSummary.counts.paid} · ไม่อนุมัติ {displayedReportSummary.counts.rejected}</p>
+      {displayedReportRows.length ? <div className="expense-report-table-wrap"><table className="expense-report-table"><thead><tr><th>ใบงาน</th><th>คนขับ</th><th>รถ</th><th>รายละเอียด</th><th>สถานะ</th><th>จำนวนเงิน</th></tr></thead><tbody>{displayedReportRows.map(({ claim, vehiclePlate }) => <tr key={claim.id}><td><strong>{claim.workOrder}</strong></td><td>{claim.driverName}</td><td>{vehiclePlate}</td><td>{claim.note || "—"}</td><td><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></td><td className="expense-report-amount">{money.format(claim.amount)}</td></tr>)}</tbody></table></div> : <p className="expense-empty">ไม่มีรายการตามตัวกรอง</p>}
+      {reportMessage && <p role="status" className="expense-report-message">{reportMessage}</p>}
+    </div>}
+    {!loading && (!adminView || adminTab !== "report") && <div className="expense-list" {...(adminView ? { role: "tabpanel", id: `${tabsId}-panel`, "aria-labelledby": `${tabsId}-${adminTab}` } : {})}>
+      {adminView ? (adminTab === "pending" ? pendingClaims : approvedClaims).map(claim => <article className="expense-card" key={claim.id}>
         <div className="expense-card-head"><span className="expense-card-icon"><ReceiptText size={22} /></span><div><small>ใบงาน {claim.workOrder}</small><strong>{claim.driverName}</strong></div><em className={`expense-status ${claim.status}`}>{statusText[claim.status]}</em></div>
         <div className="expense-card-detail"><strong>{money.format(claim.amount)}</strong><p>{claim.note || "ไม่ระบุรายละเอียด"}</p></div>
         <div className="expense-receipts">{claim.receiptPaths.map((path, index) => <ReceiptPreview key={path} path={path} index={index} />)}</div>
@@ -116,6 +159,6 @@ export default function DriverExpenses({ jobs, actor, adminView = false }: { job
         </article>;
       })}
     </div>}
-    {!loading && selectedMonth && (adminView ? !visibleClaims.length : !visibleJobs.length) && <p className="expense-empty"><CheckCircle2 size={25} /> ไม่มีรายการในเดือนนี้</p>}
+    {!loading && selectedMonth && (adminView ? adminTab !== "report" && !(adminTab === "pending" ? pendingClaims : approvedClaims).length : !visibleJobs.length) && <p className="expense-empty"><CheckCircle2 size={25} /> {adminView ? adminTab === "pending" ? "ไม่มีรายการรอตรวจสอบในเดือนนี้" : "ไม่มีรายการที่อนุมัติแล้วในเดือนนี้" : "ไม่มีรายการในเดือนนี้"}</p>}
   </section>;
 }
