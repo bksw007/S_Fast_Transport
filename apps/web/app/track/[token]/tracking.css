@@ -82,6 +82,7 @@
 .tracking-issue p { margin: 5px 0 0; overflow-wrap: anywhere; }
 .tracking-issue small { display: block; margin-top: 7px; opacity: .75; }
 .tracking-issue a { display: inline-block; margin-top: 10px; text-decoration: underline; font-weight: 700; }
+.tracking-issue a img { display: block; width: min(100%, 320px); height: auto; max-height: 220px; margin-bottom: 5px; border-radius: 9px; object-fit: contain; background: var(--ui-surface); }
 .tracking-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; max-width: 1100px; margin: 18px auto 0; }
 .tracking-proof-card { min-width: 0; padding: clamp(18px, 3vw, 26px); }
 .tracking-proof-card .tracking-section-title { margin-bottom: 18px; }

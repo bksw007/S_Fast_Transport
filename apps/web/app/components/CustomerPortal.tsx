@@ -85,9 +85,9 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
     preview.document.write("<p>กำลังเตรียมรายงานการขนส่ง…</p>");
     setReportBusy(true);
     try {
-      const [pickup, delivery, returnPickup, returnDelivery] = await Promise.all([loadProof(job.pickupProof), loadProof(job.deliveryProof), loadProof(job.returnPickupProof), loadProof(job.returnDeliveryProof)]);
+      const [pickup, delivery, returnPickup, returnDelivery, issuePhoto] = await Promise.all([loadProof(job.pickupProof), loadProof(job.deliveryProof), loadProof(job.returnPickupProof), loadProof(job.returnDeliveryProof), job.lastIssue?.photoPath ? getDownloadURL(ref(storage, job.lastIssue.photoPath)).catch(() => "") : Promise.resolve("")]);
       preview.document.open();
-      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }));
+      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }, issuePhoto));
       preview.document.close();
     } catch {
       preview.close();

@@ -98,9 +98,10 @@ export default function PublicTrackingPage() {
       deliveryProof: { signerName: details.deliveryProof.signerName, signedAt: details.deliveryProof.signedAt },
       returnPickupProof: { signerName: details.returnPickupProof?.signerName || "", signedAt: details.returnPickupProof?.signedAt || "" },
       returnDeliveryProof: { signerName: details.returnDeliveryProof?.signerName || "", signedAt: details.returnDeliveryProof?.signedAt || "" },
-      returnArrivedDeliveryAt: details.returnArrivedDeliveryAt
+      returnArrivedDeliveryAt: details.returnArrivedDeliveryAt,
+      lastIssue: details.issue ?? undefined
     };
-    preview.document.write(completionReportHtml(reportJob, reportProof("pickup", details.pickupProof), reportProof("delivery", details.deliveryProof), `${window.location.origin}/icons/truck-logo.png`, new Date(), details.returnTrip ? { pickup: reportProof("returnPickup", details.returnPickupProof), delivery: reportProof("returnDelivery", details.returnDeliveryProof) } : undefined));
+    preview.document.write(completionReportHtml(reportJob, reportProof("pickup", details.pickupProof), reportProof("delivery", details.deliveryProof), `${window.location.origin}/icons/truck-logo.png`, new Date(), details.returnTrip ? { pickup: reportProof("returnPickup", details.returnPickupProof), delivery: reportProof("returnDelivery", details.returnDeliveryProof) } : undefined, details.issue?.hasPhoto ? publicTrackingAssetUrl(params.token, "issue", "issue") : undefined));
     preview.document.close();
     preview.focus();
   }
@@ -143,7 +144,7 @@ export default function PublicTrackingPage() {
         </aside>
       </section>
       {details?.issue && <section className={`tracking-issue ${details.issue.resolvedAt ? "is-resolved" : ""}`} role="status">
-        <AlertTriangle size={22} /><div><strong>{details.issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{driverIssueLabels[details.issue.type] || "ปัญหาการขนส่ง"}{details.issue.note ? ` · ${details.issue.note}` : ""}</p><small>แจ้งเมื่อ {thaiDateTime(details.issue.reportedAt)}{details.issue.resolvedAt ? ` · ดำเนินการแล้ว ${thaiDateTime(details.issue.resolvedAt)}` : ""}</small>{details.issue.resolutionNote && <p>การดำเนินการ: {details.issue.resolutionNote}</p>}{details.issue.hasPhoto && <a href={publicTrackingAssetUrl(params.token, "issue", "issue")} target="_blank" rel="noreferrer">ดูภาพประกอบปัญหา</a>}</div>
+        <AlertTriangle size={22} /><div><strong>{details.issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{driverIssueLabels[details.issue.type] || "ปัญหาการขนส่ง"}{details.issue.note ? ` · ${details.issue.note}` : ""}</p><small>แจ้งเมื่อ {thaiDateTime(details.issue.reportedAt)}{details.issue.resolvedAt ? ` · ดำเนินการแล้ว ${thaiDateTime(details.issue.resolvedAt)}` : ""}</small>{details.issue.resolutionNote && <p>การดำเนินการ: {details.issue.resolutionNote}</p>}{details.issue.hasPhoto && <a href={publicTrackingAssetUrl(params.token, "issue", "issue")} target="_blank" rel="noreferrer"><Image unoptimized src={publicTrackingAssetUrl(params.token, "issue", "issue")} alt="ภาพประกอบปัญหาที่คนขับแจ้ง" width={320} height={220} /><span>เปิดภาพประกอบขนาดเต็ม</span></a>}</div>
       </section>}
       <section className="tracking-evidence-grid" aria-label="หลักฐานการขนส่ง">
         <ProofCard token={params.token} stage="pickup" title="หลักฐานจากจุดรับ" proof={details?.pickupProof} loading={detailsLoading} />

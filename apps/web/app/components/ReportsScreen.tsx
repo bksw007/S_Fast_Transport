@@ -89,9 +89,9 @@ export function ReportsScreen({ jobs, dataState = "ready" }: { jobs: TransportJo
       async function proofUrls(proof: TransportJob["pickupProof"]): Promise<ReportProof> {
         return { photos: await Promise.all((proof?.photoPaths ?? []).map(path => getDownloadURL(ref(storage, path)))), signature: proof?.signaturePath ? await getDownloadURL(ref(storage, proof.signaturePath)) : undefined };
       }
-      const [pickup, delivery, returnPickup, returnDelivery] = await Promise.all([proofUrls(job.pickupProof), proofUrls(job.deliveryProof), proofUrls(job.returnPickupProof), proofUrls(job.returnDeliveryProof)]);
+      const [pickup, delivery, returnPickup, returnDelivery, issuePhoto] = await Promise.all([proofUrls(job.pickupProof), proofUrls(job.deliveryProof), proofUrls(job.returnPickupProof), proofUrls(job.returnDeliveryProof), job.lastIssue?.photoPath ? getDownloadURL(ref(storage, job.lastIssue.photoPath)).catch(() => "") : Promise.resolve("")]);
       preview.document.open();
-      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }));
+      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }, issuePhoto));
       preview.document.close();
       preview.focus();
     } catch {
