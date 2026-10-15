@@ -44,11 +44,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
 
 (async () => {
   await context.exports.notifyLineGroupOfNewJob({ params: { jobId: 'job-1' }, data: { data: () => ({
-    workOrder: 'JN-1', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'main', customer: 'ลูกค้า', driverName: 'คนขับ'
+    workOrder: 'JN-1', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'main', customer: 'ลูกค้า', driverName: 'คนขับ', pickupDate: '2026-10-15'
   }) } });
   const body = JSON.parse(request.body);
   assert.equal(body.to, 'Cad5367471fd1c5487eac65af79417742');
   assert.match(body.messages[0].text, /https:\/\/sfasttransport\.vercel\.app\/track\/abcdef0123456789abcdef0123456789/);
+  assert.match(body.messages[0].text, /คนขับ: คนขับ\nวันที่รับสินค้า: 15\/10\/2569\nจุดรับ:/);
   assert.equal(linkCreates, 0, 'LINE must reuse the link created with the job');
   assert.equal(state.status, 'sent');
   console.log('PASS: LINE notification reuses the job tracking link');
