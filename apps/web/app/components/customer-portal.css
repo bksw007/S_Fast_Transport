@@ -50,7 +50,12 @@
 .customer-portal-month { display: inline-flex; align-items: center; gap: 9px; flex: none; padding: 7px 11px; border: 1px solid #d9dfd9; border-radius: 10px; background: #fff; color: #5b6a68; font-size: 12px; }
 .customer-portal-month select { max-width: 170px; border: 0; background: transparent; color: var(--cp-ink); font-weight: 600; cursor: pointer; }
 .customer-portal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(315px, 1fr)); gap: 16px; }
-.customer-portal-card { display: flex; flex-direction: column; width: 100%; min-height: 260px; padding: 23px 23px 18px; border: 1px solid var(--cp-line); border-radius: 14px; background: #fff; color: var(--cp-ink); text-align: left; cursor: pointer; box-shadow: 0 3px 12px #27383408; transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.customer-portal-card { position: relative; display: flex; flex-direction: column; overflow: hidden; width: 100%; min-height: 260px; padding: 23px 23px 18px 28px; border: 1px solid var(--cp-line); border-radius: 14px; background: #fff; color: var(--cp-ink); text-align: left; cursor: pointer; box-shadow: 0 3px 12px #27383408; transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.customer-portal-card::before { position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--cp-card-tone); content: ""; pointer-events: none; }
+.customer-portal-card[data-tone="active"], .customer-portal-card[data-tone="completed"] { --cp-card-tone: #478169; }
+.customer-portal-card[data-tone="today"], .customer-portal-card[data-tone="attention"] { --cp-card-tone: #c18b48; }
+.customer-portal-card[data-tone="upcoming"] { --cp-card-tone: #618eaf; }
+.customer-portal-card[data-tone="cancelled"] { --cp-card-tone: #9a8880; }
 .customer-portal-card:hover { transform: translateY(-3px); border-color: #b8c9c1; box-shadow: 0 14px 30px #27383412; }
 .customer-portal-card-top { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
 .customer-portal-card-top > span:first-child { display: grid; gap: 4px; }
@@ -63,15 +68,19 @@
 .customer-portal-card[data-status="cancelled"] .customer-portal-status > span { background: #9a8880; }
 .customer-portal-card[data-status="problem"] .customer-portal-status { background: #f7ede6; color: #9b6444; }
 .customer-portal-card[data-status="problem"] .customer-portal-status > span { background: #bb825d; }
-.customer-portal-route { display: grid; gap: 12px; margin: 23px 0 20px; }
-.customer-portal-route > span { display: flex; align-items: start; gap: 10px; min-width: 0; }
+.customer-portal-route { display: grid; gap: 14px; margin: 23px 0 20px; }
+.customer-portal-stop { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: start; gap: 10px; min-width: 0; }
+.customer-portal-stop-place { display: flex; align-items: start; gap: 10px; min-width: 0; }
+.customer-portal-stop-place > span { min-width: 0; }
+.customer-portal-stop-schedule { min-width: 0; text-align: right; }
+.customer-portal-stop-schedule strong { font-variant-numeric: tabular-nums; }
 .customer-portal-route svg { flex: none; margin-top: 2px; color: #8ba09a; }
-.customer-portal-route > span:first-child svg { color: #b49a70; }
-.customer-portal-route > span > span { display: grid; min-width: 0; }
+.customer-portal-stop:first-child svg { color: #b49a70; }
 .customer-portal-route small { color: #8a9693; font-size: 10px; }
 .customer-portal-route strong { margin-top: 2px; font-size: 13px; line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; }
 .customer-portal-card-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; padding-top: 14px; border-top: 1px solid #edf0eb; color: #7e8b88; font-size: 11px; }
-.customer-portal-card-bottom > span { display: inline-flex; align-items: center; gap: 6px; }
+.customer-portal-card-bottom > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.customer-portal-card-bottom svg { flex: none; }
 .customer-portal-card-bottom > span:last-child { color: #2e5953; font-weight: 600; }
 .customer-portal-empty { padding: 30px; border: 1px dashed #d3d9d2; border-radius: 12px; background: #fbfaf7; color: var(--cp-muted); text-align: center; font-size: 13px; }
 .customer-portal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 18px; background: #142529ba; backdrop-filter: blur(5px); }

@@ -9,6 +9,7 @@ import { statusLabels, type StopProof, type TransportJob } from "@s-fast-transpo
 import { auth } from "@/lib/firebase-auth";
 import { storage } from "@/lib/firebase";
 import { completionReportHtml, type ReportProof } from "@/lib/job-completion-report";
+import { bangkokDateKey, nextStopSchedule } from "@/lib/job-card-schedule";
 import { driverIssueLabels } from "@/lib/driver-issue-labels";
 import type { UserProfile } from "@/lib/transport-repository";
 import CustomerJobRequests from "./CustomerJobRequests";
@@ -17,13 +18,20 @@ import "./customer-portal.css";
 type Evidence = { pickup: ReportProof; delivery: ReportProof; returnPickup: ReportProof; returnDelivery: ReportProof };
 const emptyProof: ReportProof = { photos: [] };
 const dateText = (value?: string) => value ? new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }) : "—";
-const dayText = (value?: string) => value && !Number.isNaN(new Date(`${value}T12:00:00+07:00`).getTime()) ? new Date(`${value}T12:00:00+07:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : value || "—";
 const scheduledArrival = (date?: string, time?: string, fallback?: string) => /^\d{4}-\d{2}-\d{2}$/.test(date || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(time || "")
   ? `${dateText(`${date}T${time}:00+07:00`)} น.`
   : /^([01]\d|2[0-3]):[0-5]\d$/.test(time || "") ? `${time} น.` : fallback && fallback !== "-" ? fallback : "ยังไม่ระบุ";
 const phoneHref = (phone?: string) => { const number = (phone || "").replace(/[^\d+]/g, ""); return number.length >= 9 ? `tel:${number}` : null; };
 const monthKey = (job: TransportJob) => (job.completedAt || job.cancelledAt || job.jobDate || "").slice(0, 7) || "ไม่ระบุเดือน";
 const monthLabel = (key: string) => key === "ไม่ระบุเดือน" ? key : new Date(`${key}-01T12:00:00+07:00`).toLocaleDateString("th-TH", { month: "long", year: "numeric", timeZone: "Asia/Bangkok" });
+const stopSchedule = (date?: string, time?: string) => [date, time].filter(Boolean).join(" ") || "ยังไม่ระบุ";
+function cardTone(job: TransportJob) {
+  if (job.status === "cancelled") return "cancelled";
+  if (job.status === "completed") return "completed";
+  if (job.status === "problem" || (job.lastIssue && !job.lastIssue.resolvedAt)) return "attention";
+  if (job.status !== "assigned") return "active";
+  return (job.pickupDate || job.jobDate) === bangkokDateKey() ? "today" : "upcoming";
+}
 
 async function loadProof(proof?: StopProof): Promise<ReportProof> {
   return {
@@ -177,7 +185,17 @@ function CustomerJobDetail({ job, evidence, proofLoading, issuePhoto, proofError
 }
 
 function JobCard({ job, onOpen }: { job: TransportJob; onOpen: () => void }) {
-  return <button className="customer-portal-card" type="button" data-status={job.status} onClick={onOpen}><span className="customer-portal-card-top"><span><small>เลขที่ใบงาน</small><strong>{job.workOrder}</strong></span><span className="customer-portal-status"><span aria-hidden="true" />{job.returnTrip ? `${job.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</span></span><span className="customer-portal-route"><span><MapPin size={16} /><span><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "ไม่ระบุจุดรับ"}</strong></span></span><span><MapPin size={16} /><span><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "ไม่ระบุจุดส่ง"}</strong></span></span>{job.returnTrip && <span><MapPin size={16} /><span><small>รับสินค้ากลับ</small><strong>{job.returnTrip.pickupLocation} → {job.returnTrip.deliveryLocation}</strong></span></span>}</span><span className="customer-portal-card-bottom"><span><CalendarDays size={15} /> {dayText(job.jobDate)}</span><span>ดูรายละเอียด <ArrowUpRight size={16} /></span></span></button>;
+  const eta = nextStopSchedule(job);
+  const cancelledDate = job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }) : "—";
+  return <button className="customer-portal-card" type="button" data-status={job.status} data-tone={cardTone(job)} onClick={onOpen}>
+    <span className="customer-portal-card-top"><span><small>เลขที่ใบงาน</small><strong>{job.workOrder}</strong></span><span className="customer-portal-status"><span aria-hidden="true" />{job.returnTrip ? `${job.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</span></span>
+    <span className="customer-portal-route">
+      <span className="customer-portal-stop"><span className="customer-portal-stop-place"><MapPin size={16} /><span><small>รับสินค้า</small><strong>{job.pickupLocation || "ไม่ระบุจุดรับ"}</strong></span></span><span className="customer-portal-stop-schedule"><small>วันเวลารับสินค้า</small><strong>{stopSchedule(job.pickupDate, job.pickupTime)}</strong></span></span>
+      <span className="customer-portal-stop"><span className="customer-portal-stop-place"><MapPin size={16} /><span><small>ส่งสินค้า</small><strong>{job.deliveryLocation || "ไม่ระบุจุดส่ง"}</strong></span></span><span className="customer-portal-stop-schedule"><small>วันเวลาส่งสินค้า</small><strong>{stopSchedule(job.deliveryDate, job.deliveryTime)}</strong></span></span>
+      {job.returnTrip && <><span className="customer-portal-stop"><span className="customer-portal-stop-place"><MapPin size={16} /><span><small>รับสินค้ากลับ</small><strong>{job.returnTrip.pickupLocation}</strong></span></span><span className="customer-portal-stop-schedule"><small>วันเวลารับกลับ</small><strong>{stopSchedule(job.returnTrip.pickupDate, job.returnTrip.pickupTime)}</strong></span></span><span className="customer-portal-stop"><span className="customer-portal-stop-place"><MapPin size={16} /><span><small>ส่งสินค้ากลับ</small><strong>{job.returnTrip.deliveryLocation}</strong></span></span><span className="customer-portal-stop-schedule"><small>วันเวลาส่งกลับ</small><strong>{stopSchedule(job.returnTrip.deliveryDate, job.returnTrip.deliveryTime)}</strong></span></span></>}
+    </span>
+    <span className="customer-portal-card-bottom"><span><Clock3 size={15} />{job.status === "cancelled" ? `ยกเลิก ${cancelledDate}` : `ETA ${eta.label} ${eta.value}`}</span><span>ดูรายละเอียด <ArrowUpRight size={16} /></span></span>
+  </button>;
 }
 
 function ProofBlock({ title, proof, files, loading }: { title: string; proof?: StopProof; files: ReportProof; loading: boolean }) {
