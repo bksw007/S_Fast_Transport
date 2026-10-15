@@ -1,15 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { Camera, FolderOpen } from "lucide-react";
 import { deleteDriverProofDraft, loadDriverProofDraft, saveDriverProofDraft, type DriverProofDraft } from "@/lib/driver-proof-draft";
+import { compressImageForUpload } from "@/lib/image-upload";
 
 const proofDrafts = new Map<string, DriverProofDraft>();
 export function clearDriverProofDrafts() { proofDrafts.clear(); }
 export async function clearDriverProofDraft(key: string) {
   proofDrafts.delete(key);
   await deleteDriverProofDraft(key);
+}
+
+function ProofMediaPreview({ blob, alt, width, height }: { blob: Blob; alt: string; width: number; height: number }) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const url = URL.createObjectURL(blob);
+    if (imageRef.current) imageRef.current.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [blob]);
+  // A local blob URL is assigned directly to avoid copying camera files into base64 strings.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img ref={imageRef} alt={alt} width={width} height={height} />;
 }
 
 export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: {
@@ -26,25 +38,32 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
   const extraFileRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
   const [photos, setPhotos] = useState<(File | null)[]>(() => proofDrafts.get(draftKey)?.photos ?? [null, null]);
-  const [previews, setPreviews] = useState<string[]>([]);
   const [signerName, setSignerName] = useState(() => proofDrafts.get(draftKey)?.signerName ?? "");
   const [signature, setSignature] = useState<Blob | null>(() => proofDrafts.get(draftKey)?.signature ?? null);
-  const [signaturePreview, setSignaturePreview] = useState("");
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [draftSigned, setDraftSigned] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [error, setError] = useState("");
   const [restoring, setRestoring] = useState(() => !proofDrafts.has(draftKey));
   const [draftStorage, setDraftStorage] = useState<"saving" | "saved" | "error">("saving");
   const previousMedia = useRef({ photos, signature });
+  const saveRevision = useRef(0);
 
   useEffect(() => {
     if (proofDrafts.has(draftKey)) return;
     let active = true;
-    void loadDriverProofDraft(draftKey).then(saved => {
+    void loadDriverProofDraft(draftKey).then(async saved => {
       if (!active || !saved) return;
       const draft = proofDrafts.get(draftKey) ?? saved;
-      setPhotos(draft.photos?.length >= 2 ? draft.photos : [null, null]);
+      const restoredPhotos: (File | null)[] = [];
+      for (const file of draft.photos ?? []) {
+        if (!file) { restoredPhotos.push(null); continue; }
+        try { restoredPhotos.push(await compressImageForUpload(file)); }
+        catch { restoredPhotos.push(file); }
+      }
+      if (!active) return;
+      setPhotos(restoredPhotos.length >= 2 ? restoredPhotos : [null, null]);
       setSignerName(draft.signerName ?? "");
       setSignature(draft.signature ?? null);
     }).catch(() => {
@@ -62,37 +81,19 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     const mediaChanged = previousMedia.current.photos !== photos || previousMedia.current.signature !== signature;
     previousMedia.current = { photos, signature };
     let active = true;
+    const revision = ++saveRevision.current;
     const persist = () => {
       setDraftStorage("saving");
       void saveDriverProofDraft(draftKey, draft).then(() => {
-        if (active) setDraftStorage("saved");
+        if (active && revision === saveRevision.current) setDraftStorage("saved");
       }).catch(() => {
-        if (active) setDraftStorage("error");
+        if (active && revision === saveRevision.current) setDraftStorage("error");
       });
     };
     const timer = mediaChanged ? null : window.setTimeout(persist, 250);
     if (mediaChanged) persist();
     return () => { active = false; if (timer !== null) window.clearTimeout(timer); };
   }, [draftKey, photos, signerName, signature, restoring]);
-
-  useEffect(() => {
-    const readers = photos.map((file, index) => {
-      if (!file) return null;
-      const reader = new FileReader();
-      reader.onload = () => setPreviews(current => { const next = [...current]; next[index] = String(reader.result ?? ""); return next; });
-      reader.readAsDataURL(file);
-      return reader;
-    });
-    return () => readers.forEach(reader => reader?.abort());
-  }, [photos]);
-
-  useEffect(() => {
-    if (!signature) return;
-    const reader = new FileReader();
-    reader.onload = () => setSignaturePreview(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(signature);
-    return () => reader.abort();
-  }, [signature]);
 
   useEffect(() => {
     if (!signatureOpen) return;
@@ -111,11 +112,28 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
   }, [signatureOpen]);
 
   const selectedPhotos = photos.filter((file): file is File => file !== null);
-  function selectPhoto(index: number, file: File | undefined) {
-    if (file) setPhotos(current => current.map((photo, slot) => slot === index ? file : photo));
+  async function preparePhoto(file: File) {
+    setPreparingPhoto(true);
+    setError("");
+    try { return await compressImageForUpload(file); }
+    catch (cause) {
+      setError(cause instanceof Error ? cause.message : "เตรียมรูปไม่สำเร็จ กรุณาถ่ายหรือเลือกรูปใหม่");
+      return null;
+    }
   }
-  function addPhoto(file: File | undefined) {
-    if (file) setPhotos(current => [...current, file]);
+  async function selectPhoto(index: number, file: File | undefined) {
+    if (!file) return;
+    try {
+      const prepared = await preparePhoto(file);
+      if (prepared) setPhotos(current => current.map((photo, slot) => slot === index ? prepared : photo));
+    } finally { setPreparingPhoto(false); }
+  }
+  async function addPhoto(file: File | undefined) {
+    if (!file) return;
+    try {
+      const prepared = await preparePhoto(file);
+      if (prepared) setPhotos(current => [...current, prepared]);
+    } finally { setPreparingPhoto(false); }
   }
   function removePhoto(index: number) {
     setPhotos(current => index < 2 ? current.map((file, slot) => slot === index ? null : file) : current.filter((_, slot) => slot !== index));
@@ -188,7 +206,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     setDraftSigned(true);
   }
   async function submit() {
-    if (busy || selectedPhotos.length < 2 || !signature || !signerName.trim()) return;
+    if (busy || preparingPhoto || selectedPhotos.length < 2 || !signature || !signerName.trim()) return;
     setBusy(true);
     setError("");
     try {
@@ -207,26 +225,26 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
   return <section className="driver-stop-proof">
     <h2>{stage === "pickup" ? "ยืนยันรับสินค้า" : "ยืนยันส่งสินค้า"}</h2>
     <p>ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้{stage === "pickup" ? "ผู้ส่ง" : "ผู้รับ"}เซ็นชื่อก่อนเดินทางต่อ</p>
-    <p className={`driver-proof-draft-state ${draftStorage}`} role="status">{draftStorage === "saved" ? "✓ แบบร่างเก็บไว้ในเครื่องแล้ว เปิดแอปใหม่ได้หากการส่งสะดุด" : draftStorage === "error" ? "บันทึกแบบร่างในเครื่องไม่ได้ กรุณาตรวจพื้นที่ว่างของอุปกรณ์" : "กำลังเก็บแบบร่างในเครื่อง..."}</p>
+    <p className={`driver-proof-draft-state ${draftStorage}`} role="status">{preparingPhoto ? "กำลังลดขนาดรูปก่อนเก็บแบบร่าง..." : draftStorage === "saved" ? "✓ แบบร่างเก็บไว้ในเครื่องแล้ว เปิดแอปใหม่ได้หากการส่งสะดุด" : draftStorage === "error" ? "บันทึกแบบร่างในเครื่องไม่ได้ กรุณาตรวจพื้นที่ว่างของอุปกรณ์" : "กำลังเก็บแบบร่างในเครื่อง..."}</p>
     <div className="driver-proof-photos">{photos.map((file, index) => <div className="driver-proof-photo" key={index}>
       <span>รูปสินค้า {index + 1} {photos[index] ? "✓" : "· ยังไม่มีรูป"}</span>
-      {previews[index] && photos[index] && <Image unoptimized src={previews[index]} alt={`รูปสินค้า ${index + 1}`} width={320} height={220} />}
+      {file && <ProofMediaPreview blob={file} alt={`รูปสินค้า ${index + 1}`} width={320} height={220} />}
       <div className="driver-proof-photo-actions">
-        <button type="button" disabled={busy} aria-label={`ถ่ายรูปสินค้า ${index + 1}`} onClick={() => cameraInputs.current[index]?.click()}><Camera size={18} /> กล้อง</button>
-        <button type="button" disabled={busy} aria-label={`เลือกรูปสินค้า ${index + 1} จากแกลอรี่หรือไฟล์`} onClick={() => fileInputs.current[index]?.click()}><FolderOpen size={18} /> ไฟล์</button>
+        <button type="button" disabled={busy || preparingPhoto} aria-label={`ถ่ายรูปสินค้า ${index + 1}`} onClick={() => cameraInputs.current[index]?.click()}><Camera size={18} /> กล้อง</button>
+        <button type="button" disabled={busy || preparingPhoto} aria-label={`เลือกรูปสินค้า ${index + 1} จากแกลอรี่หรือไฟล์`} onClick={() => fileInputs.current[index]?.click()}><FolderOpen size={18} /> ไฟล์</button>
       </div>
-      <input ref={node => { cameraInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-      <input ref={node => { fileInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+      <input ref={node => { cameraInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+      <input ref={node => { fileInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
       {file && <button type="button" disabled={busy} onClick={() => removePhoto(index)}>ลบรูปนี้</button>}
     </div>)}</div>
     <div className="driver-proof-add-photo"><span>เพิ่มรูป (ไม่บังคับ)</span><div className="driver-proof-photo-actions">
-      <button type="button" disabled={busy || !photos[0] || !photos[1]} onClick={() => extraCameraRef.current?.click()}><Camera size={18} /> กล้อง</button>
-      <button type="button" disabled={busy || !photos[0] || !photos[1]} onClick={() => extraFileRef.current?.click()}><FolderOpen size={18} /> ไฟล์</button>
+      <button type="button" disabled={busy || preparingPhoto || !photos[0] || !photos[1]} onClick={() => extraCameraRef.current?.click()}><Camera size={18} /> กล้อง</button>
+      <button type="button" disabled={busy || preparingPhoto || !photos[0] || !photos[1]} onClick={() => extraFileRef.current?.click()}><FolderOpen size={18} /> ไฟล์</button>
     </div></div>
-    <input ref={extraCameraRef} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-    <input ref={extraFileRef} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy} tabIndex={-1} aria-hidden="true" onChange={event => { addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+    <input ref={extraCameraRef} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+    <input ref={extraFileRef} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
     <label className="driver-proof-signer">ชื่อผู้เซ็น<input value={signerName} maxLength={100} disabled={busy} placeholder={stage === "pickup" ? "ชื่อผู้ส่งสินค้า" : "ชื่อผู้รับสินค้า"} onChange={event => setSignerName(event.target.value)} /></label>
-    <div className="driver-proof-preview"><strong>พรีวิวลายเซ็น</strong>{signaturePreview ? <Image unoptimized src={signaturePreview} alt="ลายเซ็นที่ยืนยันแล้ว" width={500} height={180} /> : <span>ยังไม่มีลายเซ็นที่ยืนยัน</span>}</div>
+    <div className="driver-proof-preview"><strong>พรีวิวลายเซ็น</strong>{signature ? <ProofMediaPreview blob={signature} alt="ลายเซ็นที่ยืนยันแล้ว" width={500} height={180} /> : <span>ยังไม่มีลายเซ็นที่ยืนยัน</span>}</div>
     <button type="button" className="driver-proof-open-signature" disabled={busy} onClick={() => { setError(""); setDraftSigned(false); setSignatureOpen(true); }}>{signature ? "✓ ยืนยันลายเซ็นแล้ว · เซ็นใหม่" : "เปิดหน้าจอเซ็นชื่อ"}</button>
     {signatureOpen && <dialog ref={dialogRef} className="driver-proof-signature-dialog" aria-label="เซ็นชื่อเต็มหน้าจอ" onCancel={event => { event.preventDefault(); setSignatureOpen(false); }}>
       <div className="driver-proof-dialog-head"><div><strong>ลายเซ็นผู้{stage === "pickup" ? "ส่ง" : "รับ"}สินค้า</strong><span>เซ็นในพื้นที่ด้านล่าง แล้วกดยืนยันลายเซ็น</span></div><button type="button" onClick={() => setSignatureOpen(false)}>ปิด</button></div>
@@ -235,6 +253,6 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
       <div className="driver-proof-dialog-actions"><button type="button" onClick={clearSignature}>ล้างลายเซ็น</button><button type="button" disabled={!draftSigned} onClick={() => void confirmSignature()}>ยืนยันลายเซ็น</button></div>
     </dialog>}
     {error && <p className="driver-proof-error" role="alert">{error}</p>}
-    <button type="button" className="driver-proof-submit" disabled={busy || selectedPhotos.length < 2 || !signature || !signerName.trim()} onClick={() => void submit()}>{busy ? "กำลังบันทึกหลักฐาน..." : stage === "pickup" ? "ยืนยันรับสินค้าและไปจุดส่ง" : "ยืนยันส่งสินค้า"}</button>
+    <button type="button" className="driver-proof-submit" disabled={busy || preparingPhoto || selectedPhotos.length < 2 || !signature || !signerName.trim()} onClick={() => void submit()}>{busy ? "กำลังบันทึกหลักฐาน..." : preparingPhoto ? "กำลังเตรียมรูป..." : stage === "pickup" ? "ยืนยันรับสินค้าและไปจุดส่ง" : "ยืนยันส่งสินค้า"}</button>
   </section>;
 }

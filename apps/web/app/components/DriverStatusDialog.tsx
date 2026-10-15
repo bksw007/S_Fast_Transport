@@ -20,7 +20,7 @@ export default function DriverStatusDialog({ notice, onClose }: { notice: Driver
     return () => window.clearTimeout(timer);
   }, [notice.title, notice.detail, notice.tone]);
   const Icon = notice.tone === "success" ? CheckCircle2 : notice.tone === "error" ? WifiOff : notice.tone === "pending" ? LoaderCircle : AlertTriangle;
-  return <dialog ref={dialogRef} className={`driver-status-dialog ${notice.tone}`} onCancel={event => { event.preventDefault(); onClose(); }} aria-labelledby="driver-status-title">
+  return <dialog ref={dialogRef} className={`driver-status-dialog ${notice.tone}`} onCancel={event => { event.preventDefault(); if (notice.tone !== "pending") onClose(); }} aria-labelledby="driver-status-title">
     <div className="driver-status-content" role="status">
       <span className="driver-status-icon"><Icon size={31} /></span>
       <h2 id="driver-status-title">{notice.title}</h2>
