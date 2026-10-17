@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, CalendarDays, Download, FileText, MapPin, Truck } from "lucide-react";
+import { BarChart3, CalendarDays, Download, FileText, Printer } from "lucide-react";
 import { historyMonthLabel, jobHistoryMonth, type TransportJob } from "@s-fast-transport/shared";
-import { customerMonthlyJobs, customerMonthlyReportHtml } from "@/lib/customer-monthly-report";
+import { customerMonthlyCsv, customerMonthlyJobs } from "@/lib/customer-monthly-report";
 import type { UserProfile } from "@/lib/transport-repository";
 
 const currentMonth = () => new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 7);
 const day = (value?: string) => /^\d{4}-\d{2}-\d{2}$/.test(value || "")
-  ? new Date(`${value}T12:00:00+07:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : "ยังไม่ระบุ";
+  ? new Date(`${value}T12:00:00+07:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : "—";
 const completedDay = (value?: string) => value && !Number.isNaN(Date.parse(value))
-  ? new Date(value).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : "ยังไม่ระบุ";
+  ? new Date(value).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : "—";
 
 export default function CustomerReports({ profile, jobs, loading, error, onOpenJob }: {
   profile: UserProfile;
@@ -26,30 +26,28 @@ export default function CustomerReports({ profile, jobs, loading, error, onOpenJ
   const rows = customerMonthlyJobs(jobs, profile.customerId || "", month);
   const vehicles = new Set(rows.map(job => job.vehiclePlate?.trim()).filter(Boolean)).size;
 
-  function openReport() {
+  function exportCsv() {
     if (loading || error || !rows.length) return;
-    const preview = window.open("", "_blank");
-    if (!preview) { setMessage("เบราว์เซอร์บล็อกหน้ารายงาน กรุณาอนุญาตหน้าต่างใหม่แล้วลองอีกครั้ง"); return; }
-    try {
-      preview.document.open();
-      preview.document.write(customerMonthlyReportHtml(rows, profile.organizationName || rows[0].customer, month));
-      preview.document.close();
-      setMessage("เปิดรายงานแล้ว กด ‘พิมพ์ / บันทึกเป็น PDF’ เพื่อดาวน์โหลดไฟล์");
-    } catch {
-      preview.close();
-      setMessage("เปิดรายงานไม่สำเร็จ กรุณาลองใหม่");
-    }
+    const url = URL.createObjectURL(new Blob([customerMonthlyCsv(jobs, profile.customerId || "", month)], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `customer-transport-report-${month}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setMessage("ดาวน์โหลด CSV แล้ว");
   }
 
   return <section className="customer-monthly-report">
-    <header className="customer-monthly-report-hero"><span><BarChart3 size={16} /> MONTHLY REPORT</span><h1>รายงานการขนส่ง</h1><p>สรุปงานที่ส่งมอบเสร็จแล้วของ {profile.organizationName} แยกตามเดือน</p></header>
-    <div className="customer-monthly-report-toolbar"><label className="customer-portal-month"><CalendarDays size={17} /><span>เดือนที่เสร็จงาน</span><select value={month} onChange={event => { setMonth(event.target.value); setMessage(""); }}>{months.map(value => <option key={value} value={value}>{historyMonthLabel(value)}</option>)}</select></label><button type="button" className="customer-monthly-report-download" onClick={openReport} disabled={loading || Boolean(error) || rows.length === 0}><Download size={17} /> พิมพ์ / บันทึก PDF</button></div>
+    <header className="customer-monthly-report-hero"><span><BarChart3 size={16} /> MONTHLY REPORT</span><h1>รายงานการขนส่ง</h1><p>สรุปงานที่ส่งมอบเสร็จแล้วของ {profile.organizationName} แยกตามเดือน</p><strong className="customer-monthly-report-print-period">{historyMonthLabel(month)}</strong></header>
+    <div className="customer-monthly-report-toolbar"><label className="customer-portal-month"><CalendarDays size={17} /><span>เดือนที่เสร็จงาน</span><select value={month} onChange={event => { setMonth(event.target.value); setMessage(""); }}>{months.map(value => <option key={value} value={value}>{historyMonthLabel(value)}</option>)}</select></label><div className="customer-monthly-report-actions"><button type="button" onClick={exportCsv} disabled={loading || Boolean(error) || !rows.length}><Download size={17} /> Export CSV</button><button type="button" className="customer-monthly-report-download" onClick={() => window.print()} disabled={loading || Boolean(error) || !rows.length}><Printer size={17} /> พิมพ์ / บันทึก PDF</button></div></div>
     {loading && <p role="status" className="customer-portal-empty">กำลังโหลดรายงาน…</p>}
     {error && <p role="alert" className="customer-portal-error">โหลดรายงานไม่สำเร็จ: {error}</p>}
     {!loading && !error && <>
       <div className="customer-monthly-report-summary"><div><span>งานที่เสร็จ</span><strong>{rows.length.toLocaleString("th-TH")}</strong><small>ใบงานใน {historyMonthLabel(month)}</small></div><div><span>รถที่ให้บริการ</span><strong>{vehicles.toLocaleString("th-TH")}</strong><small>ทะเบียนรถในรายการ</small></div></div>
-      <div className="customer-portal-section-title customer-monthly-report-title"><div><span className="customer-portal-section-kicker">COMPLETED DELIVERIES</span><h2>รายการงานที่เสร็จแล้ว</h2><p>เรียงจากงานที่เสร็จล่าสุด</p></div><span className="customer-portal-section-count">{rows.length} งาน</span></div>
-      {rows.length ? <div className="customer-monthly-report-list">{rows.map(job => <article key={job.id} className="customer-monthly-report-row"><div className="customer-monthly-report-row-head"><div><small>ใบงานขนส่ง</small><strong>{job.workOrder}</strong></div><span>เสร็จงานแล้ว</span></div><div className="customer-monthly-report-route"><MapPin size={17} /><span>{job.pickupLocation || "ไม่ระบุจุดรับ"} <b>→</b> {job.deliveryLocation || "ไม่ระบุจุดส่ง"}</span></div><div className="customer-monthly-report-meta"><span><CalendarDays size={15} /> รับ {day(job.pickupDate)}{job.pickupTime ? ` ${job.pickupTime} น.` : ""}</span><span><CalendarDays size={15} /> ส่ง {day(job.deliveryDate)}{job.deliveryTime ? ` ${job.deliveryTime} น.` : ""}</span><span><CalendarDays size={15} /> เสร็จ {completedDay(job.completedAt)}</span><span><Truck size={15} /> {job.vehicleType || "ไม่ระบุประเภทรถ"}{job.vehiclePlate ? ` · ${job.vehiclePlate}` : ""}</span></div><button type="button" onClick={() => onOpenJob(job.id)}><FileText size={16} /> ดูรายละเอียดและหลักฐาน</button></article>)}</div> : <p className="customer-portal-empty">ยังไม่มีงานที่เสร็จแล้วในเดือนนี้ ลองเลือกเดือนอื่น</p>}
+      <div className="customer-portal-section-title customer-monthly-report-title"><div><span className="customer-portal-section-kicker">COMPLETED DELIVERIES</span><h2>รายการงานที่เสร็จแล้ว</h2><p>เรียงจากงานที่เสร็จล่าสุด · เลื่อนตารางด้านข้างเพื่อดูข้อมูลทั้งหมด</p></div><span className="customer-portal-section-count">{rows.length} งาน</span></div>
+      {rows.length ? <div className="customer-monthly-report-table-wrap" role="region" aria-label="ตารางรายงานการขนส่ง" tabIndex={0}><table className="customer-monthly-report-table"><thead><tr><th scope="col">ใบงาน</th><th scope="col">วันที่รับสินค้า</th><th scope="col">จุดรับ</th><th scope="col">วันที่ส่งสินค้า</th><th scope="col">จุดส่ง</th><th scope="col">รถ / สินค้า</th><th scope="col">เสร็จงาน</th><th scope="col" className="customer-monthly-report-action-col">รายละเอียด</th></tr></thead><tbody>{rows.map((job, index) => <tr key={job.id}><td><small>{index + 1}</small><strong>{job.workOrder}</strong></td><td>{day(job.pickupDate)}{job.pickupTime && <small>{job.pickupTime} น.</small>}</td><td>{job.pickupLocation || "—"}</td><td>{day(job.deliveryDate)}{job.deliveryTime && <small>{job.deliveryTime} น.</small>}</td><td>{job.deliveryLocation || "—"}</td><td>{job.vehicleType || "—"}<small>{job.vehiclePlate || "—"}{job.cargoType ? ` · ${job.cargoType}` : ""}</small></td><td>{completedDay(job.completedAt)}</td><td className="customer-monthly-report-action-col"><button type="button" onClick={() => onOpenJob(job.id)}><FileText size={15} /> ดูงาน</button></td></tr>)}</tbody></table></div> : <p className="customer-portal-empty">ยังไม่มีงานที่เสร็จแล้วในเดือนนี้ ลองเลือกเดือนอื่น</p>}
     </>}
     {message && <p role="status" className="customer-monthly-report-message">{message}</p>}
   </section>;

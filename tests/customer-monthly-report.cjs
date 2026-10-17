@@ -8,7 +8,7 @@ const shared = { exports: {}, Date, Intl };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
 const context = { exports: {}, Date, Intl, require: name => name === '@s-fast-transport/shared' ? shared.exports : require(name) };
 vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/customer-monthly-report.ts', 'utf8')), context);
-const { customerMonthlyJobs, customerMonthlyReportHtml } = context.exports;
+const { customerMonthlyJobs, customerMonthlyCsv } = context.exports;
 
 const base = { status: 'completed', customerId: 'customer-a', pickupLocation: 'จุดรับ', deliveryLocation: 'จุดส่ง', vehicleType: 'รถ 6 ล้อ', vehiclePlate: '72-2211' };
 const jobs = [
@@ -21,13 +21,16 @@ const jobs = [
 const october = customerMonthlyJobs(jobs, 'customer-a', '2026-10');
 assert.deepEqual(Array.from(october, job => job.id), ['a', 'b'], 'completion month uses Bangkok time and stays inside customer');
 assert.deepEqual(Array.from(customerMonthlyJobs(jobs, 'customer-a', '2026-09'), job => job.id), ['e']);
-const html = customerMonthlyReportHtml(october, 'บริษัท <ทดสอบ>', '2026-10', new Date('2026-10-15T00:00:00Z'));
-assert.ok(html.includes('JN-A'));
-assert.ok(html.includes('JN-B'));
-assert.ok(!html.includes('JN-C'));
-assert.ok(html.includes('บริษัท &lt;ทดสอบ&gt;'));
-assert.ok(html.includes('พิมพ์ / บันทึกเป็น PDF'));
-assert.ok(html.includes('@page'));
-assert.ok(html.indexOf('JN-B') < html.indexOf('JN-A'), 'PDF lists earliest completed jobs first');
-assert.equal(october[0].id, 'a', 'PDF sorting does not mutate screen data');
+const csv = customerMonthlyCsv(jobs, 'customer-a', '2026-10');
+assert.ok(csv.startsWith('\uFEFF'));
+assert.ok(csv.includes('JN-A'));
+assert.ok(csv.includes('JN-B'));
+assert.ok(!csv.includes('JN-C'));
+assert.ok(!csv.includes('JN-D'));
+assert.ok(!csv.includes('JN-E'));
+assert.ok(csv.includes('วันที่รับสินค้า'));
+const injected = customerMonthlyCsv([{ ...jobs[0], pickupLocation: '=HYPERLINK("bad")', deliveryLocation: 'จุดส่ง, พิเศษ' }], 'customer-a', '2026-10');
+assert.ok(injected.includes("'" + '=HYPERLINK'));
+assert.ok(injected.includes('"จุดส่ง, พิเศษ"'));
+assert.equal(october[0].id, 'a', 'export does not mutate screen data');
 console.log('customer monthly report passed');

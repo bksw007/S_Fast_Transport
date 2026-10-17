@@ -1,10 +1,4 @@
-import { jobHistoryMonth, historyMonthLabel, type TransportJob } from "@s-fast-transport/shared";
-
-const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&#39;" })[char]!);
-const dateOnly = (value?: string) => /^\d{4}-\d{2}-\d{2}$/.test(value || "")
-  ? new Date(`${value}T12:00:00+07:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : "—";
-const completionDate = (value?: string) => value && !Number.isNaN(Date.parse(value))
-  ? new Date(value).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" }) : "—";
+import { jobHistoryMonth, type TransportJob } from "@s-fast-transport/shared";
 
 export function customerMonthlyJobs(jobs: TransportJob[], customerId: string, month: string): TransportJob[] {
   if (!customerId || !month) return [];
@@ -12,12 +6,18 @@ export function customerMonthlyJobs(jobs: TransportJob[], customerId: string, mo
     .sort((a, b) => (b.completedAt || b.pickupDate || "").localeCompare(a.completedAt || a.pickupDate || "") || b.workOrder.localeCompare(a.workOrder, "th"));
 }
 
-export function customerMonthlyReportHtml(jobs: TransportJob[], customerName: string, month: string, createdAt = new Date()) {
-  const rows = [...jobs].sort((a, b) => (a.completedAt || a.pickupDate || "").localeCompare(b.completedAt || b.pickupDate || "") || a.workOrder.localeCompare(b.workOrder, "th"));
-  const title = historyMonthLabel(month);
-  const generated = createdAt.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" });
-  const details = rows.map((job, index) => `<tr><td data-label="ลำดับ">${index + 1}</td><td data-label="ใบงาน"><strong>${escapeHtml(job.workOrder)}</strong></td><td data-label="วันที่รับสินค้า">${escapeHtml(dateOnly(job.pickupDate))}${job.pickupTime ? `<small>${escapeHtml(job.pickupTime)} น.</small>` : ""}</td><td data-label="เส้นทาง"><strong>${escapeHtml(job.pickupLocation || "—")}</strong><small>→ ${escapeHtml(job.deliveryLocation || "—")}</small></td><td data-label="รถ / สินค้า">${escapeHtml(job.vehicleType || "—")}${job.cargoType ? `<small>${escapeHtml(job.cargoType)}</small>` : ""}</td><td data-label="เสร็จงาน">${escapeHtml(completionDate(job.completedAt))}</td></tr>`).join("");
-  return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>รายงานการขนส่ง ${escapeHtml(title)}</title><style>
-*{box-sizing:border-box}body{margin:0;padding:20px;background:#f7f6f2;color:#21313a;font-family:"Noto Sans Thai",Tahoma,sans-serif;font-size:12px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;max-width:960px;margin:0 auto 14px}.toolbar button{padding:11px 17px;border:0;border-radius:9px;background:#264b49;color:#fff;font:inherit;cursor:pointer}.sheet{max-width:960px;margin:auto;padding:30px;background:#fff;border:1px solid #dce5df;border-radius:14px}.head{display:flex;justify-content:space-between;gap:20px;padding-bottom:18px;border-bottom:3px solid #264b49}.brand{color:#8b7b61;font-size:10px;font-weight:700;letter-spacing:.16em}.head h1{margin:6px 0;font-size:24px}.head p{margin:0;color:#69757a}.period{text-align:right}.period strong,.period span{display:block}.period strong{font-size:17px}.period span{margin-top:5px;color:#69757a;font-size:10px}.summary{display:flex;justify-content:space-between;gap:18px;align-items:center;margin:18px 0;padding:16px 18px;border-radius:10px;background:#f0f5f1}.summary span{color:#526761}.summary strong{font-size:22px;color:#264b49}.summary strong small{font-size:11px;font-weight:400}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:10px 7px;border-bottom:1px solid #e4e9e4;text-align:left;vertical-align:top;overflow-wrap:break-word}th{background:#eaf0eb;color:#31534e;font-size:11px}th:nth-child(1){width:6%}th:nth-child(2){width:14%}th:nth-child(3){width:15%}th:nth-child(4){width:32%}th:nth-child(5){width:18%}th:nth-child(6){width:15%}td small{display:block;margin-top:3px;color:#69757a;font-size:10px;line-height:1.4}tr{break-inside:avoid;page-break-inside:avoid}thead{display:table-header-group}.note{margin:15px 0 0;color:#69757a;font-size:10px}@page{size:A4 landscape;margin:11mm}@media screen and (max-width:700px){body{padding:12px;font-size:14px}.toolbar{align-items:stretch;flex-direction:column}.toolbar button{align-self:flex-start;min-height:44px}.sheet{padding:18px}.head{flex-direction:column}.period{text-align:left}.summary{align-items:flex-start;flex-direction:column}table,tbody{display:block}thead{display:none}tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin-bottom:12px;padding:14px;border:1px solid #dce5df;border-radius:10px}td{display:block;min-width:0;padding:0;border:0}td::before{content:attr(data-label);display:block;margin-bottom:3px;color:#69757a;font-size:11px}td:nth-child(4){grid-column:1/-1}}@media print{body{padding:0;background:#fff;font-size:10px}.toolbar{display:none}.sheet{max-width:none;padding:0;border:0;border-radius:0}.head,.summary{break-inside:avoid}}
-</style></head><body><div class="toolbar"><span>ตัวอย่างรายงานการขนส่งรายเดือน</span><button type="button" onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button></div><main class="sheet"><header class="head"><div><span class="brand">S FAST TRANSPORTATION</span><h1>รายงานการขนส่ง</h1><p>${escapeHtml(customerName)}</p></div><div class="period"><strong>${escapeHtml(title)}</strong><span>จัดทำเมื่อ ${escapeHtml(generated)}</span></div></header><div class="summary"><span>รายการงานที่เสร็จแล้วในเดือนนี้</span><strong>${rows.length} <small>งาน</small></strong></div><table><thead><tr><th>#</th><th>ใบงาน</th><th>วันที่รับสินค้า</th><th>เส้นทาง</th><th>รถ / สินค้า</th><th>เสร็จงาน</th></tr></thead><tbody>${details}</tbody></table><p class="note">รายงานนี้แสดงข้อมูลสรุปเท่านั้น สามารถเปิดใบงานแต่ละรายการเพื่อดูภาพและลายเซ็นได้</p></main></body></html>`;
+function csvCell(value: unknown) {
+  const raw = String(value ?? "");
+  // Prevent spreadsheet applications from evaluating customer-entered text as a formula.
+  const safe = /^[\s]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+export function customerMonthlyCsv(jobs: TransportJob[], customerId: string, month: string) {
+  const headers = ["เลขที่ใบงาน", "วันที่รับสินค้า", "เวลารับสินค้า", "จุดรับสินค้า", "วันที่ส่งสินค้า", "เวลาส่งสินค้า", "จุดส่งสินค้า", "ประเภทรถ", "ทะเบียนรถ", "ประเภทสินค้า", "วันที่เสร็จงาน"];
+  const rows = customerMonthlyJobs(jobs, customerId, month).map(job => [
+    job.workOrder, job.pickupDate, job.pickupTime, job.pickupLocation, job.deliveryDate, job.deliveryTime,
+    job.deliveryLocation, job.vehicleType, job.vehiclePlate, job.cargoType, job.completedAt
+  ]);
+  return `\uFEFF${[headers, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }

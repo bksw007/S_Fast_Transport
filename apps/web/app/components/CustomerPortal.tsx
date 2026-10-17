@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { getDownloadURL, ref } from "firebase/storage";
-import { AlertTriangle, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, LogOut, MapPin, Navigation, PackageCheck, PenLine, Phone, Truck, UserRound, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, LayoutDashboard, LogOut, MapPin, Navigation, PackageCheck, PenLine, Phone, Truck, UserRound, X } from "lucide-react";
 import { historyMonthLabel, jobHistoryMonth, statusLabels, type StopProof, type TransportJob } from "@s-fast-transport/shared";
 import { auth } from "@/lib/firebase-auth";
 import { storage } from "@/lib/firebase";
@@ -106,7 +106,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
 
   return <main className="customer-portal">
     <header className="customer-portal-header"><div className="customer-portal-header-inner"><div className="customer-portal-brand"><Image className="customer-portal-brand-mark" src="/icons/truck-logo.png" alt="S Fast Transport" width={46} height={46} /><div><strong>S Fast Transportation</strong><span>CUSTOMER PORTAL</span></div></div><button type="button" onClick={() => void signOut(auth)}><LogOut size={16} /> ออกจากระบบ</button></div></header>
-    <nav className="customer-portal-nav" aria-label="เมนูลูกค้า"><div><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>ภาพรวมใบงาน</button><button type="button" aria-current={view === "requests" ? "page" : undefined} onClick={() => setView("requests")}><PenLine size={16} /> แจ้งงาน</button><button type="button" aria-current={view === "reports" ? "page" : undefined} onClick={() => setView("reports")}><BarChart3 size={16} /> รายงาน</button></div></nav>
+    <nav className="customer-portal-nav" aria-label="เมนูลูกค้า"><div><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}><LayoutDashboard size={16} /> ภาพรวมใบงาน</button><button type="button" aria-current={view === "requests" ? "page" : undefined} onClick={() => setView("requests")}><PenLine size={16} /> แจ้งงาน</button><button type="button" aria-current={view === "reports" ? "page" : undefined} onClick={() => setView("reports")}><BarChart3 size={16} /> รายงาน</button></div></nav>
     <div className="customer-portal-wrap">
       {view === "overview" && <>
       <section className="customer-portal-hero"><div className="customer-portal-hero-copy"><span className="customer-portal-eyebrow"><span aria-hidden="true" /> ภาพรวมการขนส่งของคุณ</span><h1>ทุกการขนส่ง<br /><em>อยู่ในสายตาคุณ</em></h1><p>ติดตามงานของ {profile.organizationName} และย้อนดูประวัติการส่งมอบได้ในที่เดียว</p></div><div className="customer-portal-counts"><div><span>กำลังดำเนินการ</span><strong>{active.length.toLocaleString("th-TH")}</strong><small>งานที่กำลังขนส่ง</small></div><div><span>ส่งมอบแล้ว</span><strong>{completed.length.toLocaleString("th-TH")}</strong><small>งานทั้งหมดที่เสร็จสิ้น</small></div></div></section>
