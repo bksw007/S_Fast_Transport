@@ -13,7 +13,9 @@ const gmailAppPassword = defineSecret("CUSTOMER_REQUEST_GMAIL_APP_PASSWORD");
 
 type PlaceInput = { name?: unknown; googleName?: unknown; googlePlaceId?: unknown; lat?: unknown; lng?: unknown };
 type CleanPlace = { name: string; googleName: string; googlePlaceId?: string; lat: number; lng: number; originalMapsUrl: string; navigationUrl: string };
-type RequestInput = { pickupPlace?: PlaceInput; deliveryPlace?: PlaceInput; pickupDate?: unknown; pickupTime?: unknown; deliveryDate?: unknown; deliveryTime?: unknown; cargoType?: unknown; vehicleType?: unknown; notes?: unknown; recipientEmails?: unknown };
+type ContactInput = { name?: unknown; phone?: unknown };
+type CleanContact = { name: string; phone: string };
+type RequestInput = { pickupPlace?: PlaceInput; deliveryPlace?: PlaceInput; pickupContact?: ContactInput; deliveryContact?: ContactInput; pickupDate?: unknown; pickupTime?: unknown; deliveryDate?: unknown; deliveryTime?: unknown; cargoType?: unknown; vehicleType?: unknown; tripCount?: unknown; returnGoods?: unknown; notes?: unknown; recipientEmails?: unknown };
 
 function cleanText(value: unknown, limit: number, label: string, required = true): string {
   const text = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
@@ -36,6 +38,19 @@ function cleanPlace(value: PlaceInput | undefined, label: string): CleanPlace {
 
 function placeKey(place: CleanPlace): string {
   return createHash("sha256").update(place.googlePlaceId || `${place.lat.toFixed(5)},${place.lng.toFixed(5)}`).digest("hex").slice(0, 32);
+}
+
+function cleanContact(value: ContactInput | undefined, label: string): CleanContact {
+  const name = cleanText(value?.name, 160, `ชื่อผู้ติดต่อ${label}`);
+  const phone = cleanText(value?.phone, 20, `เบอร์โทรผู้ติดต่อ${label}`);
+  if (!/^\+?[0-9\s()-]+$/.test(phone) || !/^\d{9,15}$/.test(phone.replace(/\D/g, ""))) {
+    throw new HttpsError("invalid-argument", `เบอร์โทรผู้ติดต่อ${label}ไม่ถูกต้อง`);
+  }
+  return { name, phone };
+}
+
+function contactKey(contact: CleanContact): string {
+  return createHash("sha256").update(`${contact.name.toLocaleLowerCase("th-TH")}:${contact.phone.replace(/\D/g, "")}`).digest("hex").slice(0, 32);
 }
 
 function cleanRecipients(raw: unknown, loginEmail: string): string[] {
@@ -66,6 +81,8 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
   const data = request.data as RequestInput;
   const pickupPlace = cleanPlace(data?.pickupPlace, "จุดรับ");
   const deliveryPlace = cleanPlace(data?.deliveryPlace, "จุดส่ง");
+  const pickupContact = cleanContact(data?.pickupContact, "จุดรับ");
+  const deliveryContact = cleanContact(data?.deliveryContact, "จุดส่ง");
   const pickupDate = cleanText(data?.pickupDate, 10, "วันที่รับ");
   const deliveryDate = cleanText(data?.deliveryDate, 10, "วันที่ส่ง");
   const pickupTime = cleanText(data?.pickupTime, 5, "เวลารับ");
@@ -80,6 +97,10 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
     throw new HttpsError("invalid-argument", "กรุณาเลือกประเภทรถจากรายการของบริษัทขนส่งหลัก");
   }
   const notes = cleanText(data?.notes, 2000, "หมายเหตุ", false);
+  const tripCount = Number(data?.tripCount);
+  if (!Number.isInteger(tripCount) || tripCount < 1 || tripCount > 999) throw new HttpsError("invalid-argument", "จำนวนรอบไม่ถูกต้อง");
+  if (typeof data?.returnGoods !== "boolean") throw new HttpsError("invalid-argument", "ตัวเลือกรับสินค้ากลับไม่ถูกต้อง");
+  const returnGoods = data.returnGoods;
   const requesterEmail = cleanText(request.auth.token.email, 254, "อีเมลผู้แจ้ง").toLowerCase();
   const recipientEmails = cleanRecipients(data?.recipientEmails, requesterEmail);
   const customerName = cleanText(customer.name, 200, "ชื่อบริษัทลูกค้า");
@@ -87,12 +108,13 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
     const key = placeKey(place);
     return { place, customerRef: db.doc(`customers/${user.customerId}/locations/${key}`), mainRef: db.doc(`organizations/main/locations/${createHash("sha256").update(`${user.customerId}:${key}`).digest("hex").slice(0, 32)}`) };
   });
+  const contactPairs = [pickupContact, deliveryContact].map(contact => ({ contact, ref: db.doc(`customers/${user.customerId}/contacts/${contactKey(contact)}`) }));
   const normalizedCargoType = cargoType.replace(/\s+/g, " ").toLocaleLowerCase("th-TH");
   const cargoTypeId = createHash("sha256").update(normalizedCargoType).digest("hex").slice(0, 32);
   const cargoTypeRef = db.doc(`customers/${user.customerId}/cargo_types/${cargoTypeId}`);
   const requestRef = db.collection("customer_job_requests").doc();
   await db.runTransaction(async tx => {
-    const unique = [...new Map([...placePairs.flatMap(pair => [pair.customerRef, pair.mainRef]), cargoTypeRef].map(ref => [ref.path, ref])).values()];
+    const unique = [...new Map([...placePairs.flatMap(pair => [pair.customerRef, pair.mainRef]), ...contactPairs.map(pair => pair.ref), cargoTypeRef].map(ref => [ref.path, ref])).values()];
     const snapshots = await Promise.all(unique.map(ref => tx.get(ref)));
     const exists = new Map(snapshots.map((snapshot, index) => [unique[index].path, snapshot.exists]));
     const planned = new Set<string>();
@@ -100,6 +122,12 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
       const common = { ...pair.place, notes: "", active: true, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
       if (!exists.get(pair.customerRef.path) && !planned.has(pair.customerRef.path)) { tx.create(pair.customerRef, { ...common, organizationId: user.customerId, customerId: user.customerId, sourceCustomerName: customerName, createdByUid: uid }); planned.add(pair.customerRef.path); }
       if (!exists.get(pair.mainRef.path) && !planned.has(pair.mainRef.path)) { tx.create(pair.mainRef, { ...common, organizationId: "main", sourceCustomerId: user.customerId, sourceCustomerName: customerName, createdByUid: uid }); planned.add(pair.mainRef.path); }
+    }
+    for (const pair of contactPairs) {
+      if (!exists.get(pair.ref.path) && !planned.has(pair.ref.path)) {
+        tx.create(pair.ref, { ...pair.contact, customerId: user.customerId, createdByUid: uid, createdAt: FieldValue.serverTimestamp() });
+        planned.add(pair.ref.path);
+      }
     }
     if (!exists.get(cargoTypeRef.path)) tx.create(cargoTypeRef, {
       customerId: user.customerId, value: cargoType, normalizedValue: normalizedCargoType,
@@ -109,9 +137,9 @@ export const submitCustomerJobRequest = onCall({ region: "asia-southeast1", secr
       customerId: user.customerId, customerName, requesterUid: uid,
       requesterName: user.fullName || user.displayName || requesterEmail,
       requesterEmail, recipientEmails, companyEmail,
-      pickupPlace: { ...pickupPlace, locationId: placePairs[0].mainRef.id },
-      deliveryPlace: { ...deliveryPlace, locationId: placePairs[1].mainRef.id },
-      pickupDate, pickupTime, deliveryDate, deliveryTime, cargoType, vehicleType, notes,
+      pickupPlace: { ...pickupPlace, locationId: placePairs[0].mainRef.id }, pickupContact,
+      deliveryPlace: { ...deliveryPlace, locationId: placePairs[1].mainRef.id }, deliveryContact,
+      pickupDate, pickupTime, deliveryDate, deliveryTime, cargoType, vehicleType, tripCount, returnGoods, notes,
       status: "pending", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
     });
   });
@@ -153,8 +181,11 @@ export const emailCustomerJobRequest = onDocumentWritten({
   const lines = [
     `บริษัทลูกค้า: ${after.customerName}`, `ผู้แจ้ง: ${after.requesterName}`,
     `จุดรับ: ${after.pickupPlace?.name} · ${after.pickupDate} ${after.pickupTime}`,
+    `ผู้ติดต่อจุดรับ: ${after.pickupContact?.name || "—"} · ${after.pickupContact?.phone || "—"}`,
     `จุดส่ง: ${after.deliveryPlace?.name} · ${after.deliveryDate} ${after.deliveryTime}`,
+    `ผู้ติดต่อจุดส่ง: ${after.deliveryContact?.name || "—"} · ${after.deliveryContact?.phone || "—"}`,
     `ประเภทสินค้า: ${after.cargoType}`, `ประเภทรถ: ${after.vehicleType}`,
+    `จำนวนรอบ: ${after.tripCount || 1}`, `รับสินค้ากลับ: ${after.returnGoods ? "ใช่" : "ไม่"}`,
     `หมายเหตุ: ${after.notes || "ไม่มี"}`, `ผลการพิจารณา: ${decision}`
   ];
   const companyEmail = String(after.companyEmail || "").trim().toLowerCase();

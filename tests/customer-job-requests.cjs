@@ -39,7 +39,7 @@ const context = {
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-customer/src/index.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context);
 
 const place = { name: 'คลังสินค้า', lat: 13.75, lng: 100.5 };
-const input = { pickupPlace: place, deliveryPlace: place, pickupDate: '2026-10-14', pickupTime: '09:00', deliveryDate: '2026-10-14', deliveryTime: '13:00', cargoType: 'สินค้า', vehicleType: 'รถหกล้อ', notes: '', recipientEmails: ['customer@example.com', 'other@example.com'] };
+const input = { pickupPlace: place, deliveryPlace: place, pickupContact: { name: 'คุณสมชาย', phone: '0812345678' }, deliveryContact: { name: 'คุณสมหญิง', phone: '0898765432' }, pickupDate: '2026-10-14', pickupTime: '09:00', deliveryDate: '2026-10-14', deliveryTime: '13:00', cargoType: 'สินค้า', vehicleType: 'รถหกล้อ', tripCount: 3, returnGoods: true, notes: '', recipientEmails: ['customer@example.com', 'other@example.com'] };
 const customerAuth = { auth: { uid: 'customer-user', token: { email: 'customer@example.com' } }, data: input };
 records.set('users/customer-user', { role: 'customer', active: true, approvalStatus: 'approved', customerId: 'customer-A', email: 'customer@example.com', fullName: 'ผู้แจ้ง' });
 records.set('customers/customer-A', { name: 'บริษัท A', active: true });
@@ -52,15 +52,27 @@ records.set('users/admin-user', { role: 'admin', active: true, approvalStatus: '
   assert.equal(submitted.id, 'request-1');
   assert.equal(writes.filter(item => item.path.startsWith('customers/customer-A/locations/')).length, 1, 'same pickup and delivery pin creates one private record');
   assert.equal(writes.filter(item => item.path.startsWith('organizations/main/locations/')).length, 1, 'same pin creates one tagged main-company record');
+  assert.equal(writes.filter(item => item.path.startsWith('customers/customer-A/contacts/')).length, 2, 'customer contacts are saved only in the customer directory');
+  assert.equal(writes.filter(item => item.path.startsWith('organizations/main/contacts/')).length, 0, 'customer contacts do not enter the main contact book');
   const request = records.get('customer_job_requests/request-1');
   assert.equal(request.customerId, 'customer-A');
   assert.equal(request.status, 'pending');
   assert.equal(request.pickupPlace.locationId, request.deliveryPlace.locationId);
+  assert.deepEqual(JSON.parse(JSON.stringify(request.pickupContact)), input.pickupContact);
+  assert.deepEqual(JSON.parse(JSON.stringify(request.deliveryContact)), input.deliveryContact);
+  assert.equal(request.tripCount, 3);
+  assert.equal(request.returnGoods, true);
+  assert.equal(writes.filter(item => item.path === 'customer_job_requests/request-1').length, 1, 'rounds and return goods never create extra requests');
+  await assert.rejects(() => context.exports.submitCustomerJobRequest({ ...customerAuth, data: { ...input, pickupContact: { name: 'คุณสมชาย', phone: '' } } }), /เบอร์โทร/);
+  await assert.rejects(() => context.exports.submitCustomerJobRequest({ ...customerAuth, data: { ...input, tripCount: 0 } }), /จำนวนรอบ/);
   await assert.rejects(() => context.exports.submitCustomerJobRequest({ ...customerAuth, data: { ...input, recipientEmails: [] } }), /อีเมลผู้รับ/);
   await assert.rejects(() => context.exports.rejectCustomerJobRequest({ auth: { uid: 'customer-user' }, data: { id: 'request-1', reason: 'ไม่รับ' } }), /เฉพาะผู้ดูแล/);
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-1' }, data: { before: { data: () => undefined }, after: { data: () => request } } });
   assert.equal(calls.length, 3, 'submission sends a separate message to each recipient');
   assert.deepEqual(calls.map(call => call.to), ['customer@example.com', 'other@example.com', 'office@example.com']);
+  assert.match(calls[0].text, /ผู้ติดต่อจุดรับ: คุณสมชาย/);
+  assert.match(calls[0].text, /จำนวนรอบ: 3/);
+  assert.match(calls[0].text, /รับสินค้ากลับ: ใช่/);
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-1' }, data: { before: { data: () => undefined }, after: { data: () => request } } });
   assert.equal(calls.length, 3, 'delivery log prevents duplicate email');
   await context.exports.rejectCustomerJobRequest({ auth: { uid: 'admin-user' }, data: { id: 'request-1', reason: 'รถไม่พร้อม' } });

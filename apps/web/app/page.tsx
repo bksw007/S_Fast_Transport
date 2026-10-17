@@ -246,10 +246,15 @@ function draftFromCustomerRequest(request: CustomerJobRequest): JobDraft {
     pickupPlace: request.pickupPlace,
     pickupDate: request.pickupDate,
     pickupTime: request.pickupTime,
+    pickupContact: request.pickupContact?.name || "",
+    pickupContactPhone: request.pickupContact?.phone || "",
     deliveryLocation: request.deliveryPlace.name,
     deliveryPlace: request.deliveryPlace,
     deliveryDate: request.deliveryDate,
     deliveryTime: request.deliveryTime,
+    deliveryContact: request.deliveryContact?.name || "",
+    deliveryContactPhone: request.deliveryContact?.phone || "",
+    tripCount: String(request.tripCount || 1),
     eta: request.deliveryTime,
     notes: request.notes
   };
@@ -2444,7 +2449,7 @@ function AdminView({
       </div>
 
       <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); void submitJob(); }}>
-          {draft.sourceRequestId && <div className="dispatch-request-banner"><div><strong>กำลังรับงานจาก {prefillRequest?.customerName || draft.customer}</strong><span>ข้อมูลจากลูกค้าถูกใส่ให้แล้ว กรุณาเลือกคนขับและตรวจสอบรายละเอียดก่อนบันทึก</span></div><button type="button" onClick={() => { onPrefillClear(); resetJobForm(); }}>ยกเลิกการรับงานนี้</button></div>}
+          {draft.sourceRequestId && <div className="dispatch-request-banner"><div><strong>กำลังรับงานจาก {prefillRequest?.customerName || draft.customer}</strong><span>ข้อมูลจากลูกค้าถูกใส่ให้แล้ว · แจ้ง {prefillRequest?.tripCount || 1} รอบ{prefillRequest?.returnGoods ? " · ลูกค้าต้องการรับสินค้ากลับ โปรดกำหนดรายละเอียดขากลับเอง" : ""} · กรุณาเลือกคนขับและตรวจสอบก่อนบันทึก</span></div><button type="button" onClick={() => { onPrefillClear(); resetJobForm(); }}>ยกเลิกการรับงานนี้</button></div>}
           <header className="dispatch-form-hero">
             <div><span>DISPATCH CENTER</span><h2>ฟอร์มแจ้งงาน</h2><p>สร้างใบแจ้งงานและบันทึกเข้าระบบ</p></div>
             <FilePenLine size={24} />

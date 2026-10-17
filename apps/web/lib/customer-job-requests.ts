@@ -5,6 +5,7 @@ import { db, firebaseApp } from "./firebase";
 import type { UserProfile } from "./transport-repository";
 
 export type CustomerJobRequestStatus = "pending" | "accepted" | "rejected";
+export type CustomerRequestContact = { name: string; phone: string };
 
 export type CustomerJobRequest = {
   id: string;
@@ -16,13 +17,17 @@ export type CustomerJobRequest = {
   recipientEmails: string[];
   companyEmail: string;
   pickupPlace: JobPlace;
+  pickupContact: CustomerRequestContact;
   deliveryPlace: JobPlace;
+  deliveryContact: CustomerRequestContact;
   pickupDate: string;
   pickupTime: string;
   deliveryDate: string;
   deliveryTime: string;
   cargoType: string;
   vehicleType: string;
+  tripCount: number;
+  returnGoods: boolean;
   notes: string;
   status: CustomerJobRequestStatus;
   rejectionReason?: string;
@@ -33,7 +38,7 @@ export type CustomerJobRequest = {
 };
 
 export type CustomerJobRequestDraft = Pick<CustomerJobRequest,
-  "pickupPlace" | "deliveryPlace" | "pickupDate" | "pickupTime" | "deliveryDate" | "deliveryTime" | "cargoType" | "vehicleType" | "notes" | "recipientEmails"
+  "pickupPlace" | "deliveryPlace" | "pickupContact" | "deliveryContact" | "pickupDate" | "pickupTime" | "deliveryDate" | "deliveryTime" | "cargoType" | "vehicleType" | "tripCount" | "returnGoods" | "notes" | "recipientEmails"
 >;
 
 const functions = getFunctions(firebaseApp, "asia-southeast1");

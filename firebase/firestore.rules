@@ -324,6 +324,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /customers/{customerId}/contacts/{contactId} {
+      allow read: if isMainCompanyAdmin()
+        || (activeUser() && role() == "customer" && profile().data.customerId == customerId);
+      allow write: if false;
+    }
+
     match /customers/{customerId}/cargo_types/{itemId} {
       allow read: if isMainCompanyAdmin()
         || (activeUser() && role() == "customer" && profile().data.customerId == customerId);
