@@ -83,6 +83,38 @@
 .customer-portal-card-bottom svg { flex: none; }
 .customer-portal-card-bottom > span:last-child { color: #2e5953; font-weight: 600; }
 .customer-portal-empty { padding: 30px; border: 1px dashed #d3d9d2; border-radius: 12px; background: #fbfaf7; color: var(--cp-muted); text-align: center; font-size: 13px; }
+.customer-monthly-report { min-width: 0; }
+.customer-monthly-report-hero { padding: 31px 36px; border: 1px solid #243c40; border-radius: 18px; background: linear-gradient(120deg,#20383b,#31534e); color: #fff; }
+.customer-monthly-report-hero > span { display: inline-flex; align-items: center; gap: 8px; color: #d6c6aa; font-size: 10px; font-weight: 700; letter-spacing: .14em; }
+.customer-monthly-report-hero h1 { margin: 11px 0 5px; font-size: clamp(27px,3.3vw,38px); line-height: 1.25; letter-spacing: -.04em; }
+.customer-monthly-report-hero p { margin: 0; color: #d3deda; font-size: 13px; line-height: 1.6; }
+.customer-monthly-report-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 21px 0; }
+.customer-monthly-report-download { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 17px; border: 0; border-radius: 9px; background: #264b49; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+.customer-monthly-report-download:hover { background: #1a3937; }
+.customer-monthly-report-download:disabled { opacity: .55; cursor: not-allowed; }
+.customer-monthly-report-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; }
+.customer-monthly-report-summary > div { display: grid; gap: 4px; padding: 20px 22px; border: 1px solid #dde4dc; border-radius: 13px; background: #fff; }
+.customer-monthly-report-summary span { color: #69757a; font-size: 12px; }
+.customer-monthly-report-summary strong { color: #264b49; font-size: 31px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.customer-monthly-report-summary small { color: #8b9691; font-size: 11px; }
+.customer-monthly-report-title { margin-top: 37px; }
+.customer-monthly-report-list { display: grid; gap: 12px; }
+.customer-monthly-report-row { padding: 19px 21px; border: 1px solid #e0e5de; border-left: 4px solid #478169; border-radius: 12px; background: #fff; box-shadow: 0 3px 12px #27383408; }
+.customer-monthly-report-row-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.customer-monthly-report-row-head > div { display: grid; gap: 2px; }
+.customer-monthly-report-row-head small { color: #8b9691; font-size: 10px; }
+.customer-monthly-report-row-head strong { font-size: 17px; line-height: 1.4; overflow-wrap: anywhere; }
+.customer-monthly-report-row-head > span { flex: none; padding: 6px 9px; border-radius: 999px; background: #edf3ec; color: #53735d; font-size: 10px; font-weight: 600; }
+.customer-monthly-report-route { display: flex; align-items: start; gap: 8px; margin-top: 13px; color: #324744; font-size: 13px; line-height: 1.5; }
+.customer-monthly-report-route svg { flex: none; margin-top: 2px; color: #8b7b61; }
+.customer-monthly-report-route span { min-width: 0; overflow-wrap: anywhere; }
+.customer-monthly-report-route b { color: #869591; font-weight: 400; }
+.customer-monthly-report-meta { display: flex; flex-wrap: wrap; gap: 7px 20px; margin-top: 15px; color: #69757a; font-size: 11px; }
+.customer-monthly-report-meta > span { display: inline-flex; align-items: center; gap: 5px; }
+.customer-monthly-report-meta svg { flex: none; }
+.customer-monthly-report-row > button { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; padding: 0; border: 0; background: none; color: #264b49; font-size: 12px; font-weight: 600; cursor: pointer; }
+.customer-monthly-report-row > button:hover { text-decoration: underline; }
+.customer-monthly-report-message { margin-top: 15px; color: #315b50; font-size: 12px; }
 .customer-portal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 18px; background: #142529ba; backdrop-filter: blur(5px); }
 .customer-portal-detail { width: min(1120px, 100%); max-height: calc(100dvh - 36px); overflow: auto; padding: 25px 30px 30px; border: 1px solid #fff; border-radius: 18px; background: #f7f6f2; box-shadow: 0 28px 80px #071a1b60; overscroll-behavior: contain; }
 .customer-portal-detail-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 18px; }
@@ -167,6 +199,16 @@
   .customer-portal-detail-hero, .customer-portal-detail-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
+  .customer-portal-nav > div { padding: 0 17px; }
+  .customer-portal-nav button { min-height: 48px; padding: 0 10px; font-size: 11px; white-space: nowrap; }
+  .customer-monthly-report-hero { padding: 25px 22px; }
+  .customer-monthly-report-toolbar { align-items: stretch; }
+  .customer-monthly-report-toolbar .customer-portal-month, .customer-monthly-report-download { width: 100%; justify-content: space-between; }
+  .customer-monthly-report-toolbar .customer-portal-month > span { display: inline; }
+  .customer-monthly-report-toolbar .customer-portal-month select { max-width: none; margin-left: auto; font-size: 13px; }
+  .customer-monthly-report-summary > div { padding: 15px; }
+  .customer-monthly-report-summary strong { font-size: 27px; }
+  .customer-monthly-report-row { padding: 16px; }
   .customer-portal-header-inner { min-height: 72px; padding: 12px 18px; }
   .customer-portal-brand-mark { width: 39px; height: 39px; }
   .customer-portal-brand strong { font-size: 13px; }

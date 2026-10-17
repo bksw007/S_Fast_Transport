@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { getDownloadURL, ref } from "firebase/storage";
-import { AlertTriangle, ArrowUpRight, CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, LogOut, MapPin, Navigation, PackageCheck, PenLine, Phone, Truck, UserRound, X } from "lucide-react";
-import { statusLabels, type StopProof, type TransportJob } from "@s-fast-transport/shared";
+import { AlertTriangle, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, LogOut, MapPin, Navigation, PackageCheck, PenLine, Phone, Truck, UserRound, X } from "lucide-react";
+import { historyMonthLabel, jobHistoryMonth, statusLabels, type StopProof, type TransportJob } from "@s-fast-transport/shared";
 import { auth } from "@/lib/firebase-auth";
 import { storage } from "@/lib/firebase";
 import { completionReportHtml, type ReportProof } from "@/lib/job-completion-report";
@@ -13,6 +13,7 @@ import { bangkokDateKey, nextStopSchedule } from "@/lib/job-card-schedule";
 import { driverIssueLabels } from "@/lib/driver-issue-labels";
 import type { UserProfile } from "@/lib/transport-repository";
 import CustomerJobRequests from "./CustomerJobRequests";
+import CustomerReports from "./CustomerReports";
 import "./customer-portal.css";
 
 type Evidence = { pickup: ReportProof; delivery: ReportProof; returnPickup: ReportProof; returnDelivery: ReportProof };
@@ -22,8 +23,8 @@ const scheduledArrival = (date?: string, time?: string, fallback?: string) => /^
   ? `${dateText(`${date}T${time}:00+07:00`)} น.`
   : /^([01]\d|2[0-3]):[0-5]\d$/.test(time || "") ? `${time} น.` : fallback && fallback !== "-" ? fallback : "ยังไม่ระบุ";
 const phoneHref = (phone?: string) => { const number = (phone || "").replace(/[^\d+]/g, ""); return number.length >= 9 ? `tel:${number}` : null; };
-const monthKey = (job: TransportJob) => (job.completedAt || job.cancelledAt || job.jobDate || "").slice(0, 7) || "ไม่ระบุเดือน";
-const monthLabel = (key: string) => key === "ไม่ระบุเดือน" ? key : new Date(`${key}-01T12:00:00+07:00`).toLocaleDateString("th-TH", { month: "long", year: "numeric", timeZone: "Asia/Bangkok" });
+const monthKey = (job: TransportJob) => jobHistoryMonth(job);
+const monthLabel = historyMonthLabel;
 const stopSchedule = (date?: string, time?: string) => [date, time].filter(Boolean).join(" ") || "ยังไม่ระบุ";
 function cardTone(job: TransportJob) {
   if (job.status === "cancelled") return "cancelled";
@@ -41,7 +42,7 @@ async function loadProof(proof?: StopProof): Promise<ReportProof> {
 }
 
 export default function CustomerPortal({ profile, jobs, loading, error }: { profile: UserProfile; jobs: TransportJob[]; loading: boolean; error: string }) {
-  const [view, setView] = useState<"overview" | "requests">("overview");
+  const [view, setView] = useState<"overview" | "requests" | "reports">("overview");
   const [selectedId, setSelectedId] = useState("");
   const [month, setMonth] = useState("");
   const [evidence, setEvidence] = useState<Evidence>({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof });
@@ -105,7 +106,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
 
   return <main className="customer-portal">
     <header className="customer-portal-header"><div className="customer-portal-header-inner"><div className="customer-portal-brand"><Image className="customer-portal-brand-mark" src="/icons/truck-logo.png" alt="S Fast Transport" width={46} height={46} /><div><strong>S Fast Transportation</strong><span>CUSTOMER PORTAL</span></div></div><button type="button" onClick={() => void signOut(auth)}><LogOut size={16} /> ออกจากระบบ</button></div></header>
-    <nav className="customer-portal-nav" aria-label="เมนูลูกค้า"><div><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>ภาพรวมใบงาน</button><button type="button" aria-current={view === "requests" ? "page" : undefined} onClick={() => setView("requests")}><PenLine size={16} /> แจ้งงาน</button></div></nav>
+    <nav className="customer-portal-nav" aria-label="เมนูลูกค้า"><div><button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>ภาพรวมใบงาน</button><button type="button" aria-current={view === "requests" ? "page" : undefined} onClick={() => setView("requests")}><PenLine size={16} /> แจ้งงาน</button><button type="button" aria-current={view === "reports" ? "page" : undefined} onClick={() => setView("reports")}><BarChart3 size={16} /> รายงาน</button></div></nav>
     <div className="customer-portal-wrap">
       {view === "overview" && <>
       <section className="customer-portal-hero"><div className="customer-portal-hero-copy"><span className="customer-portal-eyebrow"><span aria-hidden="true" /> ภาพรวมการขนส่งของคุณ</span><h1>ทุกการขนส่ง<br /><em>อยู่ในสายตาคุณ</em></h1><p>ติดตามงานของ {profile.organizationName} และย้อนดูประวัติการส่งมอบได้ในที่เดียว</p></div><div className="customer-portal-counts"><div><span>กำลังดำเนินการ</span><strong>{active.length.toLocaleString("th-TH")}</strong><small>งานที่กำลังขนส่ง</small></div><div><span>ส่งมอบแล้ว</span><strong>{completed.length.toLocaleString("th-TH")}</strong><small>งานทั้งหมดที่เสร็จสิ้น</small></div></div></section>
@@ -118,6 +119,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
       </>}
       </>}
       {view === "requests" && <CustomerJobRequests profile={profile} onOpenJob={openJob} />}
+      {view === "reports" && <CustomerReports profile={profile} jobs={visible} loading={loading} error={error} onOpenJob={openJob} />}
     </div>
     {selected && <CustomerJobDetail job={selected} evidence={evidence} proofLoading={proofLoading} issuePhoto={issuePhoto} proofError={proofError} reportBusy={reportBusy} onClose={() => setSelectedId("")} onReport={() => void openReport(selected)} />}
   </main>;
