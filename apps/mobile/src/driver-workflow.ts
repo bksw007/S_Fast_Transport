@@ -12,9 +12,9 @@ export type DriverStep = {
 export const driverSteps: readonly DriverStep[] = [
   { id: "start_tracking", label: "เริ่มเดินทางไปรับสินค้า", description: "เปิดแชร์ตำแหน่งและเริ่มงานนี้", nextStatus: "accepted", icon: "navigate" },
   { id: "arrived_pickup", label: "ถึงจุดรับสินค้า", description: "เมื่อถึงจุดรับ ให้กดยืนยัน แล้วถ่ายรูปสินค้าและขอลายเซ็น", nextStatus: "arrived_pickup", icon: "location" },
-  { id: "to_delivery", label: "ยืนยันรับสินค้าและไปจุดส่ง", description: "ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้ผู้ส่งเซ็นชื่อ", nextStatus: "to_delivery", icon: "camera", photoStage: "pickup" },
+  { id: "to_delivery", label: "ยืนยันรับสินค้าและไปจุดส่ง", description: "ถ่ายรูปสินค้าอย่างน้อย 1 รูป แล้วให้ผู้ส่งเซ็นชื่อ", nextStatus: "to_delivery", icon: "camera", photoStage: "pickup" },
   { id: "arrived_delivery", label: "ถึงจุดส่งสินค้า", description: "เมื่อถึงจุดส่ง ให้กดยืนยัน แล้วถ่ายรูปสินค้าและขอลายเซ็น", nextStatus: "arrived_delivery", icon: "location" },
-  { id: "ready_to_close", label: "ยืนยันส่งสินค้า", description: "ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้ผู้รับเซ็นชื่อ", nextStatus: "ready_to_close", icon: "camera", photoStage: "delivery" },
+  { id: "ready_to_close", label: "ยืนยันส่งสินค้า", description: "ถ่ายรูปสินค้าอย่างน้อย 1 รูป แล้วให้ผู้รับเซ็นชื่อ", nextStatus: "ready_to_close", icon: "camera", photoStage: "delivery" },
   { id: "completed", label: "จบงาน", description: "ปิดงานและหยุดแชร์ตำแหน่ง", nextStatus: "completed", icon: "checkmark-circle" }
 ] as const;
 

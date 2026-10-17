@@ -2113,7 +2113,7 @@ function JobSummaryCard({
               <AlertTriangle size={19} /> แจ้งปัญหา
             </button>
           )}
-          {needsProof && onOpenWorkflow && <div className="job-next-step"><div><small>ขั้นตอนที่ต้องทำ</small><strong>ถ่ายรูปสินค้า 2 รูปและขอลายเซ็น</strong></div><button className="job-next-action" type="button" onClick={() => { onSelect(job.id); onOpenWorkflow(); }}><Camera size={19} /> เปิดแบบฟอร์มหลักฐาน <ArrowRight size={18} /></button></div>}
+          {needsProof && onOpenWorkflow && <div className="job-next-step"><div><small>ขั้นตอนที่ต้องทำ</small><strong>ถ่ายรูปสินค้าอย่างน้อย 1 รูปและขอลายเซ็น</strong></div><button className="job-next-action" type="button" onClick={() => { onSelect(job.id); onOpenWorkflow(); }}><Camera size={19} /> เปิดแบบฟอร์มหลักฐาน <ArrowRight size={18} /></button></div>}
           {nextAction && onAction && (
             <div className="job-next-step">
               <div>

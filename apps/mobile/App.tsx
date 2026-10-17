@@ -267,7 +267,7 @@ export default function App() {
       const step = currentDriverStep(selectedJob);
       if (!step || step.nextStatus !== status) throw new Error("ขั้นตอนนี้ยังไม่พร้อมดำเนินการ");
       if (step.photoStage) {
-        if (!checkInPhotos || checkInPhotos.jobId !== selectedJob.id || checkInPhotos.stage !== step.photoStage || checkInPhotos.uris.length < 2 || !signatureConfirmed || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("กรุณาถ่ายรูปสินค้า 2 รูปและขอลายเซ็นก่อน");
+        if (!checkInPhotos || checkInPhotos.jobId !== selectedJob.id || checkInPhotos.stage !== step.photoStage || checkInPhotos.uris.length < 1 || !signatureConfirmed || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("กรุณาถ่ายรูปสินค้าอย่างน้อย 1 รูปและขอลายเซ็นก่อน");
         const proofStage = selectedJob.returnTrip && selectedJob.activeLeg === 2 ? step.photoStage === "pickup" ? "returnPickup" : "returnDelivery" : step.photoStage;
         const proof = await uploadDriverStopProof(selectedJob, profile, proofStage, checkInPhotos.uris, signaturePaths, signerName);
         await updateDriverJobStatus(selectedJob, status, profile, proof);
@@ -808,7 +808,7 @@ function JobPanel({
 
             {step.photoStage && (
               <View style={styles.photoArea}>
-                <Text style={styles.photoPlaceholderTitle}>รูปสินค้า {selectedPhotos.length} รูป · ขั้นต่ำ 2 รูป</Text>
+                <Text style={styles.photoPlaceholderTitle}>รูปสินค้า {selectedPhotos.length} รูป · ขั้นต่ำ 1 รูป</Text>
                 <View style={styles.proofPhotoGrid}>{selectedPhotos.map((uri, index) => <View key={`${uri}-${index}`} style={styles.proofPhotoItem}>
                   <Image source={{ uri }} style={styles.proofPhotoImage} />
                   <Pressable accessibilityLabel={`ลบรูปที่ ${index + 1}`} onPress={() => onRemovePhoto(index)} style={styles.proofPhotoRemove}><Ionicons name="close-circle" size={25} color={colors.danger} /></Pressable>
@@ -817,7 +817,7 @@ function JobPanel({
                   { text: "ถ่ายรูป", onPress: () => onPickPhoto("camera", step.photoStage!) },
                   { text: "เลือกจากเครื่อง", onPress: () => onPickPhoto("library", step.photoStage!) },
                   { text: "ยกเลิก", style: "cancel" }
-                ])}><Ionicons name="add-circle-outline" size={21} color={colors.accent} /><Text style={styles.proofAddPhotoText}>เพิ่มรูป{selectedPhotos.length >= 2 ? " (ไม่บังคับ)" : ""}</Text></Pressable>
+                ])}><Ionicons name="add-circle-outline" size={21} color={colors.accent} /><Text style={styles.proofAddPhotoText}>เพิ่มรูป{selectedPhotos.length >= 1 ? " (ไม่บังคับ)" : ""}</Text></Pressable>
                 <Text style={styles.noteLabel}>ชื่อผู้{step.photoStage === "pickup" ? "ส่ง" : "รับ"}สินค้า</Text>
                 <TextInput value={signerName} onChangeText={onSignerNameChange} maxLength={100} placeholder="กรอกชื่อผู้เซ็น" style={styles.proofSignerInput} />
                 <View style={styles.proofSignaturePreview}><Text style={styles.proofSignaturePreviewLabel}>พรีวิวลายเซ็น</Text>{hasSignature ? <Svg width="100%" height={110} viewBox={signatureViewBox(signaturePaths)}>{signaturePaths.map((path, index) => <Path key={index} d={path} fill="none" stroke={colors.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />)}</Svg> : <Text style={styles.muted}>ยังไม่มีลายเซ็นที่ยืนยัน</Text>}</View>
@@ -826,8 +826,8 @@ function JobPanel({
             )}
 
             <Pressable
-              disabled={actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))}
-              style={[styles.nextStepButton, step.id === "start_tracking" && styles.nextStepAccept, step.id === "completed" && styles.nextStepFinish, (actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 2 || !hasSignature || !signerName.trim()))) && styles.disabled]}
+              disabled={actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 1 || !hasSignature || !signerName.trim()))}
+              style={[styles.nextStepButton, step.id === "start_tracking" && styles.nextStepAccept, step.id === "completed" && styles.nextStepFinish, (actionDisabled || Boolean(step.photoStage && (selectedPhotos.length < 1 || !hasSignature || !signerName.trim()))) && styles.disabled]}
               onPress={() => onAction(step.nextStatus)}
             >
               {busy ? <ActivityIndicator color={step.id === "start_tracking" || step.id === "completed" ? colors.accent : "#ffffff"} /> : <Ionicons name={step.icon} size={21} color={step.id === "start_tracking" || step.id === "completed" ? colors.accent : "#ffffff"} />}

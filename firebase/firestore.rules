@@ -415,14 +415,14 @@ service cloud.firestore {
           && (!(request.resource.data.status == "to_delivery" && resource.data.status != "to_delivery") || (
             (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof) is map
             && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).photoPaths is list
-            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).photoPaths.size() >= 2
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).photoPaths.size() >= 1
             && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).signaturePath is string
             && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnPickupProof : request.resource.data.pickupProof).signerName is string
           ))
           && (!(request.resource.data.status == "ready_to_close" && resource.data.status != "ready_to_close") || (
             (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof) is map
             && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).photoPaths is list
-            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).photoPaths.size() >= 2
+            && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).photoPaths.size() >= 1
             && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).signaturePath is string
             && (resource.data.keys().hasAny(["activeLeg"]) && resource.data.activeLeg == 2 ? request.resource.data.returnDeliveryProof : request.resource.data.deliveryProof).signerName is string
           ))

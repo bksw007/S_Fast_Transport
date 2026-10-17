@@ -174,7 +174,7 @@ export async function updateDriverJobStatus(
     const stage = status === "to_delivery" ? "pickup" : status === "ready_to_close" ? "delivery" : null;
     if (stage) {
       const saved = proof ?? current[leg === 2 ? `return${stage === "pickup" ? "Pickup" : "Delivery"}Proof` : `${stage}Proof`];
-      if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 2 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 2 รูปและลายเซ็นก่อนดำเนินการต่อ");
+      if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 1 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 1 รูปและลายเซ็นก่อนดำเนินการต่อ");
       if (stage === "pickup" && !["arrived_pickup", "loading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดรับ");
       if (stage === "delivery" && !["arrived_delivery", "unloading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดส่ง");
     }
@@ -203,7 +203,7 @@ export async function updateDriverJobStatus(
 }
 
 export async function uploadDriverStopProof(job: TransportJob, profile: MobileProfile, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", uris: string[], signaturePaths: string[], signerName: string): Promise<StopProof> {
-  if (uris.length < 2 || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("ต้องมีรูปอย่างน้อย 2 รูป ชื่อผู้เซ็น และลายเซ็น");
+  if (uris.length < 1 || !signaturePaths.some(path => (path.match(/ L /g)?.length ?? 0) >= 2) || !signerName.trim()) throw new Error("ต้องมีรูปอย่างน้อย 1 รูป ชื่อผู้เซ็น และลายเซ็น");
   if (signaturePaths.some(path => !/^[ML0-9 .-]+$/.test(path))) throw new Error("ลายเซ็นไม่ถูกต้อง");
   const photoPaths: string[] = [];
   for (const [index, uri] of uris.entries()) {

@@ -6,6 +6,10 @@ import { deleteDriverProofDraft, loadDriverProofDraft, saveDriverProofDraft, typ
 import { compressImageForUpload } from "@/lib/image-upload";
 
 const proofDrafts = new Map<string, DriverProofDraft>();
+function photoSlots(saved?: (File | null)[]) {
+  const files = saved?.filter((file): file is File => file !== null) ?? [];
+  return files.length ? files : [null];
+}
 export function clearDriverProofDrafts() { proofDrafts.clear(); }
 export async function clearDriverProofDraft(key: string) {
   proofDrafts.delete(key);
@@ -37,7 +41,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
   const extraCameraRef = useRef<HTMLInputElement>(null);
   const extraFileRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
-  const [photos, setPhotos] = useState<(File | null)[]>(() => proofDrafts.get(draftKey)?.photos ?? [null, null]);
+  const [photos, setPhotos] = useState<(File | null)[]>(() => photoSlots(proofDrafts.get(draftKey)?.photos));
   const [signerName, setSignerName] = useState(() => proofDrafts.get(draftKey)?.signerName ?? "");
   const [signature, setSignature] = useState<Blob | null>(() => proofDrafts.get(draftKey)?.signature ?? null);
   const [signatureOpen, setSignatureOpen] = useState(false);
@@ -63,7 +67,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
         catch { restoredPhotos.push(file); }
       }
       if (!active) return;
-      setPhotos(restoredPhotos.length >= 2 ? restoredPhotos : [null, null]);
+      setPhotos(photoSlots(restoredPhotos));
       setSignerName(draft.signerName ?? "");
       setSignature(draft.signature ?? null);
     }).catch(() => {
@@ -136,7 +140,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     } finally { setPreparingPhoto(false); }
   }
   function removePhoto(index: number) {
-    setPhotos(current => index < 2 ? current.map((file, slot) => slot === index ? null : file) : current.filter((_, slot) => slot !== index));
+    setPhotos(current => photoSlots(current.filter((_, slot) => slot !== index)));
   }
   function clearSignature() {
     const canvas = canvasRef.current;
@@ -206,7 +210,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
     setDraftSigned(true);
   }
   async function submit() {
-    if (busy || preparingPhoto || selectedPhotos.length < 2 || !signature || !signerName.trim()) return;
+    if (busy || preparingPhoto || selectedPhotos.length < 1 || !signature || !signerName.trim()) return;
     setBusy(true);
     setError("");
     try {
@@ -224,7 +228,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
 
   return <section className="driver-stop-proof">
     <h2>{stage === "pickup" ? "ยืนยันรับสินค้า" : "ยืนยันส่งสินค้า"}</h2>
-    <p>ถ่ายรูปสินค้าอย่างน้อย 2 รูป แล้วให้{stage === "pickup" ? "ผู้ส่ง" : "ผู้รับ"}เซ็นชื่อก่อนเดินทางต่อ</p>
+    <p>ถ่ายรูปสินค้าอย่างน้อย 1 รูป แล้วให้{stage === "pickup" ? "ผู้ส่ง" : "ผู้รับ"}เซ็นชื่อก่อนเดินทางต่อ</p>
     <p className={`driver-proof-draft-state ${draftStorage}`} role="status">{preparingPhoto ? "กำลังลดขนาดรูปก่อนเก็บแบบร่าง..." : draftStorage === "saved" ? "✓ แบบร่างเก็บไว้ในเครื่องแล้ว เปิดแอปใหม่ได้หากการส่งสะดุด" : draftStorage === "error" ? "บันทึกแบบร่างในเครื่องไม่ได้ กรุณาตรวจพื้นที่ว่างของอุปกรณ์" : "กำลังเก็บแบบร่างในเครื่อง..."}</p>
     <div className="driver-proof-photos">{photos.map((file, index) => <div className="driver-proof-photo" key={index}>
       <span>รูปสินค้า {index + 1} {photos[index] ? "✓" : "· ยังไม่มีรูป"}</span>
@@ -238,8 +242,8 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
       {file && <button type="button" disabled={busy} onClick={() => removePhoto(index)}>ลบรูปนี้</button>}
     </div>)}</div>
     <div className="driver-proof-add-photo"><span>เพิ่มรูป (ไม่บังคับ)</span><div className="driver-proof-photo-actions">
-      <button type="button" disabled={busy || preparingPhoto || !photos[0] || !photos[1]} onClick={() => extraCameraRef.current?.click()}><Camera size={18} /> กล้อง</button>
-      <button type="button" disabled={busy || preparingPhoto || !photos[0] || !photos[1]} onClick={() => extraFileRef.current?.click()}><FolderOpen size={18} /> ไฟล์</button>
+      <button type="button" disabled={busy || preparingPhoto || !photos[0]} onClick={() => extraCameraRef.current?.click()}><Camera size={18} /> กล้อง</button>
+      <button type="button" disabled={busy || preparingPhoto || !photos[0]} onClick={() => extraFileRef.current?.click()}><FolderOpen size={18} /> ไฟล์</button>
     </div></div>
     <input ref={extraCameraRef} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
     <input ref={extraFileRef} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
@@ -253,6 +257,6 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
       <div className="driver-proof-dialog-actions"><button type="button" onClick={clearSignature}>ล้างลายเซ็น</button><button type="button" disabled={!draftSigned} onClick={() => void confirmSignature()}>ยืนยันลายเซ็น</button></div>
     </dialog>}
     {error && <p className="driver-proof-error" role="alert">{error}</p>}
-    <button type="button" className="driver-proof-submit" disabled={busy || preparingPhoto || selectedPhotos.length < 2 || !signature || !signerName.trim()} onClick={() => void submit()}>{busy ? "กำลังบันทึกหลักฐาน..." : preparingPhoto ? "กำลังเตรียมรูป..." : stage === "pickup" ? "ยืนยันรับสินค้าและไปจุดส่ง" : "ยืนยันส่งสินค้า"}</button>
+    <button type="button" className="driver-proof-submit" disabled={busy || preparingPhoto || selectedPhotos.length < 1 || !signature || !signerName.trim()} onClick={() => void submit()}>{busy ? "กำลังบันทึกหลักฐาน..." : preparingPhoto ? "กำลังเตรียมรูป..." : stage === "pickup" ? "ยืนยันรับสินค้าและไปจุดส่ง" : "ยืนยันส่งสินค้า"}</button>
   </section>;
 }

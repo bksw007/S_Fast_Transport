@@ -705,7 +705,7 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
     if (stage) {
       const proofField = currentLeg === 2 ? `return${stage === "pickup" ? "Pickup" : "Delivery"}Proof` : `${stage}Proof`;
       const saved = proof ?? existing[proofField];
-      if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 2 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 2 รูปและลายเซ็นก่อนดำเนินการต่อ");
+      if (!saved || !Array.isArray(saved.photoPaths) || saved.photoPaths.length < 1 || !saved.signaturePath || !saved.signerName) throw new Error("กรุณาแนบรูปสินค้าอย่างน้อย 1 รูปและลายเซ็นก่อนดำเนินการต่อ");
       if (stage === "pickup" && !["arrived_pickup", "loading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดรับ");
       if (stage === "delivery" && !["arrived_delivery", "unloading"].includes(effectiveStatus)) throw new Error("ยังไม่ถึงขั้นตอนยืนยันจุดส่ง");
     }
@@ -741,8 +741,42 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
   await syncActiveShareLinks(job, status);
 }
 
+type ProofUploadPhase = "upload" | "download_url";
+
+async function proofUploadError(job: TransportJob, stage: string, actor: UserProfile, phase: ProofUploadPhase, assetKind: "photo" | "signature", assetIndex: number, assetBytes: number, transferredBytes: number, error: unknown): Promise<Error> {
+  const storageError = error && typeof error === "object" ? error as { code?: unknown; status?: unknown; serverResponse?: unknown } : {};
+  const code = typeof storageError.code === "string" && /^storage\/[a-z-]+$/.test(storageError.code) ? storageError.code : "unknown";
+  const status = typeof storageError.status === "number" && Number.isInteger(storageError.status) ? storageError.status : 0;
+  let serverCode = 0;
+  let serverReason = "unknown";
+  if (typeof storageError.serverResponse === "string") {
+    try {
+      const response = JSON.parse(storageError.serverResponse) as { error?: { code?: unknown; status?: unknown; message?: unknown } };
+      if (typeof response.error?.code === "number") serverCode = response.error.code;
+      if (typeof response.error?.status === "string" && /^[A-Z_]{1,40}$/.test(response.error.status)) serverReason = response.error.status;
+      const message = typeof response.error?.message === "string" ? response.error.message.toLowerCase() : "";
+      if (serverReason === "unknown") serverReason = /billing account.*(absent|disabled|closed)/.test(message) ? "BILLING_ACCOUNT" : /spark|no-cost pricing plan/.test(message) ? "PLAN_REQUIRED" : /quota|limit/.test(message) ? "QUOTA" : "unknown";
+    } catch { /* The response can be HTML; never store its raw contents. */ }
+  }
+  const eventRef = doc(collection(db, "job_events"));
+  const diagnosticCode = eventRef.id.slice(-8).toUpperCase();
+  const record = setDoc(eventRef, {
+    jobId: job.id,
+    type: "proof_upload_failed",
+    message: `อัปโหลดหลักฐานไม่สำเร็จ · ${stage} · ${code} · HTTP ${status || "?"} · รหัส ${diagnosticCode}`,
+    actorUid: actor.uid,
+    actorName: actor.displayName,
+    organizationId: job.organizationId ?? actor.organizationId ?? "main",
+    timestamp: serverTimestamp(),
+    metadata: { diagnosticCode, stage, phase, assetKind, assetIndex, assetBytes, transferredBytes, code, httpStatus: status, serverCode, serverReason, online: typeof navigator !== "undefined" ? navigator.onLine : true }
+  }).then(() => true, () => false);
+  const recorded = await Promise.race([record, new Promise<boolean>(resolve => window.setTimeout(() => resolve(false), 3000))]);
+  const detail = status ? `HTTP ${status}` : code;
+  return new Error(`อัปโหลดหลักฐานไม่สำเร็จ (${detail}, รหัสตรวจสอบ ${diagnosticCode})${recorded ? "" : " กรุณาแจ้งรหัสนี้ให้แอดมิน"}`);
+}
+
 export async function uploadStopProof(job: TransportJob, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", photos: File[], signature: Blob, signerName: string, actor: UserProfile, onProgress?: (percent: number, detail: string) => void): Promise<StopProof> {
-  if (photos.length < 2 || !signerName.trim() || !signature.size) throw new Error("ต้องมีรูปอย่างน้อย 2 รูป ชื่อผู้เซ็น และลายเซ็น");
+  if (photos.length < 1 || !signerName.trim() || !signature.size) throw new Error("ต้องมีรูปอย่างน้อย 1 รูป ชื่อผู้เซ็น และลายเซ็น");
   if (signature.size > MAX_STORED_IMAGE_BYTES) throw new Error("ลายเซ็นมีขนาดเกิน 1 MB");
   onProgress?.(0, "กำลังเตรียมรูปหลักฐาน");
   const preparedPhotos: File[] = [];
@@ -768,6 +802,7 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
     }
   };
   let nextAsset = 0;
+  let failedAssetIndex: number | null = null;
   const tasks: UploadTask[] = [];
   try {
     await Promise.all(Array.from({ length: Math.min(3, assets.length) }, async () => {
@@ -791,6 +826,7 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
             }
           }, error => {
             clearStallTimer();
+            if (failedAssetIndex === null) failedAssetIndex = index;
             reject(stalled ? new Error(stallMessage) : error);
           }, () => {
             clearStallTimer();
@@ -803,10 +839,16 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
     }));
   } catch (error) {
     tasks.forEach(task => task.cancel());
-    throw error;
+    const index = failedAssetIndex ?? 0;
+    const asset = assets[index];
+    throw await proofUploadError(job, stage, actor, "upload", asset.kind, index, asset.file.size, uploadedBytes[index], error);
   }
   onProgress?.(85, "อัปโหลดครบแล้ว กำลังลงทะเบียนหลักฐาน");
-  const downloadUrls = await Promise.all(assets.map(asset => getDownloadURL(ref(storage, asset.path))));
+  const downloadUrls: string[] = [];
+  for (const [index, asset] of assets.entries()) {
+    try { downloadUrls.push(await getDownloadURL(ref(storage, asset.path))); }
+    catch (error) { throw await proofUploadError(job, stage, actor, "download_url", asset.kind, index, asset.file.size, uploadedBytes[index], error); }
+  }
   onProgress?.(90, "กำลังบันทึกข้อมูลหลักฐาน");
   const batch = writeBatch(db);
   assets.forEach((asset, index) => batch.set(doc(collection(db, "proof_of_delivery")), {
