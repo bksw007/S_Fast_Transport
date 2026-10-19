@@ -11,7 +11,7 @@ import DriverHistory from "./components/DriverHistory";
 import DriverExpenses from "./components/DriverExpenses";
 import DriverReports from "./components/DriverReports";
 import ReturnTripFields from "./components/ReturnTripFields";
-import { initialReturnTrip, activeLeg } from "@/lib/return-trip";
+import { initialReturnTrip, activeLeg, driverReturnTrip, updateOutwardStop } from "@/lib/return-trip";
 import { driverJobCardTone, nextStopSchedule } from "@/lib/job-card-schedule";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
@@ -1768,14 +1768,15 @@ function DriverView({
 }) {
   const nextAction = nextDriverAction(job);
   const leg = activeLeg(job);
+  const returnTrip = driverReturnTrip(job);
   const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
   const currentStep = Math.max(0, statusOrder.indexOf(effectiveStatus ?? job.status));
   const proofStage = effectiveStatus === "arrived_pickup" || effectiveStatus === "loading" ? "pickup" : effectiveStatus === "arrived_delivery" || effectiveStatus === "unloading" ? "delivery" : null;
   const showingProofForm = Boolean(proofStage && canWrite);
   const stop = activeDriverStop(job);
-  const stopLocation = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupLocation : job.returnTrip.deliveryLocation) : stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
-  const stopPlace = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupPlace : job.returnTrip.deliveryPlace) : stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
-  const stopPhone = leg === 2 && job.returnTrip ? (stop === "pickup" ? job.returnTrip.pickupContactPhone : job.returnTrip.deliveryContactPhone) : stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
+  const stopLocation = leg === 2 && returnTrip ? (stop === "pickup" ? returnTrip.pickupLocation : returnTrip.deliveryLocation) : stop === "pickup" ? job.pickupLocation : job.deliveryLocation;
+  const stopPlace = leg === 2 && returnTrip ? (stop === "pickup" ? returnTrip.pickupPlace : returnTrip.deliveryPlace) : stop === "pickup" ? job.pickupPlace : job.deliveryPlace;
+  const stopPhone = leg === 2 && returnTrip ? (stop === "pickup" ? returnTrip.pickupContactPhone : returnTrip.deliveryContactPhone) : stop === "pickup" ? job.pickupContactPhone : job.deliveryContactPhone;
   const canNavigate = Boolean(!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? ""));
   const backButton = <button className="driver-step-back" type="button" aria-label="กลับไปงานของฉัน" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับ</button>;
   const [finishOpen, setFinishOpen] = useState(false);
@@ -1846,7 +1847,7 @@ function DriverView({
           {job.returnTrip && <strong>เที่ยวขาไป</strong>}
           <RoutePoint title="รับสินค้า" value={job.pickupLocation} href={job.pickupPlace?.navigationUrl} />
           <RoutePoint title="ส่งสินค้า" value={job.deliveryLocation} href={job.deliveryPlace?.navigationUrl} />
-          {job.returnTrip && <><strong>เที่ยวขากลับ</strong><RoutePoint title="รับสินค้ากลับ" value={job.returnTrip.pickupLocation} href={job.returnTrip.pickupPlace?.navigationUrl} /><RoutePoint title="ส่งสินค้ากลับ" value={job.returnTrip.deliveryLocation} href={job.returnTrip.deliveryPlace?.navigationUrl} /></>}
+          {returnTrip && <><strong>เที่ยวขากลับ</strong><RoutePoint title="รับสินค้ากลับ" value={returnTrip.pickupLocation} href={returnTrip.pickupPlace?.navigationUrl} /><RoutePoint title="ส่งสินค้ากลับ" value={returnTrip.deliveryLocation} href={returnTrip.deliveryPlace?.navigationUrl} /></>}
           <JobContacts job={job} />
         </div>
         <div className="metric-row">
@@ -2030,7 +2031,8 @@ function JobSummaryCard({
   const effectiveStatus = job.status === "problem" ? job.issuePreviousStatus : job.status;
   const needsProof = ["arrived_pickup", "loading", "arrived_delivery", "unloading"].includes(effectiveStatus ?? "");
   const returnLeg = Boolean(job.returnTrip && job.activeLeg === 2);
-  const route = returnLeg && job.returnTrip ? job.returnTrip : job;
+  const returnTrip = driverReturnTrip(job);
+  const route = returnLeg && returnTrip ? returnTrip : job;
   const cardTone = driverToday ? driverJobCardTone(job) : null;
   const eta = driverToday ? nextStopSchedule(job) : null;
   const pickupPhone = formatPhoneNumber(route.pickupContactPhone || "");
@@ -2078,7 +2080,7 @@ function JobSummaryCard({
               <span><strong>รายงานปัญหาแล้ว</strong><small>{job.lastIssue?.note || "ผู้ดูแลได้รับแจ้งแล้ว คุณยังทำขั้นตอนเดิมต่อได้"}</small></span>
             </div>
           )}
-          {job.returnTrip && <p className="job-return-trip-note">{returnLeg ? "กำลังดำเนินการเที่ยวขากลับ" : `รับสินค้ากลับ: ${job.returnTrip.pickupLocation} → ${job.returnTrip.deliveryLocation}`}</p>}
+          {returnTrip && <p className="job-return-trip-note">{returnLeg ? "กำลังดำเนินการเที่ยวขากลับ" : `รับสินค้ากลับ: ${returnTrip.pickupLocation} → ${returnTrip.deliveryLocation}`}</p>}
           <div className="job-stop-list">
             <article className={`job-stop-card pickup ${activeStop === "pickup" ? "current" : ""}`}>
               <header><span><MapPin size={18} /> จุดรับสินค้า</span>{activeStop === "pickup" && <b>จุดปัจจุบัน</b>}</header>
@@ -2478,7 +2480,7 @@ function AdminView({
                 fields={{ location: "pickupLocation", date: "pickupDate", time: "pickupTime", contact: "pickupContact" }}
                 organizationId={organizationId}
                 actor={profile}
-                onLocationChange={(name, place) => setDraft(current => ({ ...current, pickupLocation: name, pickupPlace: place }))}
+                onLocationChange={(name, place) => setDraft(current => updateOutwardStop(current, "pickup", name, place))}
               />
               <DispatchStop
                 title="ส่งงาน"
@@ -2492,7 +2494,7 @@ function AdminView({
                 fields={{ location: "deliveryLocation", date: "deliveryDate", time: "deliveryTime", contact: "deliveryContact" }}
                 organizationId={organizationId}
                 actor={profile}
-                onLocationChange={(name, place) => setDraft(current => ({ ...current, deliveryLocation: name, deliveryPlace: place }))}
+                onLocationChange={(name, place) => setDraft(current => updateOutwardStop(current, "delivery", name, place))}
               />
             </div>
 

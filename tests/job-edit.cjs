@@ -40,6 +40,16 @@ assert.throws(() => context.exports.validateJobEditDraft({ ...draft, deliveryDat
 const returnTrip = returnTripContext.exports.initialReturnTrip(job);
 assert.equal(returnTrip.pickupLocation, 'โรงงาน B');
 assert.equal(returnTrip.deliveryLocation, 'คลัง A');
+const reversedAfterDeliveryEdit = returnTripContext.exports.updateOutwardStop({ ...job, returnTrip }, 'delivery', 'โรงงาน C');
+assert.equal(reversedAfterDeliveryEdit.returnTrip.pickupLocation, 'โรงงาน C');
+assert.equal(reversedAfterDeliveryEdit.returnTrip.deliveryLocation, 'คลัง A');
+const customReturn = returnTripContext.exports.updateOutwardStop({ ...job, returnTrip: { ...returnTrip, pickupLocation: 'คลังขากลับพิเศษ' } }, 'delivery', 'โรงงาน C');
+assert.equal(customReturn.returnTrip.pickupLocation, 'คลังขากลับพิเศษ');
+const staleReturn = { ...returnTrip, pickupLocation: 'คลัง A', deliveryLocation: 'คลัง A' };
+const driverRoute = returnTripContext.exports.driverReturnTrip({ ...job, returnTrip: staleReturn });
+assert.equal(driverRoute.pickupLocation, 'โรงงาน B');
+assert.equal(driverRoute.deliveryLocation, 'คลัง A');
+assert.equal(staleReturn.pickupLocation, 'คลัง A', 'driver fallback must not mutate saved job');
 const returnDraft = { ...draft, returnTrip: { ...returnTrip, pickupTime: '15:00', deliveryTime: '18:00' } };
 assert.equal(context.exports.validateJobEditDraft(returnDraft).returnTrip.pickupDate, '2026-09-21');
 assert.throws(() => context.exports.validateJobEditDraft({ ...returnDraft, returnTrip: { ...returnDraft.returnTrip, pickupTime: '13:00' } }), /ไม่ก่อนเวลาส่งสินค้าขาไป/);

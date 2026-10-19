@@ -11,7 +11,7 @@ import { ListManagerComboBox } from "./ListManagerComboBox";
 import { LocationPicker } from "./LocationPicker";
 import ContactPicker from "./ContactPicker";
 import ReturnTripFields from "./ReturnTripFields";
-import { initialReturnTrip } from "@/lib/return-trip";
+import { initialReturnTrip, updateOutwardStop } from "@/lib/return-trip";
 
 export default function JobEditor({
   job,
@@ -84,13 +84,13 @@ export default function JobEditor({
     <div className="job-edit-stops">
       <fieldset className="job-edit-section">
         <legend>จุดรับสินค้า</legend>
-        <EditField label="สถานที่"><LocationPicker value={draft.pickupLocation} place={draft.pickupPlace} title="รับงาน" organizationId={organizationId} onChange={(value, place) => setDraft(current => ({ ...current, pickupLocation: value, pickupPlace: place }))} /></EditField>
+        <EditField label="สถานที่"><LocationPicker value={draft.pickupLocation} place={draft.pickupPlace} title="รับงาน" organizationId={organizationId} onChange={(value, place) => setDraft(current => updateOutwardStop(current, "pickup", value, place))} /></EditField>
         <div className="job-edit-grid compact"><EditField label="วันที่"><input type="date" value={draft.pickupDate} onChange={event => update("pickupDate", event.target.value)} /></EditField><EditField label="เวลา"><input type="time" value={draft.pickupTime} onChange={event => update("pickupTime", event.target.value)} /></EditField></div>
         <EditField label="ผู้ติดต่อ"><ContactPicker actor={actor} value={{ id: draft.pickupContactId, name: draft.pickupContact, phone: draft.pickupContactPhone, notes: draft.pickupContactNotes }} onChange={contact => setDraft(current => ({ ...current, pickupContactId: contact.id, pickupContact: contact.name, pickupContactPhone: contact.phone, pickupContactNotes: contact.notes }))} /></EditField>
       </fieldset>
       <fieldset className="job-edit-section">
         <legend>จุดส่งสินค้า</legend>
-        <EditField label="สถานที่"><LocationPicker value={draft.deliveryLocation} place={draft.deliveryPlace} title="ส่งงาน" organizationId={organizationId} onChange={(value, place) => setDraft(current => ({ ...current, deliveryLocation: value, deliveryPlace: place }))} /></EditField>
+        <EditField label="สถานที่"><LocationPicker value={draft.deliveryLocation} place={draft.deliveryPlace} title="ส่งงาน" organizationId={organizationId} onChange={(value, place) => setDraft(current => updateOutwardStop(current, "delivery", value, place))} /></EditField>
         <div className="job-edit-grid compact"><EditField label="วันที่"><input type="date" value={draft.deliveryDate} onChange={event => update("deliveryDate", event.target.value)} /></EditField><EditField label="เวลา"><input type="time" value={draft.deliveryTime} onChange={event => update("deliveryTime", event.target.value)} /></EditField></div>
         <EditField label="ผู้ติดต่อ"><ContactPicker actor={actor} value={{ id: draft.deliveryContactId, name: draft.deliveryContact, phone: draft.deliveryContactPhone, notes: draft.deliveryContactNotes }} onChange={contact => setDraft(current => ({ ...current, deliveryContactId: contact.id, deliveryContact: contact.name, deliveryContactPhone: contact.phone, deliveryContactNotes: contact.notes }))} /></EditField>
       </fieldset>

@@ -13,6 +13,34 @@ export function initialReturnTrip(job: Pick<TransportJob, "pickupLocation" | "pi
   };
 }
 
+type OutwardStops = Pick<TransportJob, "pickupLocation" | "pickupPlace" | "deliveryLocation" | "deliveryPlace" | "returnTrip">;
+
+export function updateOutwardStop<T extends OutwardStops>(job: T, stop: "pickup" | "delivery", location: string, place?: JobPlace): T {
+  const previousLocation = job[`${stop}Location`];
+  const returnStop = stop === "pickup" ? "delivery" : "pickup";
+  const returnTrip = job.returnTrip && job.returnTrip[`${returnStop}Location`] === previousLocation
+    ? { ...job.returnTrip, [`${returnStop}Location`]: location, [`${returnStop}Place`]: place }
+    : job.returnTrip;
+  return { ...job, [`${stop}Location`]: location, [`${stop}Place`]: place, returnTrip };
+}
+
+// Older jobs may have been saved before the outward destination was selected.
+export function driverReturnTrip(job: TransportJob): ReturnTrip | undefined {
+  const trip = job.returnTrip;
+  if (!trip) return undefined;
+  if (job.pickupLocation.trim() === job.deliveryLocation.trim() || trip.pickupLocation.trim() !== trip.deliveryLocation.trim()) return trip;
+  const reversed = initialReturnTrip(job);
+  return {
+    ...trip,
+    pickupLocation: reversed.pickupLocation, pickupPlace: reversed.pickupPlace,
+    pickupContact: reversed.pickupContact, pickupContactId: reversed.pickupContactId,
+    pickupContactPhone: reversed.pickupContactPhone, pickupContactNotes: reversed.pickupContactNotes,
+    deliveryLocation: reversed.deliveryLocation, deliveryPlace: reversed.deliveryPlace,
+    deliveryContact: reversed.deliveryContact, deliveryContactId: reversed.deliveryContactId,
+    deliveryContactPhone: reversed.deliveryContactPhone, deliveryContactNotes: reversed.deliveryContactNotes
+  };
+}
+
 function scheduled(date: string, time: string, label: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error(`กรุณาระบุวันและเวลา${label}ให้ครบถ้วน`);
   const value = Date.parse(`${date}T${time}:00+07:00`);
