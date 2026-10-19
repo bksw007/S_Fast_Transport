@@ -14,6 +14,7 @@ import ReturnTripFields from "./components/ReturnTripFields";
 import { initialReturnTrip, activeLeg, driverReturnTrip, updateOutwardStop } from "@/lib/return-trip";
 import { driverJobCardTone, nextStopSchedule } from "@/lib/job-card-schedule";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
+import HandoverPhotoPicker from "./components/HandoverPhotoPicker";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
 import { saveDriverProofDraft } from "@/lib/driver-proof-draft";
 import { permanentlyDeleteCancelledJob, resolveDriverIssue } from "@/lib/job-detail-repository";
@@ -112,6 +113,7 @@ import {
 } from "@/lib/profile-repository";
 import {
   createJob,
+  addHandoverDocumentPhotos,
   canReceiveDriverJobs,
   ensureAccessProfile,
   formatJobDateKey,
@@ -1780,12 +1782,38 @@ function DriverView({
   const canNavigate = Boolean(!showingProofForm && stop && !["ready_to_close", "completed"].includes(effectiveStatus ?? ""));
   const backButton = <button className="driver-step-back" type="button" aria-label="กลับไปงานของฉัน" onClick={onBackToJobs}><ArrowLeft size={18} /> กลับ</button>;
   const [finishOpen, setFinishOpen] = useState(false);
+  const [hasHandoverDocuments, setHasHandoverDocuments] = useState(false);
+  const [handoverPhotos, setHandoverPhotos] = useState<File[]>([]);
+  const [finishBusy, setFinishBusy] = useState(false);
+  const [finishError, setFinishError] = useState("");
   const finishRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = finishRef.current;
     if (finishOpen) dialog?.showModal();
     return () => dialog?.close();
   }, [finishOpen]);
+  function closeFinish() {
+    if (finishBusy) return;
+    setFinishOpen(false);
+    setHasHandoverDocuments(false);
+    setHandoverPhotos([]);
+    setFinishError("");
+  }
+  async function confirmFinish() {
+    if (finishBusy) return;
+    if (hasHandoverDocuments && !handoverPhotos.length && !(job.handoverDocumentPhotoPaths?.length)) { setFinishError("กรุณาถ่ายหรือเลือกเอกสารนำส่งอย่างน้อย 1 รูป หรือเอาเครื่องหมายถูกออก"); return; }
+    setFinishBusy(true);
+    setFinishError("");
+    try {
+      if (hasHandoverDocuments && handoverPhotos.length) await addHandoverDocumentPhotos(job, profile, handoverPhotos);
+      setFinishOpen(false);
+      setHandoverPhotos([]);
+      setHasHandoverDocuments(false);
+      onAction("completed");
+    } catch (cause) {
+      setFinishError(cause instanceof Error ? cause.message : "บันทึกเอกสารนำส่งไม่สำเร็จ กรุณาลองอีกครั้ง");
+    } finally { setFinishBusy(false); }
+  }
 
   return (
     <section className="screen driver-workflow-screen">
@@ -1870,8 +1898,8 @@ function DriverView({
           <p>{trackingMessage} · ระบบหยุดแชร์อัตโนมัติเมื่อกดจบงาน</p>
         </div>
       </article>
-      {finishOpen && <dialog ref={finishRef} className="driver-status-dialog" aria-labelledby="driver-finish-title" onCancel={event => { event.preventDefault(); setFinishOpen(false); }}>
-        <div className="driver-status-content"><span className="driver-status-icon"><CheckCircle2 size={31} /></span><h2 id="driver-finish-title">ตรวจทานก่อนจบงาน</h2><p>ขาไป · จุดรับ: {job.pickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: {job.deliveryProof?.photoPaths.length ?? 0} รูป{job.returnTrip && <><br />ขากลับ · จุดรับ: {job.returnPickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: {job.returnDeliveryProof?.photoPaths.length ?? 0} รูป</>}</p><div className="driver-finish-actions"><button type="button" onClick={() => setFinishOpen(false)}>กลับไปตรวจ</button><button type="button" disabled={!job.pickupProof || !job.deliveryProof || Boolean(job.returnTrip && (!job.returnPickupProof || !job.returnDeliveryProof))} onClick={() => { setFinishOpen(false); onAction("completed"); }}>ยืนยันจบงาน</button></div></div>
+      {finishOpen && <dialog ref={finishRef} className="driver-status-dialog finish-with-documents" aria-labelledby="driver-finish-title" onCancel={event => { event.preventDefault(); closeFinish(); }}>
+        <div className="driver-status-content"><span className="driver-status-icon"><CheckCircle2 size={31} /></span><h2 id="driver-finish-title">ตรวจทานก่อนจบงาน</h2><p>ขาไป · จุดรับ: {job.pickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: {job.deliveryProof?.photoPaths.length ?? 0} รูป{job.returnTrip && <><br />ขากลับ · จุดรับ: {job.returnPickupProof?.photoPaths.length ?? 0} รูป · จุดส่ง: {job.returnDeliveryProof?.photoPaths.length ?? 0} รูป</>}</p><label className="handover-finish-option"><input type="checkbox" checked={hasHandoverDocuments} disabled={finishBusy} onChange={event => { setHasHandoverDocuments(event.target.checked); setFinishError(""); }} /> มีเอกสารนำส่งให้ถ่ายเก็บเป็นหลักฐาน</label>{hasHandoverDocuments && <HandoverPhotoPicker photos={handoverPhotos} onChange={setHandoverPhotos} existingCount={job.handoverDocumentPhotoPaths?.length ?? 0} disabled={finishBusy} onError={setFinishError} />}{finishError && <p className="handover-finish-error" role="alert">{finishError}</p>}<div className="driver-finish-actions"><button type="button" disabled={finishBusy} onClick={closeFinish}>กลับไปตรวจ</button><button type="button" disabled={finishBusy || !job.pickupProof || !job.deliveryProof || Boolean(job.returnTrip && (!job.returnPickupProof || !job.returnDeliveryProof))} onClick={() => void confirmFinish()}>{finishBusy ? "กำลังบันทึก…" : "ยืนยันจบงาน"}</button></div></div>
       </dialog>}
     </section>
   );
@@ -2131,7 +2159,7 @@ function JobSummaryCard({
                 className={`job-next-action ${nextAction.id === "start_tracking" ? "driver-action-accept" : nextAction.id === "completed" ? "driver-action-finish" : ""}`}
                 type="button"
                 disabled={!canWrite}
-                onClick={() => onAction(nextAction.nextStatus, job)}
+                onClick={() => { if (nextAction.id === "completed" && onOpenWorkflow) { onSelect(job.id); onOpenWorkflow(); } else onAction(nextAction.nextStatus, job); }}
               >
                 <CircleDot size={19} />
                 {nextAction.id === "start_tracking" ? "รับงาน" : nextAction.label}

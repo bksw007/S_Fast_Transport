@@ -6,15 +6,16 @@ let receive, timer, cleared = false, stopped = false;
 const data = [];
 const context = {
   exports: {},
-  require: (name) => name === './firebase' ? { db: {} } : {
+  require: (name) => name === './firebase' ? { db: {}, firebaseApp: { options: { projectId: 'test-project' } } } : {
     doc: (...args) => args,
     onSnapshot: (_ref, callback) => { receive = callback; return () => { stopped = true; }; }
   },
-  Date, Number,
+  Date, Number, URL,
   setTimeout: (callback) => { timer = callback; return 1; },
   clearTimeout: () => { cleared = true; }
 };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/public-tracking-repository.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
+assert.match(context.exports.publicTrackingAssetUrl('token', 'handover', 'photo', 3), /stage=handover&kind=photo&index=3/);
 const stop = context.exports.subscribePublicTracking('token', item => data.push(item), error => { throw new Error(error); });
 let expiresAt = Date.now() + 60000;
 const snapshot = enabled => ({ exists: () => true, data: () => ({ enabled, expiresAt: { toMillis: () => expiresAt }, workOrder: 'JOB-1' }) });

@@ -122,6 +122,7 @@ export type TransportJob = {
   activeLeg?: 1 | 2;
   returnPickupProof?: StopProof;
   returnDeliveryProof?: StopProof;
+  handoverDocumentPhotoPaths?: string[];
   returnArrivedDeliveryAt?: string;
   assignedDriverUid?: string;
   driverPhotoUrl?: string;

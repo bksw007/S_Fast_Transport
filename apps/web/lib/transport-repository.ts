@@ -873,6 +873,61 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
   return { photoPaths, signaturePath, signerName: signerName.trim(), signedAt: new Date().toISOString() };
 }
 
+export async function addHandoverDocumentPhotos(job: TransportJob, actor: UserProfile, photos: File[], onProgress?: (percent: number, detail: string) => void): Promise<void> {
+  if (job.assignedDriverUid !== actor.uid || !["ready_to_close", "completed"].includes(job.status === "problem" ? job.issuePreviousStatus ?? "problem" : job.status)) throw new Error("เพิ่มเอกสารนำส่งได้เฉพาะงานของคุณที่พร้อมจบหรือจบแล้ว");
+  if (!photos.length || photos.length > 10 || (job.handoverDocumentPhotoPaths?.length ?? 0) + photos.length > 10) throw new Error("แนบเอกสารนำส่งได้รวมไม่เกิน 10 รูป");
+  const uploadId = crypto.randomUUID();
+  const assets: Array<{ path: string; file: File; url: string }> = [];
+  for (const [index, source] of photos.entries()) {
+    if (!isImageFile(source) || source.size <= 0 || source.size > MAX_SOURCE_IMAGE_BYTES) throw new Error("เอกสารนำส่งต้องเป็นรูปภาพที่มีขนาดไม่เกิน 20 MB ต่อรูป");
+    const file = await compressImageForUpload(source);
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `proof_of_delivery/${job.id}/${actor.uid}/${uploadId}-handover-${index}.${extension}`;
+    onProgress?.(Math.round(index / photos.length * 85), `กำลังอัปโหลดเอกสารนำส่ง ${index + 1}/${photos.length}`);
+    const task = uploadBytesResumable(ref(storage, path), file, { contentType: file.type });
+    await new Promise<void>((resolve, reject) => {
+      let stalled = false;
+      let lastBytes = 0;
+      let timeout = window.setTimeout(() => { stalled = true; task.cancel(); }, 60_000);
+      const clearTimer = () => window.clearTimeout(timeout);
+      task.on("state_changed", snapshot => {
+        onProgress?.(Math.round((index + snapshot.bytesTransferred / file.size) / photos.length * 85), `กำลังอัปโหลดเอกสารนำส่ง ${index + 1}/${photos.length}`);
+        if (snapshot.bytesTransferred > lastBytes) {
+          lastBytes = snapshot.bytesTransferred;
+          clearTimer();
+          timeout = window.setTimeout(() => { stalled = true; task.cancel(); }, 60_000);
+        }
+      }, error => { clearTimer(); reject(stalled ? new Error("อัปโหลดเอกสารหยุดค้าง กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง") : error); }, () => { clearTimer(); resolve(); });
+    });
+    assets.push({ path, file, url: await getDownloadURL(ref(storage, path)) });
+  }
+  onProgress?.(90, "กำลังบันทึกรายการเอกสารนำส่ง");
+  const jobRef = doc(db, "today_jobs", job.id);
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    const current = snapshot.data();
+    if (!current || current.assignedDriverUid !== actor.uid || !["ready_to_close", "completed"].includes(current.status === "problem" ? current.issuePreviousStatus : current.status)) throw new Error("สถานะใบงานเปลี่ยนไป กรุณาเปิดงานอีกครั้ง");
+    const existing = Array.isArray(current.handoverDocumentPhotoPaths) ? current.handoverDocumentPhotoPaths as string[] : [];
+    if (existing.length + assets.length > 10) throw new Error("เอกสารนำส่งครบ 10 รูปแล้ว กรุณาเปิดงานอีกครั้ง");
+    transaction.update(jobRef, { handoverDocumentPhotoPaths: [...existing, ...assets.map(asset => asset.path)], updatedAt: serverTimestamp() });
+    for (const [index, asset] of assets.entries()) transaction.set(doc(collection(db, "proof_of_delivery")), {
+      jobId: job.id,
+      organizationId: job.organizationId ?? actor.organizationId ?? "main",
+      uploadedByUid: actor.uid,
+      uploadedByName: actor.displayName,
+      fileName: `handover-${index + 1}.${asset.file.type === "image/png" ? "png" : asset.file.type === "image/webp" ? "webp" : "jpg"}`,
+      storagePath: asset.path,
+      downloadUrl: asset.url,
+      contentType: asset.file.type,
+      size: asset.file.size,
+      proofStage: "handover",
+      proofKind: "photo",
+      createdAt: serverTimestamp()
+    });
+  });
+  onProgress?.(100, "บันทึกเอกสารนำส่งแล้ว");
+}
+
 export async function replaceStopProofPhoto(job: TransportJob, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", index: number, file: File, actor: UserProfile) {
   const proof = job[`${stage}Proof`];
   const previousPath = proof?.photoPaths[index];
@@ -1111,6 +1166,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     activeLeg: data.activeLeg === 2 ? 2 : 1,
     returnPickupProof: data.returnPickupProof ?? undefined,
     returnDeliveryProof: data.returnDeliveryProof ?? undefined,
+    handoverDocumentPhotoPaths: Array.isArray(data.handoverDocumentPhotoPaths) ? data.handoverDocumentPhotoPaths.filter((path: unknown): path is string => typeof path === "string") : undefined,
     returnArrivedDeliveryAt: timestampToIso(data.returnArrivedDeliveryAt),
     assignedDriverUid: data.assignedDriverUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,

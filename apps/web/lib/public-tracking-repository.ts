@@ -47,6 +47,7 @@ export type PublicTrackingDetails = {
   deliveryProof: PublicProof;
   returnPickupProof: PublicProof;
   returnDeliveryProof: PublicProof;
+  handoverDocumentPhotoCount: number;
   returnArrivedDeliveryAt: string;
   issue: { type: string; note: string; reportedAt: string; resolvedAt: string; resolutionNote: string; hasPhoto: boolean } | null;
 };
@@ -60,8 +61,9 @@ function publicTrackingAccessUrl(token: string) {
 }
 
 export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", kind: "photo" | "signature", index?: number): string;
+export function publicTrackingAssetUrl(token: string, stage: "handover", kind: "photo", index?: number): string;
 export function publicTrackingAssetUrl(token: string, stage: "issue", kind: "issue"): string;
-export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery" | "issue", kind: "photo" | "signature" | "issue", index = 0) {
+export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery" | "handover" | "issue", kind: "photo" | "signature" | "issue", index = 0) {
   const url = publicTrackingAccessUrl(token);
   url.searchParams.set("stage", stage);
   url.searchParams.set("kind", kind);

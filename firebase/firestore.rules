@@ -403,8 +403,17 @@ service cloud.firestore {
             "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
             "currentLocation", "trackingStatus", "updatedAt", "arrivedDeliveryAt", "completedAt",
             "issuePreviousStatus", "lastIssue", "alerts", "pickupProof", "deliveryProof",
-            "activeLeg", "returnPickupProof", "returnDeliveryProof", "returnArrivedDeliveryAt"
+            "activeLeg", "returnPickupProof", "returnDeliveryProof", "returnArrivedDeliveryAt",
+            "handoverDocumentPhotoPaths"
           ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["handoverDocumentPhotoPaths"]) || (
+            (resource.data.status in ["ready_to_close", "completed"] || (resource.data.status == "problem" && resource.data.get("issuePreviousStatus", "") == "ready_to_close"))
+            && request.resource.data.handoverDocumentPhotoPaths is list
+            && request.resource.data.handoverDocumentPhotoPaths.size() >= 1
+            && request.resource.data.handoverDocumentPhotoPaths.size() <= 10
+            && request.resource.data.handoverDocumentPhotoPaths.size() > resource.data.get("handoverDocumentPhotoPaths", []).size()
+            && request.resource.data.handoverDocumentPhotoPaths.hasAll(resource.data.get("handoverDocumentPhotoPaths", []))
+          ))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["activeLeg"]) || (
             resource.data.returnTrip is map
             && resource.data.activeLeg == 1

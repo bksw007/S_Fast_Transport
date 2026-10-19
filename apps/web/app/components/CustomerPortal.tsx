@@ -16,7 +16,7 @@ import CustomerJobRequests from "./CustomerJobRequests";
 import CustomerReports from "./CustomerReports";
 import "./customer-portal.css";
 
-type Evidence = { pickup: ReportProof; delivery: ReportProof; returnPickup: ReportProof; returnDelivery: ReportProof };
+type Evidence = { pickup: ReportProof; delivery: ReportProof; returnPickup: ReportProof; returnDelivery: ReportProof; handover: string[] };
 const emptyProof: ReportProof = { photos: [] };
 const dateText = (value?: string) => value ? new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }) : "—";
 const scheduledArrival = (date?: string, time?: string, fallback?: string) => /^\d{4}-\d{2}-\d{2}$/.test(date || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(time || "")
@@ -45,7 +45,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
   const [view, setView] = useState<"overview" | "requests" | "reports">("overview");
   const [selectedId, setSelectedId] = useState("");
   const [month, setMonth] = useState("");
-  const [evidence, setEvidence] = useState<Evidence>({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof });
+  const [evidence, setEvidence] = useState<Evidence>({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof, handover: [] });
   const [proofLoading, setProofLoading] = useState(false);
   const [issuePhoto, setIssuePhoto] = useState("");
   const [proofError, setProofError] = useState("");
@@ -60,7 +60,7 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
   const selected = visible.find(job => job.id === selectedId) ?? null;
 
   function openJob(jobId: string) {
-    setEvidence({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof });
+    setEvidence({ pickup: emptyProof, delivery: emptyProof, returnPickup: emptyProof, returnDelivery: emptyProof, handover: [] });
     setProofLoading(true);
     setIssuePhoto("");
     setProofError("");
@@ -70,8 +70,8 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
   useEffect(() => {
     if (!selected) return;
     let live = true;
-    void Promise.all([loadProof(selected.pickupProof), loadProof(selected.deliveryProof), loadProof(selected.returnPickupProof), loadProof(selected.returnDeliveryProof)])
-      .then(([pickup, delivery, returnPickup, returnDelivery]) => { if (live) setEvidence({ pickup, delivery, returnPickup, returnDelivery }); })
+    void Promise.all([loadProof(selected.pickupProof), loadProof(selected.deliveryProof), loadProof(selected.returnPickupProof), loadProof(selected.returnDeliveryProof), Promise.all((selected.handoverDocumentPhotoPaths ?? []).map(path => getDownloadURL(ref(storage, path))))])
+      .then(([pickup, delivery, returnPickup, returnDelivery, handover]) => { if (live) setEvidence({ pickup, delivery, returnPickup, returnDelivery, handover }); })
       .catch(() => { if (live) setProofError("โหลดภาพหลักฐานไม่สำเร็จ กรุณาลองเปิดใบงานอีกครั้ง"); })
       .finally(() => { if (live) setProofLoading(false); });
     const issue = selected.lastIssue;
@@ -94,9 +94,9 @@ export default function CustomerPortal({ profile, jobs, loading, error }: { prof
     preview.document.write("<p>กำลังเตรียมรายงานการขนส่ง…</p>");
     setReportBusy(true);
     try {
-      const [pickup, delivery, returnPickup, returnDelivery, issuePhoto] = await Promise.all([loadProof(job.pickupProof), loadProof(job.deliveryProof), loadProof(job.returnPickupProof), loadProof(job.returnDeliveryProof), job.lastIssue?.photoPath ? getDownloadURL(ref(storage, job.lastIssue.photoPath)).catch(() => "") : Promise.resolve("")]);
+      const [pickup, delivery, returnPickup, returnDelivery, issuePhoto, handover] = await Promise.all([loadProof(job.pickupProof), loadProof(job.deliveryProof), loadProof(job.returnPickupProof), loadProof(job.returnDeliveryProof), job.lastIssue?.photoPath ? getDownloadURL(ref(storage, job.lastIssue.photoPath)).catch(() => "") : Promise.resolve(""), Promise.all((job.handoverDocumentPhotoPaths ?? []).map(path => getDownloadURL(ref(storage, path))))]);
       preview.document.open();
-      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }, issuePhoto));
+      preview.document.write(completionReportHtml(job, pickup, delivery, `${window.location.origin}/icons/truck-logo.png`, new Date(), { pickup: returnPickup, delivery: returnDelivery }, issuePhoto, handover));
       preview.document.close();
     } catch {
       preview.close();
@@ -180,7 +180,7 @@ function CustomerJobDetail({ job, evidence, proofLoading, issuePhoto, proofError
       {issue && <section className={`customer-portal-issue ${issue.resolvedAt ? "is-resolved" : ""}`} role="status"><AlertTriangle size={21} /><div><strong>{issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{driverIssueLabels[issue.type] || "ปัญหาการขนส่ง"}{issue.note ? ` · ${issue.note}` : ""}</p><small>แจ้งเมื่อ {dateText(issue.reportedAt)}{issue.resolvedAt ? ` · ดำเนินการแล้ว ${dateText(issue.resolvedAt)}` : ""}</small>{issue.resolutionNote && <p>การดำเนินการ: {issue.resolutionNote}</p>}{issueImageUrl && <a href={issueImageUrl} target="_blank" rel="noreferrer">ดูภาพประกอบปัญหา</a>}</div></section>}
 
       {proofError && <p role="alert" className="customer-portal-error">{proofError}</p>}
-      <div className="customer-portal-proof-grid" aria-label="หลักฐานการขนส่ง"><ProofBlock title={job.returnTrip ? "ขาไป · หลักฐานจุดรับ" : "หลักฐานจากจุดรับ"} proof={job.pickupProof} files={evidence.pickup} loading={proofLoading} /><ProofBlock title={job.returnTrip ? "ขาไป · หลักฐานจุดส่ง" : "หลักฐานจากจุดส่ง"} proof={job.deliveryProof} files={evidence.delivery} loading={proofLoading} />{job.returnTrip && <><ProofBlock title="ขากลับ · หลักฐานจุดรับ" proof={job.returnPickupProof} files={evidence.returnPickup} loading={proofLoading} /><ProofBlock title="ขากลับ · หลักฐานจุดส่ง" proof={job.returnDeliveryProof} files={evidence.returnDelivery} loading={proofLoading} /></>}</div>
+      <div className="customer-portal-proof-grid" aria-label="หลักฐานการขนส่ง"><ProofBlock title={job.returnTrip ? "ขาไป · หลักฐานจุดรับ" : "หลักฐานจากจุดรับ"} proof={job.pickupProof} files={evidence.pickup} loading={proofLoading} /><ProofBlock title={job.returnTrip ? "ขาไป · หลักฐานจุดส่ง" : "หลักฐานจากจุดส่ง"} proof={job.deliveryProof} files={evidence.delivery} loading={proofLoading} />{job.returnTrip && <><ProofBlock title="ขากลับ · หลักฐานจุดรับ" proof={job.returnPickupProof} files={evidence.returnPickup} loading={proofLoading} /><ProofBlock title="ขากลับ · หลักฐานจุดส่ง" proof={job.returnDeliveryProof} files={evidence.returnDelivery} loading={proofLoading} /></>}<section className="customer-portal-proof"><h3>เอกสารนำส่ง<ChevronRight size={16} aria-hidden="true" /></h3><div className="customer-portal-photos">{evidence.handover.length ? evidence.handover.map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url}><Image src={url} alt={`เอกสารนำส่ง ภาพ ${index + 1}`} width={240} height={125} unoptimized /></a>) : <p>{proofLoading ? "กำลังโหลดเอกสาร…" : "ไม่มีเอกสารนำส่งสำหรับงานนี้"}</p>}</div></section></div>
       <section className="customer-portal-report-panel"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็น{job.returnTrip ? "ทั้งขาไปและขากลับ" : "ทั้งสองจุด"}</span></div><button className="customer-portal-report" type="button" disabled={!completed || reportBusy} onClick={onReport}><Download size={18} /> {reportBusy ? "กำลังเตรียมรายงาน…" : "ดาวน์โหลดรายงานการขนส่ง"}</button>{!completed && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
     </article>
   </div>;

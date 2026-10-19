@@ -22,6 +22,9 @@ function proofSummary(proof: unknown) {
 
 function selectedAsset(job: DocumentData, kind: string, stage: string, index: number): string {
   if (kind === "issue") return value(job.lastIssue?.photoPath);
+  if (stage === "handover" && kind === "photo" && Number.isInteger(index) && index >= 0 && index < 10) {
+    return value(job.handoverDocumentPhotoPaths?.[index]);
+  }
   if (!["pickup", "delivery", "returnPickup", "returnDelivery"].includes(stage)) return "";
   const proof = job[`${stage}Proof`];
   if (kind === "signature") return value(proof?.signaturePath);
@@ -111,6 +114,7 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
       deliveryProof: proofSummary(job.deliveryProof),
       returnPickupProof: proofSummary(job.returnPickupProof),
       returnDeliveryProof: proofSummary(job.returnDeliveryProof),
+      handoverDocumentPhotoCount: Array.isArray(job.handoverDocumentPhotoPaths) ? Math.min(job.handoverDocumentPhotoPaths.length, 10) : 0,
       returnArrivedDeliveryAt: job.returnArrivedDeliveryAt?.toDate?.()?.toISOString?.() ?? value(job.returnArrivedDeliveryAt),
       issue: issue ? {
         type: value(issue.type),
