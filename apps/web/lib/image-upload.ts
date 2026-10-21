@@ -74,11 +74,14 @@ export async function compressImageForUpload(file: File) {
 
   const objectURL = URL.createObjectURL(file);
   const image = new Image();
-  image.decoding = "async";
 
   try {
-    image.src = objectURL;
-    await image.decode();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("ไม่สามารถอ่านรูปภาพนี้ได้ กรุณาใช้ไฟล์ JPG, PNG หรือ WEBP"));
+      image.src = objectURL;
+    });
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error("ไม่สามารถอ่านรูปภาพนี้ได้ กรุณาใช้ไฟล์ JPG, PNG หรือ WEBP");
     if (["image/jpeg", "image/png", "image/webp"].includes(file.type)
       && file.size <= MAX_STORED_IMAGE_BYTES
       && Math.max(image.naturalWidth, image.naturalHeight) <= MAX_IMAGE_DIMENSION) {

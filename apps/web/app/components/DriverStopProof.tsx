@@ -237,7 +237,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
         <button type="button" disabled={busy || preparingPhoto} aria-label={`ถ่ายรูปสินค้า ${index + 1}`} onClick={() => cameraInputs.current[index]?.click()}><Camera size={18} /> กล้อง</button>
         <button type="button" disabled={busy || preparingPhoto} aria-label={`เลือกรูปสินค้า ${index + 1} จากแกลอรี่หรือไฟล์`} onClick={() => fileInputs.current[index]?.click()}><FolderOpen size={18} /> ไฟล์</button>
       </div>
-      <input ref={node => { cameraInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+      <input ref={node => { cameraInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/jpeg" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
       <input ref={node => { fileInputs.current[index] = node; }} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void selectPhoto(index, event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
       {file && <button type="button" disabled={busy} onClick={() => removePhoto(index)}>ลบรูปนี้</button>}
     </div>)}</div>
@@ -245,7 +245,7 @@ export default function DriverStopProof({ stage, draftKey, onSubmit, onError }: 
       <button type="button" disabled={busy || preparingPhoto || !photos[0]} onClick={() => extraCameraRef.current?.click()}><Camera size={18} /> กล้อง</button>
       <button type="button" disabled={busy || preparingPhoto || !photos[0]} onClick={() => extraFileRef.current?.click()}><FolderOpen size={18} /> ไฟล์</button>
     </div></div>
-    <input ref={extraCameraRef} className="driver-proof-file-input" type="file" accept="image/*" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+    <input ref={extraCameraRef} className="driver-proof-file-input" type="file" accept="image/jpeg" capture="environment" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
     <input ref={extraFileRef} className="driver-proof-file-input" type="file" accept="image/*" disabled={busy || preparingPhoto} tabIndex={-1} aria-hidden="true" onChange={event => { void addPhoto(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
     <label className="driver-proof-signer">ชื่อผู้เซ็น<input value={signerName} maxLength={100} disabled={busy} placeholder={stage === "pickup" ? "ชื่อผู้ส่งสินค้า" : "ชื่อผู้รับสินค้า"} onChange={event => setSignerName(event.target.value)} /></label>
     <div className="driver-proof-preview"><strong>พรีวิวลายเซ็น</strong>{signature ? <ProofMediaPreview blob={signature} alt="ลายเซ็นที่ยืนยันแล้ว" width={500} height={180} /> : <span>ยังไม่มีลายเซ็นที่ยืนยัน</span>}</div>
