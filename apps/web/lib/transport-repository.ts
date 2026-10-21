@@ -19,7 +19,7 @@ import {
   type DocumentData,
   type Unsubscribe
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes, uploadBytesResumable, type UploadTask } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { loadCompanySettings } from "./settings-repository";
 import { resolveCustomerId } from "./customer-repository";
@@ -792,7 +792,6 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
   }), { file: signature, path: `proof_of_delivery/${job.id}/${actor.uid}/${uploadId}-${stage}-signature.png`, name: `${stage}-signature.png`, kind: "signature" as const }];
   const uploadedBytes = assets.map(() => 0);
   const totalBytes = assets.reduce((sum, asset) => sum + asset.file.size, 0);
-  const stallMessage = "การอัปโหลดไม่มีความคืบหน้าเกิน 60 วินาที กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง";
   let lastPercent = 10;
   const reportUpload = () => {
     const percent = Math.min(85, 10 + Math.floor(uploadedBytes.reduce((sum, bytes) => sum + bytes, 0) / totalBytes * 75));
@@ -801,47 +800,22 @@ export async function uploadStopProof(job: TransportJob, stage: "pickup" | "deli
       onProgress?.(percent, "กำลังอัปโหลดรูปและลายเซ็น");
     }
   };
-  let nextAsset = 0;
-  let failedAssetIndex: number | null = null;
-  const tasks: UploadTask[] = [];
-  try {
-    await Promise.all(Array.from({ length: Math.min(3, assets.length) }, async () => {
-      while (nextAsset < assets.length) {
-        const index = nextAsset++;
-        const asset = assets[index];
-        const task = uploadBytesResumable(ref(storage, asset.path), asset.file, { contentType: asset.file.type || "image/png" });
-        tasks.push(task);
-        await new Promise<void>((resolve, reject) => {
-          let stalled = false;
-          let lastBytes = 0;
-          let timeout = window.setTimeout(() => { stalled = true; task.cancel(); }, 60_000);
-          const clearStallTimer = () => window.clearTimeout(timeout);
-          task.on("state_changed", snapshot => {
-            uploadedBytes[index] = snapshot.bytesTransferred;
-            reportUpload();
-            if (snapshot.bytesTransferred > lastBytes) {
-              lastBytes = snapshot.bytesTransferred;
-              clearStallTimer();
-              timeout = window.setTimeout(() => { stalled = true; task.cancel(); }, 60_000);
-            }
-          }, error => {
-            clearStallTimer();
-            if (failedAssetIndex === null) failedAssetIndex = index;
-            reject(stalled ? new Error(stallMessage) : error);
-          }, () => {
-            clearStallTimer();
-            resolve();
-          });
-        });
-        uploadedBytes[index] = asset.file.size;
-        reportUpload();
+  for (const [index, asset] of assets.entries()) {
+    onProgress?.(lastPercent, asset.kind === "signature" ? "กำลังอัปโหลดลายเซ็น" : `กำลังอัปโหลดรูปสินค้า ${index + 1}/${photos.length}`);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await uploadBytes(ref(storage, asset.path), asset.file, { contentType: asset.file.type || "image/png" });
+        break;
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+        if (attempt === 2 || (code !== "storage/unknown" && code !== "storage/retry-limit-exceeded")) {
+          throw await proofUploadError(job, stage, actor, "upload", asset.kind, index, asset.file.size, uploadedBytes[index], error);
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 500 * (attempt + 1)));
       }
-    }));
-  } catch (error) {
-    tasks.forEach(task => task.cancel());
-    const index = failedAssetIndex ?? 0;
-    const asset = assets[index];
-    throw await proofUploadError(job, stage, actor, "upload", asset.kind, index, asset.file.size, uploadedBytes[index], error);
+    }
+    uploadedBytes[index] = asset.file.size;
+    reportUpload();
   }
   onProgress?.(85, "อัปโหลดครบแล้ว กำลังลงทะเบียนหลักฐาน");
   const downloadUrls: string[] = [];
