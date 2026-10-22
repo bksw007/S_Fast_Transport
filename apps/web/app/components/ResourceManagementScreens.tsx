@@ -17,6 +17,7 @@ import {
   Phone,
   Plus,
   Power,
+  Trash2,
   Printer,
   Save,
   Share2,
@@ -31,6 +32,7 @@ import {
   createDriver,
   createDriverShareLink,
   createSubcontractOrganization,
+  deleteSubcontractOrganization,
   createVehicle,
   createVehicleShareLink,
   downloadVehicleFile,
@@ -70,6 +72,7 @@ const emptyOrganizationDraft: OrganizationDraft = {
   contactName: "",
   phone: "",
   email: "",
+  lineUserId: "",
   logoUrl: ""
 };
 
@@ -177,6 +180,7 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
       contactName: item.contactName,
       phone: item.phone,
       email: item.email,
+      lineUserId: item.lineUserId,
       logoUrl: item.logoUrl
     });
     setEditingId(item.id);
@@ -213,6 +217,20 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
     }
   }
 
+  async function removeOrganization(item: SubcontractOrganization) {
+    if (busy || !window.confirm(`ลบบริษัท ${item.name} ออกจากรายการ? ประวัติงานเดิมจะยังอยู่`)) return;
+    setBusy(item.id);
+    try {
+      await deleteSubcontractOrganization(item.id, actor);
+      setMessage(`ลบ ${item.name} จากรายการแล้ว`);
+      if (editingId === item.id) resetForm();
+    } catch (error) {
+      setMessage(toMessage(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
   const activeCount = organizations.filter((item) => item.active).length;
 
   return (
@@ -232,7 +250,7 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
       <div className="resource-metrics">
         <article><Building2 size={19} /><span>บริษัททั้งหมด<strong>{organizations.length}</strong></span></article>
         <article><Power size={19} /><span>เปิดใช้งาน<strong>{activeCount}</strong></span></article>
-        <article><Users size={19} /><span>ระงับชั่วคราว<strong>{organizations.length - activeCount}</strong></span></article>
+        <article><Users size={19} /><span>ผู้ติดต่อบริษัท<strong>{organizations.filter((item) => item.contactName).length}</strong></span></article>
       </div>
 
       <div className="resource-message" role="status">{message}</div>
@@ -247,6 +265,7 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
             <ResourceField label="ผู้ติดต่อหลัก"><input value={draft.contactName} placeholder="ชื่อผู้ประสานงาน" onChange={(event) => setDraft({ ...draft, contactName: event.target.value })} /></ResourceField>
             <ResourceField label="เบอร์ติดต่อ"><input type="tel" inputMode="numeric" maxLength={12} pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" value={formatPhoneNumber(draft.phone)} placeholder="080-000-0000" onChange={(event) => setDraft({ ...draft, phone: formatPhoneNumber(event.target.value) })} /></ResourceField>
             <ResourceField label="อีเมล"><input type="email" value={draft.email} placeholder="dispatch@company.com" onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></ResourceField>
+            <ResourceField label="LINE user ID ผู้ติดต่อ (ต้องเพิ่ม LINE OA เป็นเพื่อน)"><input value={draft.lineUserId} pattern="[Uu][0-9a-fA-F]{32}" placeholder="U ตามด้วยอักขระ 32 ตัว" onChange={(event) => setDraft({ ...draft, lineUserId: event.target.value })} /></ResourceField>
             <ResourceField label="URL โลโก้" wide><input type="url" value={draft.logoUrl} placeholder="https://..." onChange={(event) => setDraft({ ...draft, logoUrl: event.target.value })} /></ResourceField>
           </div>
           <footer><button className="resource-save-button" disabled={Boolean(busy)}><Save size={17} /> {editingId ? "บันทึกการแก้ไข" : "เพิ่มบริษัท"}</button><button type="button" onClick={resetForm}>ยกเลิก</button></footer>
@@ -265,10 +284,12 @@ export function SubcontractCompaniesScreen({ actor }: { actor: UserProfile }) {
               <div><dt>ผู้ติดต่อ</dt><dd>{item.contactName || "—"}</dd></div>
               <div><dt>โทร</dt><dd>{formatPhoneNumber(item.phone) || "—"}</dd></div>
               <div><dt>อีเมล</dt><dd>{item.email || "—"}</dd></div>
+              <div><dt>LINE user ID</dt><dd>{item.lineUserId || "—"}</dd></div>
             </dl>
             <footer>
               <button type="button" onClick={() => editOrganization(item)}><Edit3 size={15} /> แก้ไข</button>
-              <button type="button" className={item.active ? "resource-danger-action" : "resource-restore-action"} disabled={busy === item.id} onClick={() => void toggleOrganization(item)}><Power size={15} /> {item.active ? "ระงับ" : "เปิดใช้"}</button>
+              {!item.active && <button type="button" className="resource-restore-action" disabled={busy === item.id} onClick={() => void toggleOrganization(item)}><Power size={15} /> เปิดใช้</button>}
+              <button type="button" className="resource-danger-action" disabled={busy === item.id} onClick={() => void removeOrganization(item)}><Trash2 size={15} /> ลบ</button>
             </footer>
           </article>
         ))}

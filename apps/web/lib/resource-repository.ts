@@ -3,6 +3,8 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
+  limit,
   onSnapshot,
   query,
   serverTimestamp,
@@ -28,6 +30,7 @@ export type SubcontractOrganization = {
   contactName: string;
   phone: string;
   email: string;
+  lineUserId: string;
   logoUrl: string;
   active: boolean;
 };
@@ -187,6 +190,7 @@ function toOrganization(id: string, data: DocumentData): SubcontractOrganization
     contactName: data.contactName ?? "",
     phone: data.phone ?? "",
     email: data.email ?? "",
+    lineUserId: data.lineUserId ?? "",
     logoUrl: data.logoUrl ?? data.organizationLogoUrl ?? "",
     active: data.active !== false
   };
@@ -199,6 +203,7 @@ export function subscribeSubcontractOrganizations(
   return onSnapshot(
     query(collection(db, "organizations"), where("type", "==", "subcontract")),
     (snapshot) => onItems(snapshot.docs
+      .filter((item) => item.data().deleted !== true)
       .map((item) => toOrganization(item.id, item.data()))
       .sort((a, b) => a.name.localeCompare(b.name, "th"))),
     (error) => onError(error.message)
@@ -212,6 +217,7 @@ export async function createSubcontractOrganization(draft: OrganizationDraft, ac
     throw new Error("รหัสบริษัทต้องเป็นอังกฤษหรือตัวเลข 2–40 ตัว และใช้ - หรือ _ ได้");
   }
   if (!cleanText(draft.name)) throw new Error("กรุณากรอกชื่อบริษัท");
+  if (draft.lineUserId.trim() && !/^U[0-9a-f]{32}$/i.test(draft.lineUserId.trim())) throw new Error("LINE user ID ต้องขึ้นต้นด้วย U ตามด้วยอักขระ 32 ตัว");
 
   const organizationRef = doc(db, "organizations", organizationId);
   if ((await getDoc(organizationRef)).exists()) throw new Error("รหัสบริษัทนี้ถูกใช้งานแล้ว");
@@ -222,6 +228,7 @@ export async function createSubcontractOrganization(draft: OrganizationDraft, ac
     contactName: cleanText(draft.contactName),
     phone: cleanText(draft.phone),
     email: cleanText(draft.email),
+    lineUserId: draft.lineUserId.trim(),
     logoUrl: draft.logoUrl.trim(),
     active: true,
     createdByUid: actor.uid,
@@ -237,12 +244,14 @@ export async function updateSubcontractOrganization(
 ) {
   assertMainCompanyAdmin(actor);
   if (!cleanText(draft.name)) throw new Error("กรุณากรอกชื่อบริษัท");
+  if (draft.lineUserId.trim() && !/^U[0-9a-f]{32}$/i.test(draft.lineUserId.trim())) throw new Error("LINE user ID ต้องขึ้นต้นด้วย U ตามด้วยอักขระ 32 ตัว");
   await updateDoc(doc(db, "organizations", organizationId), {
     name: cleanText(draft.name),
     taxId: cleanText(draft.taxId),
     contactName: cleanText(draft.contactName),
     phone: cleanText(draft.phone),
     email: cleanText(draft.email),
+    lineUserId: draft.lineUserId.trim(),
     logoUrl: draft.logoUrl.trim(),
     updatedByUid: actor.uid,
     updatedAt: serverTimestamp()
@@ -257,6 +266,21 @@ export async function setSubcontractOrganizationActive(
   assertMainCompanyAdmin(actor);
   await updateDoc(doc(db, "organizations", organizationId), {
     active,
+    updatedByUid: actor.uid,
+    updatedAt: serverTimestamp()
+  });
+}
+
+export async function deleteSubcontractOrganization(organizationId: string, actor: UserProfile) {
+  assertMainCompanyAdmin(actor);
+  const linked = await Promise.all(["users", "vehicles", "drivers"].map((name) =>
+    getDocs(query(collection(db, name), where("organizationId", "==", organizationId), limit(1)))
+  ));
+  if (linked.some((snapshot) => !snapshot.empty)) throw new Error("บริษัทนี้ยังมีบัญชีผู้ใช้ รถ หรือคนขับผูกอยู่ กรุณาย้ายข้อมูลเหล่านั้นก่อนลบ");
+  // Keep the document so historical jobs retain their organization.
+  await updateDoc(doc(db, "organizations", organizationId), {
+    deleted: true,
+    active: false,
     updatedByUid: actor.uid,
     updatedAt: serverTimestamp()
   });

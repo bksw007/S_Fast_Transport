@@ -4,16 +4,17 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 let request, state = {}, linkCreates = 0;
+const contactUserId = `U${'a'.repeat(32)}`;
 const db = {
   collection(name) {
     return {
       doc(id) {
-        if (name === 'organizations') return { get: async () => ({ data: () => ({ name: 'Company', trackingLinkDays: 7 }) }) };
+        if (name === 'organizations') return { get: async () => ({ data: () => ({ name: 'Company', trackingLinkDays: 7, lineUserId: contactUserId }) }) };
         if (name === 'tracking_share_links') return {
           get: async () => ({ exists: true, data: () => ({ jobId: 'job-1' }) }),
           create: async () => { linkCreates++; }
         };
-        if (name === 'line_job_notifications') return {
+        if (name === 'line_job_notifications' || name === 'line_event_notifications') return {
           path: `${name}/${id}`,
           update: async patch => { state = { ...state, ...patch }; }
         };
@@ -52,5 +53,13 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
   assert.match(body.messages[0].text, /คนขับ: คนขับ\nวันที่รับสินค้า: 15\/10\/2569\nจุดรับ:/);
   assert.equal(linkCreates, 0, 'LINE must reuse the link created with the job');
   assert.equal(state.status, 'sent');
-  console.log('PASS: LINE notification reuses the job tracking link');
+  await context.exports.notifySubcontractContactOfNewJob({ params: { jobId: 'job-2' }, data: { data: () => ({
+    workOrder: 'JN-2', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'partner', customer: 'ลูกค้า', pickupDate: '2026-10-15'
+  }) } });
+  const contactBody = JSON.parse(request.body);
+  assert.equal(contactBody.to, contactUserId);
+  assert.match(contactBody.messages[0].text, /มีใบงานใหม่ JN-2/);
+  assert.match(contactBody.messages[0].text, /https:\/\/sfasttransport\.vercel\.app\/track\/abcdef0123456789abcdef0123456789/);
+  assert.equal(state.status, 'sent');
+  console.log('PASS: LINE group and subcontract contact notifications');
 })().catch(error => { console.error(error); process.exitCode = 1; });

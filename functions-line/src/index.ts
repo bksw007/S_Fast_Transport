@@ -31,7 +31,7 @@ function thaiDate(value: unknown) {
   return match ? `${match[3]}/${match[2]}/${Number(match[1]) + 543}` : lineText(value, 30);
 }
 
-async function sendLineEventOnce(notificationId: string, message: string) {
+async function sendLineEventOnce(notificationId: string, message: string, recipient = LINE_GROUP_ID) {
   const notificationRef = db.collection("line_event_notifications").doc(notificationId);
   const notification = await db.runTransaction(async transaction => {
     const existing = await transaction.get(notificationRef);
@@ -54,7 +54,7 @@ async function sendLineEventOnce(notificationId: string, message: string) {
       "Content-Type": "application/json",
       "X-Line-Retry-Key": notification.retryKey
     },
-    body: JSON.stringify({ to: LINE_GROUP_ID, messages: [{ type: "text", text: message }] })
+    body: JSON.stringify({ to: recipient, messages: [{ type: "text", text: message }] })
   });
   if (!response.ok && response.status !== 409) {
     logger.error("Failed to notify LINE group of event", { notificationId, status: response.status, errorBody: (await response.text()).slice(0, 500) });
@@ -192,4 +192,26 @@ export const notifyLineGroupOfNewJob = onDocumentCreated({
     return;
   }
   await notificationRef.update({ status: "sent", sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+});
+
+export const notifySubcontractContactOfNewJob = onDocumentCreated({
+  document: "today_jobs/{jobId}", region: "asia-southeast1",
+  secrets: [lineChannelAccessToken], retry: true
+}, async event => {
+  const job = event.data?.data();
+  if (!job?.workOrder || !job.organizationId || job.organizationId === "main") return;
+  const organization = (await db.collection("organizations").doc(String(job.organizationId)).get()).data();
+  const recipient = organization?.lineUserId;
+  if (organization?.deleted === true || typeof recipient !== "string" || !/^U[0-9a-f]{32}$/i.test(recipient)) return;
+  const message = [
+    `มีใบงานใหม่ ${lineText(job.workOrder)}`,
+    `ลูกค้า: ${lineText(job.customer)}`,
+    `คนขับ: ${lineText(job.driverName)}`,
+    `วันที่รับสินค้า: ${thaiDate(job.pickupDate)}`,
+    `จุดรับ: ${lineText(job.pickupLocation)}`,
+    `จุดส่ง: ${lineText(job.deliveryLocation)}`,
+    ...(typeof job.trackingShareToken === "string" && /^[a-f0-9]{32}$/i.test(job.trackingShareToken)
+      ? [`ติดตามสถานะ: ${SITE_URL}/track/${job.trackingShareToken}`] : [])
+  ].join("\n");
+  await sendLineEventOnce(`subcontract_job_${event.params.jobId}`, message, recipient);
 });
