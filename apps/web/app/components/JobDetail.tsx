@@ -1,6 +1,6 @@
 "use client";
 import JobContacts from "./JobContacts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type DriverIssueType, type TransportJob } from "@s-fast-transport/shared";
@@ -130,6 +130,10 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
   const [link, setLink] = useState("");
   const [qr, setQr] = useState("");
   const [requestedDistance, setRequestedDistance] = useState<RequestedDistanceState | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (panel === "settings" && bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [panel]);
   const routeFingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
   const cachedDistance = cachedRoadDistanceMeters(job);
   const routeDistance: DistanceState = cachedDistance !== null
@@ -202,7 +206,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
         if (next !== null) { event.preventDefault(); setTab(next); setPanel(null); document.getElementById(`job-tab-${next}`)?.focus(); }
       }}>{label}</button>)}</div>
     </div>
-    <div className="job-detail-body">
+    <div className="job-detail-body" ref={bodyRef}>
       {(busy || message) && <p role="status">{busy ? "กำลังดำเนินการ…" : message}</p>}
       {panel && <aside className="job-action-panel">
         <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การแก้ไข" : "ลิงก์ติดตาม"}</button>

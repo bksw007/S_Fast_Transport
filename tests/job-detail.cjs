@@ -4,6 +4,8 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const React = require('react');
 let slots = [], cursor = 0, updated, deleted, savedDistance, uploaded, links = 0, copied, closed = 0;
+let effects = [];
+const bodyRef = { current: { scrollTop: 0 } };
 const JobEditorStub = () => null;
 const repository = {
   createTrackingShareLink: async () => { links++; return 'job-token'; },
@@ -18,7 +20,7 @@ const detailRepository = {
   subscribeJobRecords: () => () => {}
 };
 const context = { exports: {}, window: { location: { origin: 'https://example.test' } }, navigator: { clipboard: { writeText: async value => { copied = value; } } }, require: name => {
-  if (name === 'react') return { ...React, useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; }, useEffect: () => {} };
+  if (name === 'react') return { ...React, useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; }, useRef: () => bodyRef, useEffect: effect => { effects.push(effect); } };
   if (name === '@/lib/transport-repository') return repository;
   if (name === '@/lib/job-detail-repository') return detailRepository;
   if (name === '@/lib/job-road-distance-client') return { requestJobRoadDistance: async () => 24567 };
@@ -44,7 +46,7 @@ const job = {
 };
 const actor = { uid: 'admin' };
 let tree;
-function render(canWrite = true) { cursor = 0; tree = context.exports.default({ job, actor, canWrite, map: React.createElement('div', null, 'MAP'), onDeleted: () => { closed++; } }); return tree; }
+function render(canWrite = true) { cursor = 0; effects = []; tree = context.exports.default({ job, actor, canWrite, map: React.createElement('div', null, 'MAP'), onDeleted: () => { closed++; } }); return tree; }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -80,6 +82,9 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(links, 1, 'Share and QR reuse the same link');
   assert.ok(find(n => n.props?.alt?.startsWith('QR')).props.src.startsWith('data:image/png;base64,'));
   find(n => n.props?.['aria-label'] === 'แก้ไขใบงาน').props.onClick(); render();
+  bodyRef.current.scrollTop = 240;
+  effects[0]();
+  assert.equal(bodyRef.current.scrollTop, 0, 'opening settings scrolls the detail body to the top');
   let editor = find(n => n.type === JobEditorStub);
   assert.equal(editor.props.canDelete, true);
   await editor.props.onSave({ customer: 'ลูกค้าแก้ไข' }); await flush(); render();
