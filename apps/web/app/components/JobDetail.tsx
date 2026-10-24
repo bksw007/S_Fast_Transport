@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type DriverIssueType, type TransportJob } from "@s-fast-transport/shared";
-import { createTrackingShareLink, saveJobRouteDistance, uploadProof, type UserProfile } from "@/lib/transport-repository";
+import { createTrackingShareLink, isMainAdmin, saveJobRouteDistance, uploadProof, type UserProfile } from "@/lib/transport-repository";
 import { recordTime, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
 import { coordinateFingerprint } from "@/lib/google-routes-distance";
@@ -206,7 +206,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
       {(busy || message) && <p role="status">{busy ? "กำลังดำเนินการ…" : message}</p>}
       {panel && <aside className="job-action-panel">
         <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การแก้ไข" : "ลิงก์ติดตาม"}</button>
-        {panel === "settings" ? <JobEditor job={job} actor={actor} busy={busy} canDelete={canAdministerJob(job, actor)} onSave={saveEditedJob} onDelete={() => perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ลบใบงานแล้ว")} /> : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
+        {panel === "settings" ? <JobEditor job={job} actor={actor} busy={busy} canDelete={canAdministerJob(job, actor) && (job.originOrganizationId !== "main" || isMainAdmin(actor))} onSave={saveEditedJob} onDelete={() => perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ลบใบงานแล้ว")} /> : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
       </aside>}
       <div role="tabpanel" id="job-tab-content" aria-labelledby={`job-tab-${tab}`} tabIndex={0}>
         {tab === 0 && <div className="job-detail-overview">

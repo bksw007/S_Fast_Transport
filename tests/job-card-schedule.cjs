@@ -16,6 +16,8 @@ assert.equal(driverJobCardTone({ ...job, pickupDate: '2026-10-15' }, today), 'up
 assert.equal(driverJobCardTone({ ...job, status: 'accepted', pickupDate: '2026-10-15' }, today), 'active');
 assert.equal(driverJobCardTone({ ...job, status: 'to_delivery' }, today), 'active');
 assert.equal(nextStopSchedule(job, today).label, 'รับสินค้า');
+assert.equal(nextStopSchedule({ ...job, status: 'pending_subcontract' }, today).label, 'รับสินค้า');
+assert.equal(nextStopSchedule({ ...job, status: 'subcontract_accepted' }, today).label, 'รับสินค้า');
 assert.equal(nextStopSchedule(job, today).value, 'วันนี้ 09:30');
 assert.equal(nextStopSchedule({ ...job, status: 'accepted', pickupDate: '2026-10-15', pickupTime: '' }, today).value, 'พรุ่งนี้');
 assert.equal(nextStopSchedule({ ...job, pickupDate: '2026-10-16', pickupTime: '' }, today).value, 'อีก 2 วัน');

@@ -53,12 +53,16 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
   assert.match(body.messages[0].text, /คนขับ: คนขับ\nวันที่รับสินค้า: 15\/10\/2569\nจุดรับ:/);
   assert.equal(linkCreates, 0, 'LINE must reuse the link created with the job');
   assert.equal(state.status, 'sent');
+  await context.exports.notifyLineGroupOfNewJob({ params: { jobId: 'job-1' }, data: { data: () => ({ workOrder: 'JN-2', status: 'pending_subcontract', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'partner', carrierName: 'Partner', customer: 'ลูกค้า' }) } });
+  assert.match(JSON.parse(request.body).messages[0].text, /มอบหมายให้บริษัท: Partner · รอรับงาน/);
+  assert.doesNotMatch(JSON.parse(request.body).messages[0].text, /คนขับ:/);
   await context.exports.notifySubcontractContactOfNewJob({ params: { jobId: 'job-2' }, data: { data: () => ({
-    workOrder: 'JN-2', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'partner', customer: 'ลูกค้า', pickupDate: '2026-10-15'
+    workOrder: 'JN-2', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'partner', originOrganizationId: 'main', customer: 'ลูกค้า', pickupDate: '2026-10-15'
   }) } });
   const contactBody = JSON.parse(request.body);
   assert.equal(contactBody.to, contactUserId);
   assert.match(contactBody.messages[0].text, /มีใบงานใหม่ JN-2/);
+  assert.doesNotMatch(contactBody.messages[0].text, /คนขับ:/);
   assert.match(contactBody.messages[0].text, /https:\/\/sfasttransport\.vercel\.app\/track\/abcdef0123456789abcdef0123456789/);
   assert.equal(state.status, 'sent');
   console.log('PASS: LINE group and subcontract contact notifications');

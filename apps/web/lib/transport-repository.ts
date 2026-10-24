@@ -88,6 +88,7 @@ export type UserAccessUpdate = Pick<
 export type JobDraft = {
   sourceRequestId?: string;
   submissionId?: string;
+  assignedOrganizationId?: string;
   workOrder: string;
   customer: string;
   jobDate: string;
@@ -404,20 +405,31 @@ export async function submitAccessRequest(
 }
 
 export async function createJob(draft: JobDraft, actor: UserProfile) {
+  if (!isMainAdmin(actor) || actor.organizationId !== "main" || !hasApprovedAccess(actor)) throw new Error("เฉพาะบริษัทหลักเท่านั้นที่สร้างใบงานได้");
   const now = new Date().toISOString();
   const dateKey = formatJobDateKey(new Date(now));
-  const organizationId = actor.organizationId ?? "main";
-  const companySettings = await loadCompanySettings(organizationId);
-  if (!draft.driverId) throw new Error("กรุณาเลือกพนักงานขับรถจากรถและคนขับ");
-  const driverSnapshot = await getDoc(doc(db, "drivers", draft.driverId));
-  if (!driverSnapshot.exists()) throw new Error("ไม่พบข้อมูลคนขับ กรุณาเลือกใหม่");
-  const driver = driverSnapshot.data();
-  if (driver.organizationId !== organizationId || driver.status === "inactive") throw new Error("คนขับไม่พร้อมใช้งานหรือไม่ได้อยู่ในบริษัทนี้");
-  if (!driver.userUid) throw new Error("คนขับยังไม่เชื่อมบัญชีแอป กรุณาเชื่อมบัญชีในเมนูรถและคนขับก่อน");
-  const userSnapshot = await getDoc(doc(db, "users", driver.userUid));
-  const assignedUser = userSnapshot.data();
-  if (!assignedUser || !canReceiveDriverJobs(assignedUser as UserProfile, organizationId)) {
-    throw new Error("บัญชีแอปของคนขับยังไม่พร้อมรับงาน กรุณาตรวจสอบในเมนูรถและคนขับ");
+  const organizationId = draft.assignedOrganizationId || "main";
+  const subcontract = organizationId !== "main";
+  const companySettings = await loadCompanySettings("main");
+  let carrierName = companySettings.name || actor.organizationName || "S Fast Transport";
+  if (subcontract) {
+    const company = (await getDoc(doc(db, "organizations", organizationId))).data();
+    if (company?.type !== "subcontract" || company.active !== true || company.deleted === true) throw new Error("บริษัทซับไม่พร้อมรับงาน");
+    carrierName = String(company.name || organizationId);
+    if (draft.driverId || draft.vehiclePlate) throw new Error("งานของบริษัทซับต้องให้บริษัทซับมอบหมายรถและคนขับ");
+  }
+  let driver: DocumentData | undefined;
+  let assignedUser: DocumentData | undefined;
+  if (!subcontract) {
+    if (!draft.driverId) throw new Error("กรุณาเลือกพนักงานขับรถจากรถและคนขับ");
+    const driverSnapshot = await getDoc(doc(db, "drivers", draft.driverId));
+    if (!driverSnapshot.exists()) throw new Error("ไม่พบข้อมูลคนขับ กรุณาเลือกใหม่");
+    driver = driverSnapshot.data();
+    if (driver.organizationId !== organizationId || driver.status === "inactive") throw new Error("คนขับไม่พร้อมใช้งานหรือไม่ได้อยู่ในบริษัทนี้");
+    if (!driver.userUid) throw new Error("คนขับยังไม่เชื่อมบัญชีแอป กรุณาเชื่อมบัญชีในเมนูรถและคนขับก่อน");
+    const userSnapshot = await getDoc(doc(db, "users", driver.userUid));
+    assignedUser = userSnapshot.data();
+    if (!assignedUser || !canReceiveDriverJobs(assignedUser as UserProfile, organizationId)) throw new Error("บัญชีแอปของคนขับยังไม่พร้อมรับงาน กรุณาตรวจสอบในเมนูรถและคนขับ");
   }
 
   for (const side of ["pickup", "delivery"] as const) {
@@ -427,8 +439,9 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       throw new Error(`กรุณาระบุชื่อและเบอร์โทรผู้ติดต่อ${side === "pickup" ? "จุดรับ" : "จุดส่ง"}ให้ครบถ้วน`);
     }
   }
-  const customerId = organizationId === "main" && !draft.sourceRequestId ? await resolveCustomerId(draft.customer, actor) : null;
+  const customerId = !draft.sourceRequestId ? await resolveCustomerId(draft.customer, actor) : null;
   const { pickupPlace, deliveryPlace, returnTrip, submissionId, ...jobFields } = draft;
+  delete jobFields.assignedOrganizationId;
   const checkedReturnTrip = validateReturnTrip(returnTrip, draft.deliveryDate, draft.deliveryTime);
   const jobRef = submissionId ? doc(db, "today_jobs", submissionId) : doc(collection(db, "today_jobs"));
   const trackingToken = crypto.randomUUID().replaceAll("-", "");
@@ -470,13 +483,16 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       ...(deliveryPlace ? { deliveryPlace } : {}),
       ...(checkedReturnTrip ? { returnTrip: checkedReturnTrip, activeLeg: 1 } : {}),
       workOrder: nextWorkOrder,
-      assignedDriverUid: driver.userUid,
-      driverName: assignedUser.fullName || driver.name,
-      driverPhone: assignedUser.phone || driver.phone || "",
+      ...(subcontract ? { driverId: "", driverName: "", driverPhone: "", vehiclePlate: "" } : {
+        assignedDriverUid: driver!.userUid,
+        driverName: assignedUser!.fullName || driver!.name,
+        driverPhone: assignedUser!.phone || driver!.phone || ""
+      }),
       organizationId,
+      originOrganizationId: "main",
       trackingShareToken: trackingToken,
-      carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
-      status: "assigned",
+      carrierName,
+      status: subcontract ? "pending_subcontract" : "assigned",
       trackingStatus: "not_started",
       trackingEnabled: false,
       lastUpdatedMinutes: 0,
@@ -492,13 +508,13 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       expiresAt: trackingExpiresAt,
       workOrder: nextWorkOrder,
       customerName: draft.customer,
-      statusLabel: statusLabels.assigned,
+      statusLabel: statusLabels[subcontract ? "pending_subcontract" : "assigned"],
       pickupLocation: draft.pickupLocation,
       deliveryLocation: draft.deliveryLocation,
       ...(pickupPlace ? { pickupPlace } : {}),
       ...(deliveryPlace ? { deliveryPlace } : {}),
-      vehicleLabel: draft.vehiclePlate,
-      carrierName: companySettings.name || actor.organizationName || "S Fast Transport",
+      vehicleLabel: subcontract ? "ยังไม่มอบหมาย" : draft.vehiclePlate,
+      carrierName,
       eta: draft.eta,
       lastUpdatedAt: now,
       currentLocation: { lat: defaultLocation.lat, lng: defaultLocation.lng },
@@ -520,6 +536,54 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     }
   }
   return { workOrder: result.workOrder, trackingToken: result.trackingToken } satisfies CreatedJob;
+}
+
+export async function acceptSubcontractJob(jobId: string, actor: UserProfile) {
+  if (!hasApprovedAccess(actor) || actor.role !== "subcontract_admin" || !actor.organizationId) throw new Error("ไม่มีสิทธิ์รับงานนี้");
+  const jobRef = doc(db, "today_jobs", jobId);
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+    const job = snapshot.data();
+    if (job.originOrganizationId !== "main" || job.organizationId !== actor.organizationId || job.status !== "pending_subcontract" || job.deletedAt) throw new Error("งานนี้ไม่พร้อมให้รับแล้ว");
+    const linkRef = job.trackingShareToken ? doc(db, "tracking_share_links", job.trackingShareToken) : null;
+    const link = linkRef ? await transaction.get(linkRef) : null;
+    transaction.update(jobRef, { status: "subcontract_accepted", acceptedByUid: actor.uid, acceptedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    if (linkRef && link?.exists()) transaction.update(linkRef, { statusLabel: statusLabels.subcontract_accepted, updatedAt: serverTimestamp() });
+    transaction.set(eventRef, { jobId, organizationId: actor.organizationId, type: "subcontract_accepted", message: "บริษัทซับรับงานแล้ว", actorUid: actor.uid, actorName: actor.displayName, timestamp: serverTimestamp() });
+  });
+}
+
+export async function assignSubcontractJob(jobId: string, driverId: string, vehicleId: string, actor: UserProfile) {
+  if (!hasApprovedAccess(actor) || actor.role !== "subcontract_admin" || !actor.organizationId) throw new Error("ไม่มีสิทธิ์มอบหมายงานนี้");
+  const organizationId = actor.organizationId;
+  if (!driverId || !vehicleId) throw new Error("กรุณาเลือกรถและคนขับ");
+  const jobRef = doc(db, "today_jobs", jobId);
+  const driverRef = doc(db, "drivers", driverId);
+  const vehicleRef = doc(db, "vehicles", vehicleId);
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async transaction => {
+    const [jobSnapshot, driverSnapshot, vehicleSnapshot] = await Promise.all([transaction.get(jobRef), transaction.get(driverRef), transaction.get(vehicleRef)]);
+    if (!jobSnapshot.exists() || !driverSnapshot.exists() || !vehicleSnapshot.exists()) throw new Error("ไม่พบใบงาน รถ หรือคนขับ");
+    const job = jobSnapshot.data();
+    const driver = driverSnapshot.data();
+    const vehicle = vehicleSnapshot.data();
+    if (job.originOrganizationId !== "main" || job.organizationId !== actor.organizationId || job.status !== "subcontract_accepted" || job.deletedAt) throw new Error("งานนี้ไม่พร้อมมอบหมายแล้ว");
+    if (driver.organizationId !== actor.organizationId || !["available", "assigned"].includes(driver.status) || !driver.userUid) throw new Error("คนขับไม่พร้อมใช้งานหรือไม่ได้อยู่ในบริษัทนี้");
+    if (vehicle.organizationId !== actor.organizationId || !["available", "assigned"].includes(vehicle.status)) throw new Error("รถไม่พร้อมใช้งานหรือไม่ได้อยู่ในบริษัทนี้");
+    if (driver.assignedVehicleId && driver.assignedVehicleId !== vehicleId) throw new Error("รถที่เลือกไม่ตรงกับรถประจำของคนขับ");
+    const userSnapshot = await transaction.get(doc(db, "users", driver.userUid));
+    const user = userSnapshot.data();
+    if (!user || !canReceiveDriverJobs(user as UserProfile, organizationId)) throw new Error("บัญชีคนขับยังไม่พร้อมรับงาน");
+    const linkRef = job.trackingShareToken ? doc(db, "tracking_share_links", job.trackingShareToken) : null;
+    const link = linkRef ? await transaction.get(linkRef) : null;
+    const vehiclePlate = String(vehicle.plate || "");
+    if (!vehiclePlate) throw new Error("รถที่เลือกไม่มีทะเบียนรถ");
+    transaction.update(jobRef, { status: "assigned", driverId, vehicleId, vehiclePlate, assignedDriverUid: driver.userUid, driverName: user.fullName || driver.name, driverPhone: user.phone || driver.phone || "", updatedAt: serverTimestamp() });
+    if (linkRef && link?.exists()) transaction.update(linkRef, { statusLabel: statusLabels.assigned, vehicleLabel: vehiclePlate, updatedAt: serverTimestamp() });
+    transaction.set(eventRef, { jobId, organizationId: actor.organizationId, type: "subcontract_assigned", message: `มอบหมายรถ ${vehiclePlate} และคนขับ ${user.fullName || driver.name}`, actorUid: actor.uid, actorName: actor.displayName, timestamp: serverTimestamp() });
+  });
 }
 
 export async function saveJobRouteDistance(jobId: string, distanceMeters: number, fingerprint: string, actor: UserProfile) {
@@ -1121,6 +1185,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     currentLocation,
     alerts: Array.isArray(data.alerts) ? data.alerts : [],
     organizationId: data.organizationId ?? undefined,
+    originOrganizationId: data.originOrganizationId ?? undefined,
     cargoType: data.cargoType ?? undefined,
     vehicleType: data.vehicleType ?? undefined,
     driverId: data.driverId ?? undefined,

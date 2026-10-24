@@ -36,6 +36,7 @@ export default function JobEditor({
   const [driverError, setDriverError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const organizationId = job.organizationId ?? actor.organizationId ?? "main";
+  const awaitingSubcontract = job.status === "pending_subcontract" || job.status === "subcontract_accepted";
 
   useEffect(() => {
     const stopDrivers = subscribeDrivers(organizationId, items => { setDrivers(items); setDriversReady(true); }, message => setDriverError(message));
@@ -99,17 +100,15 @@ export default function JobEditor({
     <section className="job-edit-section"><label className="return-trip-toggle"><input type="checkbox" checked={Boolean(draft.returnTrip)} disabled={Boolean(job.status === "completed" || job.status === "cancelled" || job.activeLeg === 2 || job.returnPickupProof || job.returnDeliveryProof)} onChange={event => setDraft(current => ({ ...current, returnTrip: event.target.checked ? initialReturnTrip(current) : undefined }))} /> รับสินค้ากลับ</label>{draft.returnTrip && <ReturnTripFields value={draft.returnTrip} onChange={returnTrip => update("returnTrip", returnTrip)} organizationId={organizationId} actor={actor} />}</section>
 
     <section className="job-edit-section">
-      <h4>รถ คนขับ และกำหนดการ</h4>
+      <h4>{awaitingSubcontract ? "กำหนดการและหมายเหตุ" : "รถ คนขับ และกำหนดการ"}</h4>
       <div className="job-edit-grid">
-        <EditField label="พนักงานขับรถ"><select required value={selectedDriverId} disabled={!driverDataReady || busy} onChange={event => update("driverId", event.target.value)}><option value="">{driverDataReady ? "เลือกพนักงานขับรถ" : "กำลังโหลดคนขับ…"}</option>{currentDriverMissing && <option value={selectedDriverId}>{job.driverName} (ข้อมูลปัจจุบัน)</option>}{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}</EditField>
-        <EditField label="เบอร์ติดต่อ"><input value={formatPhoneNumber(selectedDriver?.phone || job.driverPhone)} readOnly /></EditField>
-        <EditField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={value => update("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={actor} /></EditField>
+        {!awaitingSubcontract && <><EditField label="พนักงานขับรถ"><select required value={selectedDriverId} disabled={!driverDataReady || busy} onChange={event => update("driverId", event.target.value)}><option value="">{driverDataReady ? "เลือกพนักงานขับรถ" : "กำลังโหลดคนขับ…"}</option>{currentDriverMissing && <option value={selectedDriverId}>{job.driverName} (ข้อมูลปัจจุบัน)</option>}{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}</EditField><EditField label="เบอร์ติดต่อ"><input value={formatPhoneNumber(selectedDriver?.phone || job.driverPhone)} readOnly /></EditField><EditField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={value => update("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={actor} /></EditField></>}
         <EditField label="กำหนดถึง (ETA)"><input maxLength={100} value={draft.eta} onChange={event => update("eta", event.target.value)} /></EditField>
         <EditField label="หมายเหตุ" wide><textarea rows={4} maxLength={2000} value={draft.notes} onChange={event => update("notes", event.target.value)} /></EditField>
       </div>
     </section>
 
-    <div className="job-edit-actions"><button className="primary" type="submit" disabled={busy || !driverDataReady || !selectedDriverId}><Save size={17} /> บันทึกการแก้ไข</button></div>
+    <div className="job-edit-actions"><button className="primary" type="submit" disabled={busy || (!awaitingSubcontract && (!driverDataReady || !selectedDriverId))}><Save size={17} /> บันทึกการแก้ไข</button></div>
 
     {canDelete && <section className="job-delete-zone">
       <div><strong>ลบใบงาน</strong><p>นำใบงานออกจากรายการ หยุดติดตาม และปิดลิงก์สาธารณะ โดยยังเก็บหลักฐานไว้สำหรับตรวจสอบ</p></div>

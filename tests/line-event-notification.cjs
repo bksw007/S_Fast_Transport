@@ -85,5 +85,11 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
   await context.exports.notifyLineGroupOfCustomerRequest(retryEvent);
   assert.equal(requests[2].headers['X-Line-Retry-Key'], requests[3].headers['X-Line-Retry-Key'], 'retry must reuse the same LINE key');
   assert.equal(documents.get('line_event_notifications/customer_request_request-2').status, 'sent');
+  const subcontractEvent = { params: { eventId: 'partner-1' }, data: { data: () => ({ type: 'subcontract_assigned', jobId: 'job-1' }) } };
+  await context.exports.notifyLineGroupOfSubcontractAssignment(subcontractEvent);
+  assert.match(JSON.parse(requests[4].body).messages[0].text, /บริษัทซับมอบหมายรถและคนขับแล้ว/);
+  assert.match(JSON.parse(requests[4].body).messages[0].text, /ใบงาน: JN-1/);
+  await context.exports.notifyLineGroupOfSubcontractAssignment(subcontractEvent);
+  assert.equal(requests.length, 5, 'a retried assignment must not send twice');
   console.log('PASS: LINE driver and customer notifications are formatted and retried without duplicates');
 })().catch(error => { console.error(error); process.exitCode = 1; });

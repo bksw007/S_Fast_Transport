@@ -11,7 +11,7 @@ const firestore = {
   where: (_field, _operator, value) => value,
   limit: value => value,
   query: (name, organizationId) => ({ name, organizationId }),
-  getDocs: async ({ name }) => ({ empty: name !== linked }),
+  getDocs: async ({ name }) => ({ empty: name !== linked, docs: name === 'today_jobs' && linked === 'today_jobs' ? [{ data: () => ({ status: 'pending_subcontract' }) }] : [] }),
   updateDoc: async (path, data) => { update = { path, data }; },
   serverTimestamp: () => 'NOW'
 };
@@ -31,6 +31,9 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/resource-rep
   const actor = { organizationId: 'main', organizationType: 'main', uid: 'admin' };
   linked = 'users';
   await assert.rejects(context.exports.deleteSubcontractOrganization('partner', actor), /บัญชีผู้ใช้/);
+  assert.equal(update, undefined);
+  linked = 'today_jobs';
+  await assert.rejects(context.exports.deleteSubcontractOrganization('partner', actor), /ใบงานที่ไม่จบ/);
   assert.equal(update, undefined);
   linked = '';
   await context.exports.deleteSubcontractOrganization('partner', actor);

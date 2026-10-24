@@ -1,4 +1,6 @@
 export type JobStatus =
+  | "pending_subcontract"
+  | "subcontract_accepted"
   | "assigned"
   | "accepted"
   | "to_pickup"
@@ -93,6 +95,7 @@ export type TransportJob = {
   currentLocation: LocationPoint;
   alerts: string[];
   organizationId?: string;
+  originOrganizationId?: string;
   carrierName?: string;
   cargoType?: string;
   vehicleType?: string;
@@ -175,6 +178,8 @@ export type TimelineEvent = {
 };
 
 export const statusLabels: Record<JobStatus, string> = {
+  pending_subcontract: "รอบริษัทซับรับงาน",
+  subcontract_accepted: "บริษัทซับรับงานแล้ว · รอมอบหมายรถและคนขับ",
   assigned: "มอบหมายแล้ว",
   accepted: "รับงานแล้ว",
   to_pickup: "กำลังไปจุดรับ",
@@ -214,7 +219,8 @@ export const adminMenu = [
   "โปรไฟล์",
   "Settings",
   "สมุดรายชื่อ",
-  "รายการเบิกค่าใช้จ่าย"
+  "รายการเบิกค่าใช้จ่าย",
+  "งานที่ได้รับมอบหมาย"
 ] as const;
 
 export const driverMenu = [

@@ -377,16 +377,57 @@ service cloud.firestore {
 
     match /today_jobs/{jobId} {
       allow read: if activeUser() && canReadJob(resource.data);
-      allow create: if isMainAdmin()
-        || (isSubcontractAdmin() && sameOrganization(request.resource.data)
-          && !request.resource.data.keys().hasAny(["customerId"]));
-      allow delete: if isMainAdmin()
-        || (isSubcontractAdmin() && sameOrganization(resource.data));
+      allow create: if isMainCompanyAdmin()
+        && (
+          (request.resource.data.organizationId == "main"
+            && request.resource.data.status == "assigned"
+            && request.resource.data.get("originOrganizationId", "main") == "main")
+          || (request.resource.data.organizationId != "main"
+            && request.resource.data.originOrganizationId == "main"
+            && get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.type == "subcontract"
+            && get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.active == true
+            && get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.get("deleted", false) == false
+            && request.resource.data.status == "pending_subcontract"
+            && !request.resource.data.keys().hasAny(["assignedDriverUid"]))
+        );
+      allow delete: if isMainCompanyAdmin();
       allow update: if isMainAdmin()
         || (
           isSubcontractAdmin()
           && sameOrganization(resource.data)
           && request.resource.data.organizationId == resource.data.organizationId
+          && request.resource.data.get("originOrganizationId", "") == resource.data.get("originOrganizationId", "")
+          && (
+            (resource.data.status == "pending_subcontract"
+              && resource.data.originOrganizationId == "main"
+              && request.resource.data.status == "subcontract_accepted"
+              && request.resource.data.acceptedByUid == request.auth.uid
+              && request.resource.data.acceptedAt == request.time
+              && request.resource.data.updatedAt == request.time
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "acceptedByUid", "acceptedAt", "updatedAt"]))
+            || (resource.data.status == "subcontract_accepted"
+              && resource.data.originOrganizationId == "main"
+              && request.resource.data.status == "assigned"
+              && request.resource.data.updatedAt == request.time
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "driverId", "vehicleId", "vehiclePlate", "assignedDriverUid", "driverName", "driverPhone", "updatedAt"])
+              && get(/databases/$(database)/documents/drivers/$(request.resource.data.driverId)).data.organizationId == organizationId()
+              && get(/databases/$(database)/documents/drivers/$(request.resource.data.driverId)).data.status in ["available", "assigned"]
+              && get(/databases/$(database)/documents/drivers/$(request.resource.data.driverId)).data.userUid == request.resource.data.assignedDriverUid
+              && get(/databases/$(database)/documents/drivers/$(request.resource.data.driverId)).data.get("assignedVehicleId", "") in ["", request.resource.data.vehicleId]
+              && get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.organizationId == organizationId()
+              && get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.status in ["available", "assigned"]
+              && get(/databases/$(database)/documents/vehicles/$(request.resource.data.vehicleId)).data.plate == request.resource.data.vehiclePlate
+              && get(/databases/$(database)/documents/users/$(request.resource.data.assignedDriverUid)).data.organizationId == organizationId()
+              && get(/databases/$(database)/documents/users/$(request.resource.data.assignedDriverUid)).data.active == true
+              && get(/databases/$(database)/documents/users/$(request.resource.data.assignedDriverUid)).data.approvalStatus == "approved")
+            || (!(resource.data.status in ["pending_subcontract", "subcontract_accepted"])
+              && !(request.resource.data.status in ["pending_subcontract", "subcontract_accepted"])
+              && (resource.data.get("originOrganizationId", "") != "main"
+                || (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["deletedAt", "deletedByUid", "deletedByName"])
+                  && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["status"])
+                    || (resource.data.status == "problem"
+                      && request.resource.data.status == resource.data.issuePreviousStatus)))))
+          )
           && (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(["customerId"])
             || (

@@ -55,8 +55,9 @@ export function groupReportJobs(jobs: TransportJob[], groupBy: GroupBy, now: num
   const groups = new Map<string, { label: string; company: string; jobs: TransportJob[] }>();
   for (const job of jobs) {
     const company = job.carrierName || job.organizationId || "ไม่ระบุบริษัท";
-    const label = groupBy === "vehicle" ? job.vehiclePlate : groupBy === "driver" ? job.driverName : groupBy === "company" ? company : job.customer;
-    const identity = groupBy === "driver" ? job.assignedDriverUid || job.driverName : groupBy === "company" ? job.organizationId || company : label;
+    const waiting = job.status === "pending_subcontract" || job.status === "subcontract_accepted";
+    const label = groupBy === "vehicle" ? waiting ? "ยังไม่มอบหมายรถ" : job.vehiclePlate : groupBy === "driver" ? waiting ? "ยังไม่มอบหมายคนขับ" : job.driverName : groupBy === "company" ? company : job.customer;
+    const identity = groupBy === "driver" ? waiting ? "unassigned" : job.assignedDriverUid || job.driverName : groupBy === "company" ? job.organizationId || company : label;
     const key = JSON.stringify([groupBy === "customer" ? "" : job.organizationId || company, identity]);
     const group = groups.get(key) || { label, company: groupBy === "customer" ? "ทุกบริษัทที่เลือก" : company, jobs: [] };
     group.jobs.push(job);

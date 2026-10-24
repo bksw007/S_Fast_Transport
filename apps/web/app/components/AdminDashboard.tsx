@@ -7,7 +7,7 @@ import { bangkokDateKey, nextStopSchedule } from "@/lib/job-card-schedule";
 
 type Filter = "all" | "active" | "attention" | "completed" | "cancelled";
 const filters: { id: Filter; label: string }[] = [
-  { id: "all", label: "ทั้งหมด" }, { id: "active", label: "กำลังดำเนินงาน" },
+  { id: "all", label: "ทั้งหมด" }, { id: "active", label: "ยังไม่เสร็จ" },
   { id: "attention", label: "ต้องติดตาม" }, { id: "completed", label: "เสร็จงาน" }, { id: "cancelled", label: "ยกเลิก" }
 ];
 const isActive = (job: TransportJob) => job.status !== "completed" && job.status !== "cancelled";
@@ -83,7 +83,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   }
   const metrics = [
     { id: "all" as const, label: "ใบงานทั้งหมด", hint: "งานที่คุณมีสิทธิ์ดู", value: counts.all, icon: ListChecks },
-    { id: "active" as const, label: "กำลังดำเนินงาน", hint: "งานปกติที่ยังไม่เสร็จ", value: counts.active, icon: Truck },
+    { id: "active" as const, label: "ยังไม่เสร็จ", hint: "รวมงานรอบริษัทซับรับและมอบหมาย", value: counts.active, icon: Truck },
     { id: "attention" as const, label: "ต้องติดตาม", hint: "งานมีปัญหาหรือแจ้งเตือน", value: counts.attention, icon: AlertTriangle },
     { id: "completed" as const, label: "เสร็จงานแล้ว", hint: "ปิดงานเรียบร้อย", value: counts.completed, icon: CheckCircle2 }
   ];
@@ -101,7 +101,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
 
     <section className="dashboard-progress" aria-label="สัดส่วนสถานะงาน">
       <div className="dashboard-progress-copy"><span className="dashboard-section-kicker">ภาพรวมความคืบหน้า</span><h2>{ready ? `${completedPercent}%` : "—"}<small>เสร็จงานแล้ว</small></h2><p>เทียบกับใบงานทั้งหมด {ready ? counts.all.toLocaleString("th-TH") : "—"} งาน</p></div>
-      <div className="dashboard-progress-chart"><div className="dashboard-status-bar" role="img" aria-label={ready ? `เสร็จ ${counts.completed} งาน กำลังดำเนินงาน ${counts.active} งาน ต้องติดตาม ${counts.attention} งาน ยกเลิก ${counts.cancelled} งาน` : "ยังไม่มีข้อมูลสรุป"}>
+      <div className="dashboard-progress-chart"><div className="dashboard-status-bar" role="img" aria-label={ready ? `เสร็จ ${counts.completed} งาน ยังไม่เสร็จ ${counts.active} งาน ต้องติดตาม ${counts.attention} งาน ยกเลิก ${counts.cancelled} งาน` : "ยังไม่มีข้อมูลสรุป"}>
         {ready && counts.all > 0 && <><span className="completed" style={{ width: `${counts.completed / counts.all * 100}%` }} /><span className="active" style={{ width: `${counts.active / counts.all * 100}%` }} /><span className="attention" style={{ width: `${counts.attention / counts.all * 100}%` }} /><span className="cancelled" style={{ width: `${counts.cancelled / counts.all * 100}%` }} /></>}
       </div><div className="dashboard-legend">{(["completed", "active", "attention", "cancelled"] as const).map(id => <button key={id} disabled={!ready} onClick={() => selectFilter(id)}><span className={id} />{filters.find(item => item.id === id)?.label}<strong>{ready ? counts[id] : "—"}</strong></button>)}</div></div>
     </section>

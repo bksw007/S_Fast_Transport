@@ -88,6 +88,23 @@ export const notifyLineGroupOfDriverIssue = onDocumentCreated({
   await sendLineEventOnce(`driver_issue_${event.params.eventId}`, message);
 });
 
+export const notifyLineGroupOfSubcontractAssignment = onDocumentCreated({
+  document: "job_events/{eventId}", region: "asia-southeast1",
+  secrets: [lineChannelAccessToken], retry: true
+}, async event => {
+  const change = event.data?.data();
+  if (!change?.jobId || !["subcontract_accepted", "subcontract_assigned"].includes(change.type)) return;
+  const job = (await db.collection("today_jobs").doc(String(change.jobId)).get()).data();
+  const message = [
+    change.type === "subcontract_accepted" ? "✅ บริษัทซับรับงานแล้ว" : "🚚 บริษัทซับมอบหมายรถและคนขับแล้ว",
+    `ใบงาน: ${lineText(job?.workOrder)}`,
+    `บริษัท: ${lineText(job?.carrierName)}`,
+    ...(change.type === "subcontract_assigned" ? [`รถ: ${lineText(job?.vehiclePlate)}`, `คนขับ: ${lineText(job?.driverName)}`] : []),
+    `เปิดระบบ: ${SITE_URL}/`
+  ].join("\n");
+  await sendLineEventOnce(`subcontract_${event.params.eventId}`, message);
+});
+
 export const notifyLineGroupOfCustomerRequest = onDocumentCreated({
   document: "customer_job_requests/{requestId}", region: "asia-southeast1",
   secrets: [lineChannelAccessToken], retry: true
@@ -174,7 +191,7 @@ export const notifyLineGroupOfNewJob = onDocumentCreated({
   }
 
   const url = `${SITE_URL}/track/${notification.token}`;
-  const message = `สร้างใบงาน ${String(job.workOrder)} แล้ว\nลูกค้า: ${String(job.customer ?? "-")}\nคนขับ: ${String(job.driverName ?? "-")}\nวันที่รับสินค้า: ${thaiDate(job.pickupDate)}\nจุดรับ: ${String(job.pickupLocation ?? "-")}\nจุดส่ง: ${String(job.deliveryLocation ?? "-")}\nติดตามสถานะ: ${url}`;
+  const message = `สร้างใบงาน ${String(job.workOrder)} แล้ว\nลูกค้า: ${String(job.customer ?? "-")}\n${job.status === "pending_subcontract" ? `มอบหมายให้บริษัท: ${String(job.carrierName ?? "-")} · รอรับงาน` : `คนขับ: ${String(job.driverName ?? "-")}`}\nวันที่รับสินค้า: ${thaiDate(job.pickupDate)}\nจุดรับ: ${String(job.pickupLocation ?? "-")}\nจุดส่ง: ${String(job.deliveryLocation ?? "-")}\nติดตามสถานะ: ${url}`;
   const response = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
     headers: {
@@ -199,14 +216,13 @@ export const notifySubcontractContactOfNewJob = onDocumentCreated({
   secrets: [lineChannelAccessToken], retry: true
 }, async event => {
   const job = event.data?.data();
-  if (!job?.workOrder || !job.organizationId || job.organizationId === "main") return;
+  if (!job?.workOrder || job.originOrganizationId !== "main" || !job.organizationId || job.organizationId === "main") return;
   const organization = (await db.collection("organizations").doc(String(job.organizationId)).get()).data();
   const recipient = organization?.lineUserId;
   if (organization?.deleted === true || typeof recipient !== "string" || !/^U[0-9a-f]{32}$/i.test(recipient)) return;
   const message = [
-    `มีใบงานใหม่ ${lineText(job.workOrder)}`,
+    `มีใบงานใหม่ ${lineText(job.workOrder)} · กรุณารับงาน`,
     `ลูกค้า: ${lineText(job.customer)}`,
-    `คนขับ: ${lineText(job.driverName)}`,
     `วันที่รับสินค้า: ${thaiDate(job.pickupDate)}`,
     `จุดรับ: ${lineText(job.pickupLocation)}`,
     `จุดส่ง: ${lineText(job.deliveryLocation)}`,

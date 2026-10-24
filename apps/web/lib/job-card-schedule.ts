@@ -15,7 +15,7 @@ function relativeSchedule(date?: string, time?: string, today = bangkokDateKey()
 export function nextStopSchedule(job: TransportJob, today = bangkokDateKey()) {
   const status = job.status === "problem" ? job.issuePreviousStatus || "assigned" : job.status;
   const route = job.returnTrip && job.activeLeg === 2 ? job.returnTrip : job;
-  const pickup = ["assigned", "accepted", "to_pickup", "arrived_pickup", "loading"].includes(status);
+  const pickup = ["pending_subcontract", "subcontract_accepted", "assigned", "accepted", "to_pickup", "arrived_pickup", "loading"].includes(status);
   return { label: pickup ? "รับสินค้า" : "ส่งสินค้า", value: relativeSchedule(pickup ? route.pickupDate : route.deliveryDate, pickup ? route.pickupTime : route.deliveryTime, today) };
 }
 

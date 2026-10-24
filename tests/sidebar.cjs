@@ -16,7 +16,7 @@ function nodes(node) { if (!node || typeof node !== 'object') return []; return 
 function menu(mode, role, pendingAccessCount = 3, unresolvedIssueCount = 2) { return nodes(context.SectionMenu({ open: true, mode, user: { email: 'test@example.com' }, profile: { role }, statusMessage: 'Ready', pendingAccessCount, unresolvedIssueCount, adminScreen: 'Dashboard', driverScreen: 'งานของฉัน', onNavigate: () => { closed = true; }, onAdminScreenChange: value => { selected = value; }, onDriverScreenChange: value => { selected = value; }, onEnterDriverMode: () => { enteredDriver = true; }, onLeaveDriverMode: () => { leftDriver = true; } })); }
 let rendered = menu('admin', 'admin');
 let links = rendered.filter(n => n.type === 'button' && n.props.title);
-assert.equal(links.length, shared.exports.adminMenu.length + 2); // Navigation entries, admin driver, and sign out.
+assert.equal(links.length, shared.exports.adminMenu.length + 1); // Subcontract-only entry is hidden from main admins.
 assert.equal(rendered.filter(n => n.props?.className === 'sidebar-alert-dot').length, 2, 'pending issues and access requests each show a red dot');
 assert.ok(links.some(n => n.props['aria-label'] === 'แจ้งเตือน 2 งานรอดำเนินการ'));
 assert.ok(links.some(n => n.props['aria-label'] === 'จัดการผู้ใช้งาน 3 คำขอรออนุมัติ'));
@@ -37,6 +37,8 @@ assert.equal(selected, 'User Management'); assert.equal(closed, true);
 rendered.find(n => n.props?.['aria-label'] === 'ออกจากระบบ').props.onClick(); assert.equal(signedOut, true);
 rendered = menu('admin', 'subcontract_admin');
 assert.ok(!rendered.some(n => n.props?.title === 'สิทธิ์ Google Login' || n.props?.title === 'ซับคอนแท็ค' || n.props?.title === 'ลูกค้าและลิงก์ติดตาม'));
+for (const hidden of ['สร้างและจัดการงาน', 'คลังชื่อ ลิงก์ และพิกัดแผนที่', 'ผู้ติดต่อจุดรับและจุดส่ง', 'ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง']) assert.ok(!rendered.some(n => n.props?.title === hidden));
+assert.ok(rendered.some(n => n.props?.title === 'รับงานจากบริษัทหลักและมอบหมายรถกับคนขับ'));
 rendered = menu('driver', 'driver');
 assert.equal(rendered.filter(n => n.type === 'button' && n.props.title).length, 8);
 assert.ok(rendered.some(n => n.props?.title === 'สรุปงานวิ่งและค่าใช้จ่ายรายเดือน'));

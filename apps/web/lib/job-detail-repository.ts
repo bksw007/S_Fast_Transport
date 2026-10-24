@@ -35,15 +35,15 @@ export async function saveJobSettings(job: TransportJob, settings: JobSettings, 
     const snapshot = await transaction.get(jobRef);
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const current = snapshot.data();
-    if (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId)) throw new Error("ไม่มีสิทธิ์แก้ไขงานนี้");
+    assertCurrentJobAccess(current, actor);
     transaction.update(jobRef, { ...settings, updatedAt: serverTimestamp() });
     transaction.set(eventRef, { jobId: job.id, type: "settings_updated", message: "แก้ไขเบอร์ติดต่อ กำหนดถึง และหมายเหตุ", actorUid: actor.uid, actorName: actor.displayName, organizationId: current.organizationId, timestamp: serverTimestamp() });
   });
 }
 
-export function canAdministerJob(job: Pick<TransportJob, "organizationId">, actor: UserProfile) {
+export function canAdministerJob(job: Pick<TransportJob, "organizationId" | "status">, actor: UserProfile) {
   return hasApprovedAccess(actor)
-    && (isMainAdmin(actor) || (actor.role === "subcontract_admin" && actor.organizationId === job.organizationId));
+    && (isMainAdmin(actor) || (actor.role === "subcontract_admin" && actor.organizationId === job.organizationId && !["pending_subcontract", "subcontract_accepted"].includes(job.status)));
 }
 
 export async function resolveDriverIssue(job: TransportJob, note: string, actor: UserProfile) {
@@ -68,7 +68,7 @@ export async function resolveDriverIssue(job: TransportJob, note: string, actor:
 }
 
 function assertCurrentJobAccess(current: DocumentData, actor: UserProfile) {
-  if (!hasApprovedAccess(actor) || (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId))) {
+  if (!hasApprovedAccess(actor) || (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId && !["pending_subcontract", "subcontract_accepted"].includes(current.status)))) {
     throw new Error("ไม่มีสิทธิ์จัดการใบงานนี้");
   }
 }
@@ -125,9 +125,11 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
   const initial = initialSnapshot.data();
   assertCurrentJobAccess(initial, actor);
   const organizationId = String(initial.organizationId ?? "main");
+  const awaitingSubcontract = ["pending_subcontract", "subcontract_accepted"].includes(initial.status);
   const customerId = actor.organizationId === "main" ? await resolveCustomerId(values.customer, actor) : null;
-  if (!values.driverId && !initial.assignedDriverUid) throw new Error("กรุณาเลือกพนักงานขับรถ");
-  const assignment = values.driverId && values.driverId !== initial.driverId
+  if (awaitingSubcontract && values.driverId) throw new Error("กรุณามอบหมายคนขับผ่านเมนูงานที่ได้รับมอบหมาย");
+  if (!awaitingSubcontract && !values.driverId && !initial.assignedDriverUid) throw new Error("กรุณาเลือกพนักงานขับรถ");
+  const assignment = !awaitingSubcontract && values.driverId && values.driverId !== initial.driverId
     ? await loadDriverAssignment(values.driverId, organizationId)
     : null;
   const eventRef = doc(collection(db, "job_events"));
@@ -138,6 +140,7 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
     const current = snapshot.data();
     assertCurrentJobAccess(current, actor);
     if (String(current.organizationId ?? "main") !== organizationId) throw new Error("บริษัทของใบงานมีการเปลี่ยนแปลง กรุณาเปิดใหม่");
+    if (current.status !== initial.status && awaitingSubcontract) throw new Error("สถานะงานเปลี่ยนแล้ว กรุณาเปิดใหม่");
     if (current.status === "completed" && Boolean(current.returnTrip) !== Boolean(values.returnTrip)) throw new Error("งานเสร็จแล้ว ไม่สามารถเปลี่ยนการรับสินค้ากลับได้");
     if (current.returnTrip && !values.returnTrip && (current.activeLeg === 2 || current.returnPickupProof || current.returnDeliveryProof)) throw new Error("เริ่มงานขากลับแล้ว ไม่สามารถยกเลิกรับสินค้ากลับได้");
     const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(values.pickupPlace, values.deliveryPlace);
@@ -194,6 +197,7 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
 }
 
 export async function deleteJob(job: TransportJob, actor: UserProfile) {
+  if (job.originOrganizationId === "main" && !isMainAdmin(actor)) throw new Error("เฉพาะบริษัทหลักเท่านั้นที่ลบใบงานนี้ได้");
   if (!canAdministerJob(job, actor)) throw new Error("เฉพาะแอดมินที่ดูแลใบงานนี้เท่านั้นที่ลบได้");
   const jobRef = doc(db, "today_jobs", job.id);
   const eventRef = doc(collection(db, "job_events"));
@@ -203,6 +207,7 @@ export async function deleteJob(job: TransportJob, actor: UserProfile) {
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const current = snapshot.data();
     assertCurrentJobAccess(current, actor);
+    if (current.originOrganizationId === "main" && !isMainAdmin(actor)) throw new Error("เฉพาะบริษัทหลักเท่านั้นที่ลบใบงานนี้ได้");
     organizationId = String(current.organizationId ?? "main");
     transaction.update(jobRef, {
       deletedAt: serverTimestamp(),

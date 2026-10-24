@@ -76,7 +76,7 @@ function visibleOrders() { return nodes().filter(n => n.props?.className === 'da
 function selectTab(label) { nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(label)).props.onClick(); render(datedJobs); }
 slots = []; render(datedJobs); find(n => n.type === 'select' && n.props?.value === currentMonth).props.onChange({ target: { value: 'all' } }); render(datedJobs);
 assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-new-completed', 'WO-new-cancelled', 'WO-old-attention', 'WO-older-active', 'WO-old-completed', 'WO-old-cancelled', 'WO-undated']);
-selectTab('กำลังดำเนินงาน'); assert.deepEqual(visibleOrders(), ['WO-older-active', 'WO-undated']);
+selectTab('ยังไม่เสร็จ'); assert.deepEqual(visibleOrders(), ['WO-older-active', 'WO-undated']);
 selectTab('ต้องติดตาม'); assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-old-attention']);
 selectTab('เสร็จงาน'); assert.deepEqual(visibleOrders(), ['WO-new-completed', 'WO-old-completed']);
 selectTab('ยกเลิก'); assert.deepEqual(visibleOrders(), ['WO-new-cancelled', 'WO-old-cancelled']);
@@ -94,7 +94,7 @@ assert.ok(renderToStaticMarkup(tree).includes('ETA รับสินค้า �
 assert.ok(renderToStaticMarkup(tree).includes('ETA ส่งสินค้า พรุ่งนี้ 12:00'));
 nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('ต้องติดตาม')).props.onClick(); render(issueJobs);
 assert.deepEqual(visibleOrders(), ['WO-pending-issue'], 'unanswered driver issues stay in attention');
-nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('กำลังดำเนินงาน')).props.onClick(); render(issueJobs);
+nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes('ยังไม่เสร็จ')).props.onClick(); render(issueJobs);
 assert.deepEqual(visibleOrders(), ['WO-resolved-issue', 'WO-delivery-stage'], 'answered issue returns to the normal active tab');
 
 const twoDaysKey = new Date(today.getTime() + 2 * 86400000).toISOString().slice(0, 10);

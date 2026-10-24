@@ -277,6 +277,8 @@ export async function deleteSubcontractOrganization(organizationId: string, acto
     getDocs(query(collection(db, name), where("organizationId", "==", organizationId), limit(1)))
   ));
   if (linked.some((snapshot) => !snapshot.empty)) throw new Error("บริษัทนี้ยังมีบัญชีผู้ใช้ รถ หรือคนขับผูกอยู่ กรุณาย้ายข้อมูลเหล่านั้นก่อนลบ");
+  const jobs = await getDocs(query(collection(db, "today_jobs"), where("organizationId", "==", organizationId)));
+  if (jobs.docs.some(job => !job.data().deletedAt && !["completed", "cancelled"].includes(job.data().status))) throw new Error("บริษัทนี้ยังมีใบงานที่ไม่จบ กรุณาจัดการใบงานก่อนลบ");
   // Keep the document so historical jobs retain their organization.
   await updateDoc(doc(db, "organizations", organizationId), {
     deleted: true,

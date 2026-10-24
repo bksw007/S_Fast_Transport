@@ -98,6 +98,7 @@ import { ReportsScreen } from "@/app/components/ReportsScreen";
 import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
 import { reconcileCustomerReferences, subscribeCustomers, type Customer } from "@/lib/customer-repository";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
+import AssignedSubcontractJobsScreen from "@/app/components/AssignedSubcontractJobsScreen";
 import { subscribeDrivers, type TransportDriver, subscribeSubcontractOrganizations, type SubcontractOrganization } from "@/lib/resource-repository";
 import {
   downloadPrivateDocument,
@@ -208,6 +209,7 @@ function createEmptyJobDraft(): JobDraft {
   const today = new Date().toISOString().slice(0, 10);
   return {
     submissionId: crypto.randomUUID(),
+    assignedOrganizationId: "main",
     workOrder: "",
     customer: "",
     jobDate: today,
@@ -473,6 +475,7 @@ export default function Home() {
   );
   const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? emptySelectedJob;
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
+  const trackingJobs = useMemo(() => activeJobs.filter(job => !["pending_subcontract", "subcontract_accepted"].includes(job.status)), [activeJobs]);
   const unresolvedIssueCount = useMemo(() => jobs.filter(job => job.lastIssue && !job.lastIssue.resolvedAt).length, [jobs]);
   const pendingCustomerRequestCount = customerRequests.filter(item => item.status === "pending").length;
   const canWrite = Boolean(profile && hasApprovedAccess(profile));
@@ -666,7 +669,6 @@ export default function Home() {
               profile={profile}
               screen={adminScreen}
               activeJobs={activeJobs}
-              selectedJob={selectedJob}
               selectedJobId={selectedJob.id}
               onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard"); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
@@ -686,7 +688,7 @@ export default function Home() {
 
       {mode === "admin" && (
         <aside className="desktop-panel">
-          {adminScreen === "Jobs / ใบงาน" ? <>
+          {adminScreen === "Jobs / ใบงาน" && isMainAdmin(profile) ? <>
             <AdminView
               profile={profile}
               activeJobs={activeJobs}
@@ -699,9 +701,11 @@ export default function Home() {
               onPrefillClear={() => setPrefillRequest(null)}
             />
 
-          </> : adminScreen === "Live Tracking" ? (
-            activeJobs.length > 0
-              ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
+          </> : adminScreen === "งานที่ได้รับมอบหมาย" && profile.role === "subcontract_admin" ? (
+            <AssignedSubcontractJobsScreen jobs={jobs} actor={profile} />
+          ) : adminScreen === "Live Tracking" ? (
+            trackingJobs.length > 0
+              ? <MapScreen jobs={trackingJobs} selectedJob={trackingJobs.find(job => job.id === selectedJob.id) || trackingJobs[0]} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
             <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} onPermanentlyDelete={permanentlyDeleteCancelledJob} />
@@ -711,11 +715,11 @@ export default function Home() {
             <SubcontractCompaniesScreen actor={profile} />
           ) : adminScreen === "รถและคนขับ" ? (
             <FleetAndDriversScreen actor={profile} />
-          ) : adminScreen === "ตั้งค่าพิกัดแผนที่" ? (
+          ) : adminScreen === "ตั้งค่าพิกัดแผนที่" && isMainAdmin(profile) ? (
             <LocationManagementScreen actor={profile} />
           ) : adminScreen === "ลูกค้า" && isMainAdmin(profile) ? (
             <CustomerManagementScreen actor={profile} jobs={jobs} canWrite={canWrite} />
-          ) : adminScreen === "สมุดรายชื่อ" ? (
+          ) : adminScreen === "สมุดรายชื่อ" && isMainAdmin(profile) ? (
             <ContactBook key={profile.organizationId} actor={profile} />
           ) : adminScreen === "Reports" ? (
             <ReportsScreen jobs={jobs} dataState={jobsState} />
@@ -781,7 +785,8 @@ const adminMenuDetails = [
   { label: adminMenu[9], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
   { label: adminMenu[10], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
   { label: adminMenu[11], description: "ข้อมูลบริษัท", icon: Settings },
-  { label: adminMenu[13], description: "ตรวจบิลและอนุมัติค่าใช้จ่ายคนขับ", icon: ReceiptText }
+  { label: adminMenu[13], description: "ตรวจบิลและอนุมัติค่าใช้จ่ายคนขับ", icon: ReceiptText },
+  { label: adminMenu[14], description: "รับงานจากบริษัทหลักและมอบหมายรถกับคนขับ", icon: ListChecks, subcontractOnly: true }
 ] as const;
 
 function SectionMenu({
@@ -817,13 +822,13 @@ function SectionMenu({
 }) {
   const items = mode === "driver"
     ? driverMenuDetails
-    : adminMenuDetails.filter((item) => !("mainOnly" in item && item.mainOnly) || isMainAdmin(profile));
+    : adminMenuDetails.filter((item) => !("mainOnly" in item && item.mainOnly) || isMainAdmin(profile)).filter((item) => !("subcontractOnly" in item && item.subcontractOnly) || profile.role === "subcontract_admin").filter(item => profile.role !== "subcontract_admin" || !["Jobs / ใบงาน", "ตั้งค่าพิกัดแผนที่", "สมุดรายชื่อ"].includes(item.label));
   const activeScreen = mode === "driver" ? driverScreen : adminScreen;
   const groups = mode === "driver"
     ? [{ title: "งานของฉัน", items }]
     : [
-        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
-        { title: "งานคนขับ", items: [{ label: "แอดมินคนขับ", description: "ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง", icon: Truck }] },
+        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "งานที่ได้รับมอบหมาย", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
+        { title: "งานคนขับ", items: profile.role === "subcontract_admin" ? [] : [{ label: "แอดมินคนขับ", description: "ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง", icon: Truck }] },
         { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "สมุดรายชื่อ", "Reports", "รายการเบิกค่าใช้จ่าย"].includes(item.label)) },
         { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
       ];
@@ -943,7 +948,6 @@ function AdminMobileScreen({
   profile,
   screen,
   activeJobs,
-  selectedJob,
   selectedJobId,
   onSelectJob,
   onCreateJob,
@@ -963,7 +967,6 @@ function AdminMobileScreen({
   profile: UserProfile;
   screen: AdminScreen;
   activeJobs: TransportJob[];
-  selectedJob: TransportJob;
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => Promise<CreatedJob | undefined>;
@@ -980,7 +983,7 @@ function AdminMobileScreen({
     return <AdminDashboard jobs={allJobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJobId} onSelectJob={onSelectJob} onPermanentlyDelete={onPermanentlyDelete} />;
   }
 
-  if (screen === "Jobs / ใบงาน") {
+  if (screen === "Jobs / ใบงาน" && isMainAdmin(profile)) {
     return (
       <AdminView
         profile={profile}
@@ -995,11 +998,14 @@ function AdminMobileScreen({
     );
   }
 
+  if (screen === "งานที่ได้รับมอบหมาย" && profile.role === "subcontract_admin") return <AssignedSubcontractJobsScreen jobs={allJobs} actor={profile} />;
+
   if (screen === "แจ้งเตือน") return <NotificationCenter jobs={allJobs} actor={profile} pendingCustomerRequestCount={pendingCustomerRequestCount} unresolvedIssueCount={unresolvedIssueCount} onAcceptCustomerRequest={onAcceptCustomerRequest} />;
 
   if (screen === "Live Tracking") {
-    return activeJobs.length > 0
-      ? <MapScreen jobs={activeJobs} selectedJob={selectedJob} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
+    const trackingJobs = activeJobs.filter(job => !["pending_subcontract", "subcontract_accepted"].includes(job.status));
+    return trackingJobs.length > 0
+      ? <MapScreen jobs={trackingJobs} selectedJob={trackingJobs.find(job => job.id === selectedJobId) || trackingJobs[0]} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
       : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />;
   }
 
@@ -1011,7 +1017,7 @@ function AdminMobileScreen({
     return <CustomerManagementScreen actor={profile} jobs={allJobs} canWrite={canWrite} />;
   }
 
-  if (screen === "สมุดรายชื่อ") return <ContactBook key={profile.organizationId} actor={profile} />;
+  if (screen === "สมุดรายชื่อ" && isMainAdmin(profile)) return <ContactBook key={profile.organizationId} actor={profile} />;
 
   if (screen === "Reports") return <ReportsScreen jobs={allJobs} dataState={jobsState} />;
 
@@ -1021,7 +1027,7 @@ function AdminMobileScreen({
     return <FleetAndDriversScreen actor={profile} />;
   }
 
-  if (screen === "ตั้งค่าพิกัดแผนที่") return <LocationManagementScreen actor={profile} />;
+  if (screen === "ตั้งค่าพิกัดแผนที่" && isMainAdmin(profile)) return <LocationManagementScreen actor={profile} />;
 
   if (screen === "User Management" && isMainAdmin(profile)) {
     return <AccessManagementScreen actor={profile} />;
@@ -2407,12 +2413,18 @@ function AdminView({
   const submittingJobRef = useRef(false);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
   const [driverProfiles, setDriverProfiles] = useState<UserProfile[]>([]);
+  const [subcontractOrganizations, setSubcontractOrganizations] = useState<SubcontractOrganization[]>([]);
   const [driverError, setDriverError] = useState("");
   const [driversReady, setDriversReady] = useState(false);
   const [profilesReady, setProfilesReady] = useState(false);
   const alertCount = activeJobs.reduce((count, job) => count + job.alerts.length, 0);
   const delayedCount = activeJobs.filter((job) => job.alerts.some((alert) => alert.includes("ไม่อัปเดต"))).length;
   const organizationId = profile.organizationId ?? "main";
+
+  useEffect(() => {
+    if (!isMainAdmin(profile)) return;
+    return subscribeSubcontractOrganizations(setSubcontractOrganizations, setDriverError);
+  }, [profile]);
 
   useEffect(() => {
     if (prefillRequest || !draft.sourceRequestId) return;
@@ -2449,9 +2461,9 @@ function AdminView({
     const nextDraft = {
       ...draft,
       customer: draft.customer || "ลูกค้าใหม่",
-      driverName: draft.driverName || "รอระบุคนขับ",
-      driverPhone: draft.driverPhone || "-",
-      vehiclePlate: draft.vehiclePlate || "-",
+      driverName: draft.assignedOrganizationId === "main" ? draft.driverName || "รอระบุคนขับ" : "",
+      driverPhone: draft.assignedOrganizationId === "main" ? draft.driverPhone || "-" : "",
+      vehiclePlate: draft.assignedOrganizationId === "main" ? draft.vehiclePlate || "-" : "",
       pickupLocation: draft.pickupLocation || "จุดรับสินค้า",
       deliveryLocation: draft.deliveryLocation || "จุดส่งสินค้า",
       eta: draft.deliveryTime || draft.eta || "วันนี้"
@@ -2479,7 +2491,7 @@ function AdminView({
       </div>
 
       <form className="dispatch-form" onSubmit={(event) => { event.preventDefault(); void submitJob(); }}>
-          {draft.sourceRequestId && <div className="dispatch-request-banner"><div><strong>กำลังรับงานจาก {prefillRequest?.customerName || draft.customer}</strong><span>ข้อมูลจากลูกค้าถูกใส่ให้แล้ว · แจ้ง {prefillRequest?.tripCount || 1} รอบ{prefillRequest?.returnGoods ? " · ลูกค้าต้องการรับสินค้ากลับ โปรดกำหนดรายละเอียดขากลับเอง" : ""} · กรุณาเลือกคนขับและตรวจสอบก่อนบันทึก</span></div><button type="button" onClick={() => { onPrefillClear(); resetJobForm(); }}>ยกเลิกการรับงานนี้</button></div>}
+          {draft.sourceRequestId && <div className="dispatch-request-banner"><div><strong>กำลังรับงานจาก {prefillRequest?.customerName || draft.customer}</strong><span>ข้อมูลจากลูกค้าถูกใส่ให้แล้ว · แจ้ง {prefillRequest?.tripCount || 1} รอบ{prefillRequest?.returnGoods ? " · ลูกค้าต้องการรับสินค้ากลับ โปรดกำหนดรายละเอียดขากลับเอง" : ""} · กรุณาเลือกบริษัทผู้รับงานและตรวจสอบก่อนบันทึก</span></div><button type="button" onClick={() => { onPrefillClear(); resetJobForm(); }}>ยกเลิกการรับงานนี้</button></div>}
           <header className="dispatch-form-hero">
             <div><span>DISPATCH CENTER</span><h2>ฟอร์มแจ้งงาน</h2><p>สร้างใบแจ้งงานและบันทึกเข้าระบบ</p></div>
             <FilePenLine size={24} />
@@ -2489,6 +2501,7 @@ function AdminView({
             <div className="dispatch-general-grid">
               <DispatchField label="เลขที่ใบแจ้งงาน"><div className="work-order-field"><input value={draft.workOrder} readOnly placeholder={`JN-${formatJobDateKey()}…`} /><small>เช่น JN-{formatJobDateKey()}001 · ระบบกำหนดลำดับถัดไปเมื่อบันทึก</small></div></DispatchField>
               <DispatchField label="บริษัทผู้ว่าจ้าง">{draft.sourceRequestId ? <input value={draft.customer} readOnly aria-label="บริษัทลูกค้าที่แจ้งงาน" /> : <ListManagerComboBox field="customer" value={draft.customer} onChange={(value) => updateDraft("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={profile} required />}</DispatchField>
+              <DispatchField label="มอบหมายให้บริษัท"><select value={draft.assignedOrganizationId || "main"} onChange={event => setDraft(current => ({ ...current, assignedOrganizationId: event.target.value, driverId: "", driverName: "", driverPhone: "", vehiclePlate: "" }))}><option value="main">S Fast Transport · บริษัทหลัก</option>{subcontractOrganizations.filter(company => company.active).map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></DispatchField>
               <DispatchField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" value={draft.jobDate} onChange={(event) => updateDraft("jobDate", event.target.value)} /></DispatchField>
               <DispatchField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={(value) => updateDraft("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={(value) => updateDraft("vehicleType", value)} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={profile} /></DispatchField>
@@ -2529,18 +2542,18 @@ function AdminView({
             <label className="return-trip-toggle"><input type="checkbox" checked={Boolean(draft.returnTrip)} onChange={event => setDraft(current => ({ ...current, returnTrip: event.target.checked ? initialReturnTrip(current) : undefined }))} /> รับสินค้ากลับ</label>
             {draft.returnTrip && <ReturnTripFields value={draft.returnTrip} onChange={returnTrip => setDraft(current => ({ ...current, returnTrip }))} organizationId={organizationId} actor={profile} />}
 
-            <div className="dispatch-general-grid assignment-grid">
+            {draft.assignedOrganizationId === "main" && <div className="dispatch-general-grid assignment-grid">
               <DispatchField label="พนักงานขับรถ"><div className="driver-field-control"><select aria-label="พนักงานขับรถ" required value={draft.driverId} disabled={!canWrite || !driversReady || !profilesReady || Boolean(driverError)} onChange={event => {
                 const driver = driverOptions.find(item => item.id === event.target.value);
                 setDraft(current => ({ ...current, driverId: driver?.id || "", driverName: driver?.name || "", driverPhone: formatPhoneNumber(driver?.phone || "") }));
               }}><option value="">{!driversReady || !profilesReady ? "กำลังโหลดคนขับ…" : "เลือกพนักงานขับรถ"}</option>{driverOptions.map(driver => <option key={driver.id} value={driver.id} disabled={!driver.eligible}>{driver.name}</option>)}</select>{driverError && <small role="alert">โหลดรายชื่อคนขับไม่สำเร็จ: {driverError}</small>}{driversReady && profilesReady && !driverError && <small>ข้อมูลจากรถและคนขับ · ต้องเชื่อมบัญชีแอปที่อนุมัติแล้ว</small>}</div></DispatchField>
               <DispatchField label="เบอร์ติดต่อ"><input aria-label="เบอร์ติดต่อคนขับ" type="tel" value={draft.driverPhone} readOnly placeholder="เติมอัตโนมัติเมื่อเลือกคนขับ" /></DispatchField>
               <DispatchField label="ทะเบียนรถ"><ListManagerComboBox field="vehicle_plate" value={draft.vehiclePlate} onChange={(value) => updateDraft("vehiclePlate", value)} placeholder="ค้นหาหรือเพิ่มทะเบียนรถ" organizationId={organizationId} actor={profile} /></DispatchField>
-              <DispatchField label="หมายเหตุ" wide><textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติมสำหรับงานนี้" /></DispatchField>
-            </div>
+            </div>}
+            <div className="dispatch-general-grid"><DispatchField label="หมายเหตุ" wide><textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติมสำหรับงานนี้" /></DispatchField></div>
 
             <div className="dispatch-form-actions">
-              <button className="save-job-button" type="submit" disabled={savingJob || !canWrite || !driversReady || !profilesReady || Boolean(driverError) || !driverOptions.some(driver => driver.id === draft.driverId && driver.eligible)}><Save size={17} /> {savingJob ? "กำลังบันทึก..." : "บันทึกงาน"}</button>
+              <button className="save-job-button" type="submit" disabled={savingJob || !canWrite || (draft.assignedOrganizationId === "main" && (!driversReady || !profilesReady || Boolean(driverError) || !driverOptions.some(driver => driver.id === draft.driverId && driver.eligible)))}><Save size={17} /> {savingJob ? "กำลังบันทึก..." : "บันทึกงาน"}</button>
               <button type="button" disabled={savingJob} onClick={() => setFormNotice({ kind: "clear" })}><RotateCcw size={17} /> ล้างข้อมูล</button>
             </div>
           </div>
@@ -2553,7 +2566,7 @@ function AdminView({
       />}
 
       <div className="stat-strip">
-        <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.length}`} />
+        <Metric icon={<Truck size={18} />} label="กำลังวิ่ง" value={`${activeJobs.filter(job => !["pending_subcontract", "subcontract_accepted"].includes(job.status)).length}`} />
         <Metric icon={<AlertTriangle size={18} />} label="แจ้งเตือน" value={`${alertCount}`} />
         <Metric icon={<Clock3 size={18} />} label="ส่งช้า" value={`${delayedCount}`} />
       </div>
