@@ -3,7 +3,11 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-const documents = new Map([['today_jobs/job-1', { workOrder: 'JN-1', driverName: 'คนขับ', vehiclePlate: '72-2211' }]]);
+const contactUserId = `U${'a'.repeat(32)}`;
+const documents = new Map([
+  ['today_jobs/job-1', { workOrder: 'JN-1', driverName: 'คนขับ', vehiclePlate: '72-2211', assignedDriverUid: 'driver-1', organizationId: 'partner', originOrganizationId: 'main', trackingShareToken: 'abcdef0123456789abcdef0123456789' }],
+  ['organizations/partner', { lineUserId: contactUserId }]
+]);
 const requests = [];
 let responseStatus = 200;
 let uuidCount = 0;
@@ -85,11 +89,19 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
   await context.exports.notifyLineGroupOfCustomerRequest(retryEvent);
   assert.equal(requests[2].headers['X-Line-Retry-Key'], requests[3].headers['X-Line-Retry-Key'], 'retry must reuse the same LINE key');
   assert.equal(documents.get('line_event_notifications/customer_request_request-2').status, 'sent');
+  const acceptedEvent = { params: { eventId: 'partner-accepted' }, data: { data: () => ({ type: 'subcontract_accepted', jobId: 'job-1' }) } };
+  await context.exports.notifyLineGroupOfSubcontractAssignment(acceptedEvent);
+  assert.equal(requests.length, 4, 'accepting a subcontract job must not use LINE quota');
   const subcontractEvent = { params: { eventId: 'partner-1' }, data: { data: () => ({ type: 'subcontract_assigned', jobId: 'job-1' }) } };
   await context.exports.notifyLineGroupOfSubcontractAssignment(subcontractEvent);
   assert.match(JSON.parse(requests[4].body).messages[0].text, /บริษัทซับมอบหมายรถและคนขับแล้ว/);
   assert.match(JSON.parse(requests[4].body).messages[0].text, /ใบงาน: JN-1/);
+  assert.equal(JSON.parse(requests[4].body).to, 'Cad5367471fd1c5487eac65af79417742');
+  assert.equal(JSON.parse(requests[5].body).to, contactUserId);
+  assert.match(JSON.parse(requests[5].body).messages[0].text, /รถ: 72-2211\nคนขับ: คนขับ/);
+  assert.match(JSON.parse(requests[5].body).messages[0].text, /\/track\/abcdef0123456789abcdef0123456789/);
   await context.exports.notifyLineGroupOfSubcontractAssignment(subcontractEvent);
-  assert.equal(requests.length, 5, 'a retried assignment must not send twice');
-  console.log('PASS: LINE driver and customer notifications are formatted and retried without duplicates');
+  await context.exports.notifyLineGroupOfSubcontractAssignment({ ...subcontractEvent, params: { eventId: 'partner-duplicate' } });
+  assert.equal(requests.length, 6, 'a retried or duplicate assignment must not send twice to either recipient');
+  console.log('PASS: LINE event notifications send once to each intended recipient');
 })().catch(error => { console.error(error); process.exitCode = 1; });
