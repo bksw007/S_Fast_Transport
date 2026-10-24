@@ -1319,7 +1319,8 @@ h2 {
 }
 
 .contact-picker-select select,
-.driver-field-control select {
+.driver-field-control select,
+.dispatch-field > div > select {
   width: 100%;
   min-width: 0;
   min-height: 40px;
