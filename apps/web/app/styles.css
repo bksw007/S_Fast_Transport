@@ -3332,6 +3332,17 @@ h2 {
   font-weight: 850;
 }
 
+.app-shell .organization-card > footer .subcontract-job-action {
+  border-color: #198754;
+  color: #fff;
+  background: #198754;
+}
+
+.app-shell .organization-card > footer .subcontract-job-action:hover:not(:disabled) {
+  border-color: #146c43;
+  background: #146c43;
+}
+
 .organization-card > footer .resource-danger-action,
 .fleet-card > footer .resource-danger-action,
 .driver-card-details > footer .resource-danger-action,

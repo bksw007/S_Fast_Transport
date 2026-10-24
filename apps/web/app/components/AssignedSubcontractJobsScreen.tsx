@@ -68,8 +68,8 @@ export default function AssignedSubcontractJobsScreen({ jobs, actor }: { jobs: T
           {selectedDriver?.assignedVehicleId && selectedDriver.assignedVehicleId !== selected.vehicleId && <small role="alert">กรุณาเลือกรถประจำของคนขับ</small>}
         </div>}
         <footer>
-          {job.status === "pending_subcontract" && <button type="button" disabled={Boolean(busy)} onClick={() => void perform(job, "accept")}>รับงาน</button>}
-          {job.status === "subcontract_accepted" && <button type="button" disabled={Boolean(busy) || !selected.driverId || !selected.vehicleId || Boolean(selectedDriver?.assignedVehicleId && selectedDriver.assignedVehicleId !== selected.vehicleId)} onClick={() => void perform(job, "assign")}>มอบหมายรถและคนขับ</button>}
+          {job.status === "pending_subcontract" && <button className="subcontract-job-action" type="button" disabled={Boolean(busy)} onClick={() => void perform(job, "accept")}>รับงาน</button>}
+          {job.status === "subcontract_accepted" && <button className="subcontract-job-action" type="button" disabled={Boolean(busy) || !selected.driverId || !selected.vehicleId || Boolean(selectedDriver?.assignedVehicleId && selectedDriver.assignedVehicleId !== selected.vehicleId)} onClick={() => void perform(job, "assign")}>มอบหมายรถและคนขับ</button>}
         </footer>
       </article>;
     })}</div>

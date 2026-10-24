@@ -681,7 +681,10 @@ service cloud.firestore {
     }
 
     match /vehicles/{docId} {
-      allow read: if isMainCompanyAdmin() || sameOrganization(resource.data);
+      allow get: if isMainCompanyAdmin()
+        || (isSubcontractAdmin() && resource == null && docId.matches(organizationId() + '--.+'))
+        || sameOrganization(resource.data);
+      allow list: if isMainCompanyAdmin() || sameOrganization(resource.data);
       allow create: if isMainCompanyAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
       allow update: if isMainCompanyAdmin()
@@ -695,7 +698,10 @@ service cloud.firestore {
     }
 
     match /drivers/{docId} {
-      allow read: if isMainCompanyAdmin() || sameOrganization(resource.data);
+      allow get: if isMainCompanyAdmin()
+        || (isSubcontractAdmin() && resource == null && docId.matches(organizationId() + '--.+'))
+        || sameOrganization(resource.data);
+      allow list: if isMainCompanyAdmin() || sameOrganization(resource.data);
       allow create: if isMainCompanyAdmin()
         || (isSubcontractAdmin() && sameOrganization(request.resource.data));
       allow update: if isMainCompanyAdmin()
