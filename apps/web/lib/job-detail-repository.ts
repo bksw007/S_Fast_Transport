@@ -3,7 +3,7 @@ import { db } from "./firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { firebaseApp } from "./firebase";
 import { canReceiveDriverJobs, hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
-import type { TransportJob } from "@s-fast-transport/shared";
+import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { coordinateFingerprint } from "./google-routes-distance";
 import { validateJobEditDraft, type JobEditDraft } from "./job-edit";
 import { resolveCustomerId } from "./customer-repository";
@@ -124,14 +124,27 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
   if (!initialSnapshot.exists()) throw new Error("ไม่พบใบงาน");
   const initial = initialSnapshot.data();
   assertCurrentJobAccess(initial, actor);
-  const organizationId = String(initial.organizationId ?? "main");
-  const awaitingSubcontract = ["pending_subcontract", "subcontract_accepted"].includes(initial.status);
+  const previousOrganizationId = String(initial.organizationId ?? "main");
+  const organizationId = values.assignedOrganizationId;
+  const companyChanged = organizationId !== previousOrganizationId;
+  const awaitingSubcontract = organizationId !== "main" && (companyChanged || ["pending_subcontract", "subcontract_accepted"].includes(initial.status));
+  if (companyChanged && !(isMainAdmin(actor) && actor.organizationId === "main" && initial.originOrganizationId === "main"
+    && (initial.status === "pending_subcontract" || (previousOrganizationId === "main" && initial.status === "assigned" && initial.trackingStatus === "not_started" && !initial.trackingEnabled)))) {
+    throw new Error("เปลี่ยนบริษัทได้เฉพาะงานที่ยังไม่เริ่มหรือยังรอบริษัทซับรับงาน");
+  }
+  let carrierName = String(initial.carrierName ?? "S Fast Transport");
+  if (companyChanged) {
+    const company = (await getDoc(doc(db, "organizations", organizationId))).data();
+    if (organizationId !== "main" && (company?.type !== "subcontract" || company.active !== true || company.deleted === true)) throw new Error("บริษัทซับไม่พร้อมรับงาน");
+    carrierName = String(company?.name || (organizationId === "main" ? actor.organizationName || "S Fast Transport" : organizationId));
+  }
   const customerId = actor.organizationId === "main" ? await resolveCustomerId(values.customer, actor) : null;
   if (awaitingSubcontract && values.driverId) throw new Error("กรุณามอบหมายคนขับผ่านเมนูงานที่ได้รับมอบหมาย");
-  if (!awaitingSubcontract && !values.driverId && !initial.assignedDriverUid) throw new Error("กรุณาเลือกพนักงานขับรถ");
-  const assignment = !awaitingSubcontract && values.driverId && values.driverId !== initial.driverId
+  if (!awaitingSubcontract && !values.driverId && (companyChanged || !initial.assignedDriverUid)) throw new Error("กรุณาเลือกพนักงานขับรถ");
+  const assignment = !awaitingSubcontract && values.driverId && (companyChanged || values.driverId !== initial.driverId)
     ? await loadDriverAssignment(values.driverId, organizationId)
     : null;
+  const links = companyChanged ? await getDocs(query(collection(db, "tracking_share_links"), where("jobId", "==", job.id))) : null;
   const eventRef = doc(collection(db, "job_events"));
 
   await runTransaction(db, async transaction => {
@@ -139,12 +152,18 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const current = snapshot.data();
     assertCurrentJobAccess(current, actor);
-    if (String(current.organizationId ?? "main") !== organizationId) throw new Error("บริษัทของใบงานมีการเปลี่ยนแปลง กรุณาเปิดใหม่");
-    if (current.status !== initial.status && awaitingSubcontract) throw new Error("สถานะงานเปลี่ยนแล้ว กรุณาเปิดใหม่");
+    if (String(current.organizationId ?? "main") !== previousOrganizationId) throw new Error("บริษัทของใบงานมีการเปลี่ยนแปลง กรุณาเปิดใหม่");
+    if (current.status !== initial.status && (awaitingSubcontract || companyChanged)) throw new Error("สถานะงานเปลี่ยนแล้ว กรุณาเปิดใหม่");
+    if (companyChanged && (current.trackingStatus !== initial.trackingStatus || current.trackingEnabled !== initial.trackingEnabled)) throw new Error("งานเริ่มดำเนินการแล้ว กรุณาเปิดใหม่");
     if (current.status === "completed" && Boolean(current.returnTrip) !== Boolean(values.returnTrip)) throw new Error("งานเสร็จแล้ว ไม่สามารถเปลี่ยนการรับสินค้ากลับได้");
     if (current.returnTrip && !values.returnTrip && (current.activeLeg === 2 || current.returnPickupProof || current.returnDeliveryProof)) throw new Error("เริ่มงานขากลับแล้ว ไม่สามารถยกเลิกรับสินค้ากลับได้");
     const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(values.pickupPlace, values.deliveryPlace);
+    const activeLinks = links ? await Promise.all(links.docs.map(link => transaction.get(link.ref))) : [];
     transaction.update(jobRef, {
+      ...(companyChanged ? {
+        organizationId, carrierName, status: organizationId === "main" ? "assigned" : "pending_subcontract",
+        ...(awaitingSubcontract ? { driverId: "", vehicleId: deleteField(), assignedDriverUid: deleteField(), driverName: "", driverPhone: "" } : {})
+      } : {}),
       customer: values.customer,
       ...(customerId ? { customerId } : {}),
       ...(!customerId && current.customerId && current.customer !== values.customer ? { customerId: deleteField() } : {}),
@@ -154,7 +173,7 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
       tripCount: values.tripCount,
       returnTrip: values.returnTrip ?? deleteField(),
       ...(!values.returnTrip ? { activeLeg: deleteField() } : current.activeLeg ? {} : { activeLeg: 1 }),
-      vehiclePlate: values.vehiclePlate,
+      vehiclePlate: awaitingSubcontract ? "" : values.vehiclePlate,
       pickupLocation: values.pickupLocation,
       pickupPlace: values.pickupPlace ?? deleteField(),
       pickupDate: values.pickupDate,
@@ -182,10 +201,16 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
       } : {}),
       updatedAt: serverTimestamp()
     });
+    activeLinks.forEach((link, index) => {
+      if (link.exists() && link.data().enabled === true) transaction.update(links!.docs[index].ref, {
+        organizationId, carrierName, statusLabel: statusLabels[organizationId === "main" ? "assigned" : "pending_subcontract"],
+        vehicleLabel: awaitingSubcontract ? "" : values.vehiclePlate, updatedAt: serverTimestamp()
+      });
+    });
     transaction.set(eventRef, {
       jobId: job.id,
       type: "details_updated",
-      message: "แก้ไขรายละเอียดใบงาน",
+      message: companyChanged ? `แก้ไขรายละเอียดและมอบหมายให้บริษัท ${carrierName}` : "แก้ไขรายละเอียดใบงาน",
       actorUid: actor.uid,
       actorName: actor.displayName,
       organizationId,

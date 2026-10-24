@@ -2,6 +2,7 @@ import type { JobPlace, ReturnTrip, TransportJob } from "@s-fast-transport/share
 import { validateReturnTrip } from "./return-trip";
 
 export type JobEditDraft = {
+  assignedOrganizationId: string;
   customer: string;
   jobDate: string;
   cargoType: string;
@@ -34,6 +35,7 @@ export type ValidatedJobEdit = Omit<JobEditDraft, "tripCount"> & { tripCount: nu
 
 export function jobToEditDraft(job: Partial<TransportJob>): JobEditDraft {
   return {
+    assignedOrganizationId: String(job.organizationId ?? "main"),
     customer: String(job.customer ?? ""),
     jobDate: String(job.jobDate ?? ""),
     cargoType: String(job.cargoType ?? ""),
@@ -98,6 +100,7 @@ export function validateJobEditDraft(draft: JobEditDraft): ValidatedJobEdit {
   const pickupContact = contact(draft.pickupContact, draft.pickupContactPhone, "จุดรับ");
   const deliveryContact = contact(draft.deliveryContact, draft.deliveryContactPhone, "จุดส่ง");
   return {
+    assignedOrganizationId: clean(draft.assignedOrganizationId, "บริษัทที่มอบหมาย", 40, true),
     customer: clean(draft.customer, "บริษัทผู้ว่าจ้าง", 200, true),
     jobDate: date(draft.jobDate, "วันที่รับงานจากผู้ว่าจ้าง", true),
     cargoType: clean(draft.cargoType, "ประเภทสินค้า", 160),

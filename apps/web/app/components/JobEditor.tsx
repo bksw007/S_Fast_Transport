@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Save, Trash2 } from "lucide-react";
 import type { TransportJob } from "@s-fast-transport/shared";
-import { canReceiveDriverJobs, subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
-import { subscribeDrivers, type TransportDriver } from "@/lib/resource-repository";
+import { canReceiveDriverJobs, isMainAdmin, subscribeOrganizationUserProfiles, type UserProfile } from "@/lib/transport-repository";
+import { subscribeDrivers, subscribeSubcontractOrganizations, type SubcontractOrganization, type TransportDriver } from "@/lib/resource-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
 import { jobToEditDraft, type JobEditDraft } from "@/lib/job-edit";
 import { ListManagerComboBox } from "./ListManagerComboBox";
@@ -31,12 +31,20 @@ export default function JobEditor({
   const [draft, setDraft] = useState(() => jobToEditDraft(job));
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [organizations, setOrganizations] = useState<SubcontractOrganization[]>([]);
   const [driversReady, setDriversReady] = useState(false);
   const [profilesReady, setProfilesReady] = useState(false);
   const [driverError, setDriverError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const organizationId = job.organizationId ?? actor.organizationId ?? "main";
-  const awaitingSubcontract = job.status === "pending_subcontract" || job.status === "subcontract_accepted";
+  const organizationId = draft.assignedOrganizationId;
+  const canChangeCompany = isMainAdmin(actor) && actor.organizationId === "main" && job.originOrganizationId === "main"
+    && (job.status === "pending_subcontract" || (job.organizationId === "main" && job.status === "assigned" && job.trackingStatus === "not_started" && !job.trackingEnabled));
+  const awaitingSubcontract = organizationId !== "main" && (job.status === "pending_subcontract" || job.status === "subcontract_accepted" || organizationId !== job.organizationId);
+
+  useEffect(() => {
+    if (!isMainAdmin(actor) || actor.organizationId !== "main") return;
+    return subscribeSubcontractOrganizations(setOrganizations, setDriverError);
+  }, [actor]);
 
   useEffect(() => {
     const stopDrivers = subscribeDrivers(organizationId, items => { setDrivers(items); setDriversReady(true); }, message => setDriverError(message));
@@ -66,7 +74,7 @@ export default function JobEditor({
     setDraft(current => ({ ...current, [field]: value }));
   }
 
-  return <form className="job-edit-form" onSubmit={event => { event.preventDefault(); void onSave({ ...draft, driverId: selectedDriverId }); }}>
+  return <form className="job-edit-form" onSubmit={event => { event.preventDefault(); void onSave({ ...draft, driverId: awaitingSubcontract ? "" : selectedDriverId }); }}>
     <header className="job-edit-header">
       <div><h3>แก้ไขรายละเอียดใบงาน</h3><p>เลขที่ใบแจ้งงาน {job.workOrder} จะไม่เปลี่ยน</p></div>
     </header>
@@ -75,6 +83,7 @@ export default function JobEditor({
       <h4>ข้อมูลทั่วไป</h4>
       <div className="job-edit-grid">
         <EditField label="บริษัทผู้ว่าจ้าง"><ListManagerComboBox field="customer" value={draft.customer} onChange={value => update("customer", value)} placeholder="ค้นหาหรือเพิ่มบริษัทผู้ว่าจ้าง" organizationId={organizationId} actor={actor} required /></EditField>
+        {isMainAdmin(actor) && actor.organizationId === "main" && <EditField label="มอบหมายให้บริษัท"><select value={organizationId} disabled={!canChangeCompany || busy} onChange={event => setDraft(current => ({ ...current, assignedOrganizationId: event.target.value, driverId: "", vehiclePlate: "" }))}><option value="main">S Fast Transport · บริษัทหลัก</option>{organizations.filter(company => company.active || company.id === organizationId).map(company => <option key={company.id} value={company.id}>{company.name}</option>)}{organizationId !== "main" && !organizations.some(company => company.id === organizationId) && <option value={organizationId}>{job.carrierName || organizationId} (บริษัทปัจจุบัน)</option>}</select>{!canChangeCompany && <small>เปลี่ยนบริษัทได้ก่อนบริษัทซับรับงานหรือก่อนเริ่มงานของบริษัทหลัก</small>}</EditField>}
         <EditField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" required value={draft.jobDate} onChange={event => update("jobDate", event.target.value)} /></EditField>
         <EditField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={value => update("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={actor} /></EditField>
         <EditField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={value => update("vehicleType", value)} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={actor} /></EditField>

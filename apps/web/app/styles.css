@@ -5118,6 +5118,7 @@ textarea:focus {
 .dashboard-job[data-selected="true"] { border-color: var(--accent); }
 .dashboard-job-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .dashboard-work-order { font-size: .88rem; font-weight: 700; overflow-wrap: anywhere; }
+.dashboard-work-order.subcontract { padding: 4px 8px; border-radius: 6px; color: #075985; background: #dff3ff; box-shadow: inset 3px 0 #0284c7; }
 .dashboard-job-status { flex-shrink: 0; padding: 4px 8px; border-radius: 20px; background: var(--surface-2); font-size: .67rem; color: var(--muted); }
 .dashboard-job-status.completed { color: var(--dashboard-success); background: color-mix(in srgb, var(--dashboard-success) 10%, var(--surface)); }
 .dashboard-job-status.attention { color: var(--dashboard-warning); background: color-mix(in srgb, var(--dashboard-warning) 10%, var(--surface)); }

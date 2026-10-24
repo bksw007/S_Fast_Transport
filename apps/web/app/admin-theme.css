@@ -122,6 +122,7 @@
 .admin-premium-shell[data-theme="dark"] .settings-save { background: #293b33; }
 .admin-premium-shell[data-theme="dark"] .dashboard-metric[aria-pressed="true"],
 .admin-premium-shell[data-theme="dark"] .dashboard-job[data-selected="true"] { border-color: #6d8d79; background: #30423a; }
+.admin-premium-shell[data-theme="dark"] .dashboard-work-order.subcontract { color: #bde7ff; background: #173e54; box-shadow: inset 3px 0 #38bdf8; }
 .admin-premium-shell[data-theme="dark"] .sidebar-workspace,
 .admin-premium-shell[data-theme="dark"] .dispatch-form-hero,
 .admin-premium-shell[data-theme="dark"] .resource-form > header { border-color: #3e504b; color: #edf1ed; background: #263534; }

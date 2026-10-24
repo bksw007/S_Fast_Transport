@@ -24,6 +24,7 @@ const job = {
 };
 
 const draft = context.exports.jobToEditDraft(job);
+assert.equal(draft.assignedOrganizationId, 'main');
 assert.equal(draft.tripCount, '2');
 assert.equal(draft.driverId, 'driver-1');
 assert.equal(draft.pickupPlace.lat, 13.7);
@@ -32,6 +33,7 @@ const clean = context.exports.validateJobEditDraft(draft);
 assert.equal(clean.customer, 'ลูกค้า A');
 assert.equal(clean.notes, 'ระวังสินค้าแตก');
 assert.equal(clean.tripCount, 2);
+assert.equal(clean.assignedOrganizationId, 'main');
 
 assert.throws(() => context.exports.validateJobEditDraft({ ...draft, customer: ' ' }), /บริษัทผู้ว่าจ้าง/);
 assert.throws(() => context.exports.validateJobEditDraft({ ...draft, tripCount: '0' }), /จำนวนรอบ/);

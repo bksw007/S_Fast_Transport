@@ -72,7 +72,7 @@ const datedJobs = [
   { ...makeJob('old-attention', 'problem'), pickupDate: '2026-10-09' },
   makeJob('undated', 'assigned')
 ];
-function visibleOrders() { return nodes().filter(n => n.props?.className === 'dashboard-work-order').map(n => n.props.children); }
+function visibleOrders() { return nodes().filter(n => n.props?.className?.startsWith('dashboard-work-order')).map(n => n.props.children); }
 function selectTab(label) { nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(label)).props.onClick(); render(datedJobs); }
 slots = []; render(datedJobs); find(n => n.type === 'select' && n.props?.value === currentMonth).props.onChange({ target: { value: 'all' } }); render(datedJobs);
 assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-new-completed', 'WO-new-cancelled', 'WO-old-attention', 'WO-older-active', 'WO-old-completed', 'WO-old-cancelled', 'WO-undated']);
@@ -108,6 +108,8 @@ const dateOnlyCards = renderToStaticMarkup(tree);
 assert.ok(dateOnlyCards.includes('ETA รับสินค้า วันนี้'), 'pickup date is shown even without a time');
 assert.ok(dateOnlyCards.includes('ETA รับสินค้า พรุ่งนี้'));
 assert.ok(dateOnlyCards.includes('ETA รับสินค้า อีก 2 วัน'));
+slots = []; render([{ ...makeJob('subcontract', 'pending_subcontract'), organizationId: 'partner', originOrganizationId: 'main' }, makeJob('main', 'assigned')]);
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-work-order subcontract').length, 1, 'only jobs delegated by the main company have a blue work-order marker');
 assert.ok(dateOnlyCards.includes('ETA ส่งสินค้า อีก 2 วัน'), 'delivery date is shown after pickup');
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
