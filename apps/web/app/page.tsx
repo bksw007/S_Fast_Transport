@@ -773,6 +773,7 @@ const driverMenuDetails = [
 
 const adminMenuDetails = [
   { label: adminMenu[0], description: "ภาพรวมวันนี้", icon: Gauge },
+  { label: adminMenu[14], description: "รับงานจากบริษัทหลักและมอบหมายรถกับคนขับ", icon: ListChecks, subcontractOnly: true },
   { label: adminMenu[1], description: "สร้างและจัดการงาน", icon: ListChecks },
   { label: adminMenu[2], description: "ติดตามรถแบบสด", icon: MapPin },
   { label: adminMenu[3], description: "ซับคอนแท็ค", icon: Building2, mainOnly: true },
@@ -785,8 +786,7 @@ const adminMenuDetails = [
   { label: adminMenu[9], description: "สิทธิ์ Google Login", icon: UserRoundCog, mainOnly: true },
   { label: adminMenu[10], description: "ชื่อ รูป และเอกสารส่วนตัว", icon: UserRound },
   { label: adminMenu[11], description: "ข้อมูลบริษัท", icon: Settings },
-  { label: adminMenu[13], description: "ตรวจบิลและอนุมัติค่าใช้จ่ายคนขับ", icon: ReceiptText },
-  { label: adminMenu[14], description: "รับงานจากบริษัทหลักและมอบหมายรถกับคนขับ", icon: ListChecks, subcontractOnly: true }
+  { label: adminMenu[13], description: "ตรวจบิลและอนุมัติค่าใช้จ่ายคนขับ", icon: ReceiptText }
 ] as const;
 
 function SectionMenu({

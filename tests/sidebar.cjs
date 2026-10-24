@@ -36,6 +36,8 @@ links.find(n => n.props.title === 'สิทธิ์ Google Login').props.onCli
 assert.equal(selected, 'User Management'); assert.equal(closed, true);
 rendered.find(n => n.props?.['aria-label'] === 'ออกจากระบบ').props.onClick(); assert.equal(signedOut, true);
 rendered = menu('admin', 'subcontract_admin');
+const subcontractTransport = rendered.find(n => n.type === 'section' && n.props?.['aria-label'] === 'งานขนส่ง');
+assert.deepEqual(nodes(subcontractTransport).filter(n => n.type === 'button').map(n => React.Children.toArray(n.props.children).find(child => child?.type === 'span' && typeof child.props.children === 'string')?.props.children), ['Dashboard', 'งานที่ได้รับมอบหมาย', 'ติดตามรถ', 'แจ้งเตือน']);
 assert.ok(!rendered.some(n => n.props?.title === 'สิทธิ์ Google Login' || n.props?.title === 'ซับคอนแท็ค' || n.props?.title === 'ลูกค้าและลิงก์ติดตาม'));
 for (const hidden of ['สร้างและจัดการงาน', 'คลังชื่อ ลิงก์ และพิกัดแผนที่', 'ผู้ติดต่อจุดรับและจุดส่ง', 'ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง']) assert.ok(!rendered.some(n => n.props?.title === hidden));
 assert.ok(rendered.some(n => n.props?.title === 'รับงานจากบริษัทหลักและมอบหมายรถกับคนขับ'));
