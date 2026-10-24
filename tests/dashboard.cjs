@@ -110,6 +110,8 @@ assert.ok(dateOnlyCards.includes('ETA รับสินค้า พรุ่�
 assert.ok(dateOnlyCards.includes('ETA รับสินค้า อีก 2 วัน'));
 slots = []; render([{ ...makeJob('subcontract', 'pending_subcontract'), organizationId: 'partner', originOrganizationId: 'main' }, makeJob('main', 'assigned')]);
 assert.equal(nodes().filter(n => n.props?.className === 'dashboard-work-order subcontract').length, 1, 'only jobs delegated by the main company have a blue work-order marker');
+slots = []; render([{ ...makeJob('cancelled-subcontract', 'cancelled'), organizationId: 'partner', originOrganizationId: 'main' }, makeJob('cancelled-main', 'cancelled'), makeJob('main', 'assigned')]);
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-work-order cancelled').length, 2, 'cancelled jobs have a red work-order marker, including subcontract jobs');
 assert.ok(dateOnlyCards.includes('ETA ส่งสินค้า อีก 2 วัน'), 'delivery date is shown after pickup');
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
