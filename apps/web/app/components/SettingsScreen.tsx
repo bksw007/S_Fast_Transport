@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Building2, Link2, Monitor, Save, RotateCcw } from "lucide-react";
+import { Building2, Link2, Monitor, Save, RotateCcw, Bell } from "lucide-react";
 import { canEditCompanySettings, defaultCompanySettings, loadCompanySettings, saveCompanySettings, type CompanySettings } from "@/lib/settings-repository";
 import type { UserProfile } from "@/lib/transport-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
@@ -40,7 +40,7 @@ export default function SettingsScreen({ actor, appearance }: { actor: UserProfi
     finally { setBusy(false); }
   }
   return <section className="screen settings-screen">
-    <header className="section-title"><div><span className="eyebrow">WORKSPACE SETTINGS</span><h1>ตั้งค่าระบบ</h1><p>ข้อมูลบริษัท การแชร์งาน และการแสดงผลของคุณ</p></div></header>
+    <header className="section-title"><div><span className="eyebrow">WORKSPACE SETTINGS</span><h1>ตั้งค่าระบบ</h1><p>ข้อมูลบริษัท การแชร์งาน การแจ้งเตือน และการแสดงผลของคุณ</p></div></header>
     {loading ? <p role="status">กำลังโหลดการตั้งค่า…</p> : loadError ? <div role="alert">{loadError}<button onClick={() => { setLoadError(""); setLoading(true); setRetry(value => value + 1); }}>ลองใหม่</button></div> : <form onSubmit={save}>
       {!canEdit && <p className="settings-note">ข้อมูลบริษัทแสดงแบบอ่านอย่างเดียว การแก้ไขต้องดำเนินการโดยผู้ดูแลบริษัทหลัก</p>}
       <fieldset disabled={!canEdit || busy} className="settings-panel"><legend><Building2 size={19} /> ข้อมูลบริษัท</legend><p>ชื่อบริษัทนี้ใช้กับใบงานและลิงก์ติดตามที่สร้างใหม่ ข้อมูลอื่นเก็บเป็นข้อมูลติดต่อบริษัท</p><div className="settings-fields">
@@ -53,6 +53,7 @@ export default function SettingsScreen({ actor, appearance }: { actor: UserProfi
         <label className="settings-wide">ที่อยู่บริษัท<textarea rows={3} maxLength={1000} value={draft.address} onChange={e => update("address", e.target.value)} /></label>
       </div></fieldset>
       <fieldset disabled={!canEdit || busy} className="settings-panel"><legend><Link2 size={19} /> ลิงก์ติดตามงาน</legend><p>มีผลกับ Share และ QR ที่สร้างใหม่ ลิงก์เดิมยังใช้วันหมดอายุเดิม</p><label>อายุลิงก์เริ่มต้น (วัน)<input required type="number" min={1} max={30} step={1} value={draft.trackingLinkDays} onChange={e => update("trackingLinkDays", Number(e.target.value))} /></label><small>กำหนดได้ 1–30 วัน หน้าลูกค้าที่เลือกวันหมดอายุเองจะใช้วันที่เลือก</small></fieldset>
+      <fieldset disabled={!canEdit || busy} className="settings-panel"><legend><Bell size={19} /> การแจ้งเตือน LINE</legend><label className="settings-toggle-row"><span><strong>ส่งการแจ้งเตือนทาง LINE</strong><small>ครอบคลุมใบงานใหม่ ปัญหาจากคนขับ คำขอจากลูกค้า และการมอบหมายงานของบริษัทซับ</small></span><input type="checkbox" role="switch" checked={draft.lineNotificationsEnabled} onChange={e => update("lineNotificationsEnabled", e.target.checked)} /></label><small>กดบันทึกการตั้งค่าเพื่อให้มีผลกับการแจ้งเตือนที่เกิดขึ้นหลังจากนั้น</small></fieldset>
       <div className="settings-save"><span role="status">{busy ? "กำลังบันทึก…" : message || (dirty ? "มีการเปลี่ยนแปลงที่ยังไม่บันทึก" : "การตั้งค่าปัจจุบัน")}</span>{canEdit && <div><button type="button" disabled={busy || !dirty} onClick={() => { setDraft(saved); setMessage(""); }}><RotateCcw size={16} />คืนค่าที่บันทึก</button><button className="resource-save-button" disabled={busy || !dirty} type="submit"><Save size={16} />บันทึกการตั้งค่า</button></div>}</div>
     </form>}
     <section className="settings-panel"><h2><Monitor size={19} /> การแสดงผล</h2><p>บันทึกอัตโนมัติสำหรับเบราว์เซอร์นี้</p><div className="settings-fields"><label>ธีม<select value={appearance.theme} onChange={e => appearance.onThemeChange(e.target.value as "light" | "dark")}><option value="light">สว่าง</option><option value="dark">มืด</option></select></label><label>ขนาดตัวอักษร<select value={appearance.fontScale} onChange={e => appearance.onFontScaleChange(Number(e.target.value))}><option value={0.92}>เล็ก</option><option value={1}>ปกติ</option><option value={1.12}>ใหญ่</option></select></label></div></section>

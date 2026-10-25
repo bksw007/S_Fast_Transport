@@ -11,12 +11,14 @@ const api = context.exports;
 const actor = { uid: 'admin', role: 'admin', active: true, approvalStatus: 'approved', organizationId: 'main' };
 (async () => {
   assert.equal((await api.loadCompanySettings('main')).trackingLinkDays, 7);
+  assert.equal((await api.loadCompanySettings('main')).lineNotificationsEnabled, true);
   document = { trackingLinkDays: 90 }; assert.equal((await api.loadCompanySettings('main')).trackingLinkDays, 7);
-  const draft = { ...api.defaultCompanySettings, name: ' Company ', trackingLinkDays: 14 };
+  document = { lineNotificationsEnabled: false }; assert.equal((await api.loadCompanySettings('main')).lineNotificationsEnabled, false);
+  const draft = { ...api.defaultCompanySettings, name: ' Company ', trackingLinkDays: 14, lineNotificationsEnabled: false };
   await api.saveCompanySettings(draft, actor);
-  assert.equal(write[0], 'organizations/main'); assert.equal(write[1].name, 'Company'); assert.equal(write[2].merge, true); assert.equal(write[1].active, undefined);
+  assert.equal(write[0], 'organizations/main'); assert.equal(write[1].name, 'Company'); assert.equal(write[1].lineNotificationsEnabled, false); assert.equal(write[2].merge, true); assert.equal(write[1].active, undefined);
   await assert.rejects(() => api.saveCompanySettings(draft, { ...actor, role: 'subcontract_admin', organizationId: 'partner' }));
-  for (const patch of [{ trackingLinkDays: 0 }, { trackingLinkDays: 31 }, { taxId: '123' }, { email: 'bad' }, { logoUrl: 'javascript:alert(1)' }, { name: '' }]) assert.throws(() => api.validateCompanySettings({ ...draft, ...patch }));
+  for (const patch of [{ trackingLinkDays: 0 }, { trackingLinkDays: 31 }, { taxId: '123' }, { email: 'bad' }, { logoUrl: 'javascript:alert(1)' }, { name: '' }, { lineNotificationsEnabled: 'false' }]) assert.throws(() => api.validateCompanySettings({ ...draft, ...patch }));
   const transport = { exports: {}, crypto: { randomUUID: () => 'test-token' }, require: name => {
     if (name === 'firebase/firestore') return firestore;
     if (name === './settings-repository') return { loadCompanySettings: async () => ({ name: 'Configured company', trackingLinkDays: 14 }) };

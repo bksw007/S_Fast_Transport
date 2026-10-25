@@ -6,6 +6,7 @@ const ts = require('typescript');
 const contactUserId = `U${'a'.repeat(32)}`;
 const documents = new Map([
   ['today_jobs/job-1', { workOrder: 'JN-1', driverName: 'คนขับ', vehiclePlate: '72-2211', assignedDriverUid: 'driver-1', organizationId: 'partner', originOrganizationId: 'main', trackingShareToken: 'abcdef0123456789abcdef0123456789' }],
+  ['organizations/main', { lineNotificationsEnabled: true }],
   ['organizations/partner', { lineUserId: contactUserId }]
 ]);
 const requests = [];
@@ -103,5 +104,16 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
   await context.exports.notifyLineGroupOfSubcontractAssignment(subcontractEvent);
   await context.exports.notifyLineGroupOfSubcontractAssignment({ ...subcontractEvent, params: { eventId: 'partner-duplicate' } });
   assert.equal(requests.length, 6, 'a retried or duplicate assignment must not send twice to either recipient');
+  documents.set('organizations/main', { lineNotificationsEnabled: false });
+  const disabledEvent = { params: { requestId: 'request-disabled' }, data: customerEvent.data };
+  await context.exports.notifyLineGroupOfCustomerRequest(disabledEvent);
+  assert.equal(requests.length, 6, 'disabled LINE must not push customer requests');
+  assert.equal(documents.get('line_event_notifications/customer_request_request-disabled').status, 'disabled');
+  const disabledAssignment = { params: { eventId: 'partner-disabled' }, data: subcontractEvent.data };
+  await context.exports.notifyLineGroupOfSubcontractAssignment(disabledAssignment);
+  assert.equal(requests.length, 6, 'disabled LINE must not push to group or subcontract contact');
+  documents.set('organizations/main', { lineNotificationsEnabled: true });
+  await context.exports.notifyLineGroupOfCustomerRequest(disabledEvent);
+  assert.equal(requests.length, 6, 're-enabling LINE must not send an old skipped request');
   console.log('PASS: LINE event notifications send once to each intended recipient');
 })().catch(error => { console.error(error); process.exitCode = 1; });

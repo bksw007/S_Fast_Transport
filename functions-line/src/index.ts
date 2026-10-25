@@ -31,6 +31,11 @@ function thaiDate(value: unknown) {
   return match ? `${match[3]}/${match[2]}/${Number(match[1]) + 543}` : lineText(value, 30);
 }
 
+async function lineNotificationsEnabled() {
+  const settings = await db.collection("organizations").doc("main").get();
+  return settings.data()?.lineNotificationsEnabled !== false;
+}
+
 async function sendLineEventOnce(notificationId: string, message: string, recipient = LINE_GROUP_ID) {
   const notificationRef = db.collection("line_event_notifications").doc(notificationId);
   const notification = await db.runTransaction(async transaction => {
@@ -40,10 +45,14 @@ async function sendLineEventOnce(notificationId: string, message: string, recipi
     transaction.create(notificationRef, created);
     return created;
   });
-  if (["sent", "failed", "expired"].includes(notification.status ?? "")) return;
+  if (["sent", "failed", "expired", "disabled"].includes(notification.status ?? "")) return;
   if (notification.createdAt instanceof Timestamp && Date.now() - notification.createdAt.toMillis() > 23 * 60 * 60 * 1000) {
     logger.error("LINE event notification retry window expired", { notificationId });
     await notificationRef.update({ status: "expired", updatedAt: FieldValue.serverTimestamp() });
+    return;
+  }
+  if (!(await lineNotificationsEnabled())) {
+    await notificationRef.update({ status: "disabled", updatedAt: FieldValue.serverTimestamp() });
     return;
   }
 
@@ -163,7 +172,7 @@ export const notifyLineGroupOfNewJob = onDocumentCreated({
     transaction.create(notificationRef, created);
     return created;
   });
-  if (notification.status === "sent") return;
+  if (["sent", "disabled"].includes(notification.status ?? "")) return;
   if (notification.createdAt instanceof Timestamp && Date.now() - notification.createdAt.toMillis() > 23 * 60 * 60 * 1000) {
     logger.error("LINE notification retry window expired", { jobId });
     await notificationRef.update({ status: "expired", updatedAt: FieldValue.serverTimestamp() });
@@ -202,6 +211,11 @@ export const notifyLineGroupOfNewJob = onDocumentCreated({
     });
   } else if (savedLink.data()?.jobId !== jobId) {
     throw new Error(`Tracking link does not belong to job ${jobId}`);
+  }
+
+  if (!(await lineNotificationsEnabled())) {
+    await notificationRef.update({ status: "disabled", updatedAt: FieldValue.serverTimestamp() });
+    return;
   }
 
   const url = `${SITE_URL}/track/${notification.token}`;

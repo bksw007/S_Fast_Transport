@@ -3,12 +3,12 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-let request, state = {}, linkCreates = 0, sendCount = 0;
+let request, state = {}, linkCreates = 0, sendCount = 0, lineNotificationsEnabled = true;
 const db = {
   collection(name) {
     return {
       doc(id) {
-        if (name === 'organizations') return { get: async () => ({ data: () => ({ name: 'Company', trackingLinkDays: 7 }) }) };
+        if (name === 'organizations') return { get: async () => ({ data: () => ({ name: 'Company', trackingLinkDays: 7, lineNotificationsEnabled }) }) };
         if (name === 'tracking_share_links') return {
           get: async () => ({ exists: true, data: () => ({ jobId: 'job-1' }) }),
           create: async () => { linkCreates++; }
@@ -56,5 +56,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('functions-line/src/index.
     workOrder: 'JN-2', status: 'pending_subcontract', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'partner', originOrganizationId: 'main', carrierName: 'Partner'
   }) } });
   assert.equal(sendCount, 1, 'subcontract jobs must wait until the vehicle and driver are assigned');
+  lineNotificationsEnabled = false;
+  await context.exports.notifyLineGroupOfNewJob({ params: { jobId: 'job-1' }, data: { data: () => ({
+    workOrder: 'JN-3', trackingShareToken: 'abcdef0123456789abcdef0123456789', organizationId: 'main'
+  }) } });
+  assert.equal(sendCount, 1, 'disabled LINE must not push a new job');
+  assert.equal(state.status, 'disabled');
+  assert.equal(linkCreates, 0, 'disabling LINE must not affect the existing tracking link');
   console.log('PASS: main jobs notify LINE; new subcontract jobs wait for assignment');
 })().catch(error => { console.error(error); process.exitCode = 1; });
