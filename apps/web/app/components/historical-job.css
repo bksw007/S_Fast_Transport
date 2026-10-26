@@ -1,20 +1,22 @@
 .historical-job-screen { max-width: 1180px; margin: 0 auto; color: var(--ui-ink, var(--text)); color-scheme: light; }
 .admin-premium-shell[data-theme="dark"] .historical-job-screen { color-scheme: dark; }
-.historical-job-screen > .historical-hero { margin-bottom: 0; }
-.historical-hero h1 { display: flex; align-items: center; gap: 11px; }
+.historical-job-screen > .historical-hero { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 0; }
+.admin-premium-shell .screen.historical-job-screen > .historical-hero h1 { display: flex; align-items: center; gap: 11px; font-size: clamp(1.55rem, 2.1vw, 2rem); font-weight: 500; letter-spacing: -.02em; line-height: 1.35; }
 .admin-premium-shell .historical-hero .eyebrow { color: #d7c3a2; }
 .historical-hero h1 svg { flex: none; color: #d7c3a2; }
 .historical-job-screen form { display: grid; gap: 18px; margin-top: 20px; }
 .historical-job-screen form > section { min-width: 0; padding: 24px; border: 1px solid var(--ui-border, var(--border)); border-radius: 14px; background: var(--ui-surface, var(--surface)); box-shadow: var(--shadow-card); }
-.historical-job-screen form > section > h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; color: var(--ui-ink, var(--text)); font-size: 1.05rem; font-weight: 700; }
-.historical-job-screen form > section > h2 span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: var(--ui-accent, var(--accent)); background: var(--ui-surface-soft, var(--surface-2)); font-size: .66rem; letter-spacing: .04em; }
+.historical-job-screen form > section > h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; color: var(--ui-ink, var(--text)); font-size: 1rem; font-weight: 600; }
+.historical-job-screen form > section > h2 span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: var(--ui-accent, var(--accent)); background: var(--ui-surface-soft, var(--surface-2)); font-size: .66rem; font-weight: 600; letter-spacing: .04em; }
 .historical-job-screen form > section > p { margin: 0 0 16px; color: var(--ui-muted, var(--muted)); font-size: .83rem; line-height: 1.6; }
 .historical-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px 16px; }
-.historical-grid > label, .historical-grid > .historical-field, .historical-notes, .historical-photo-group > label { display: grid; align-content: start; gap: 7px; min-width: 0; color: var(--ui-ink, var(--text)); font-size: .84rem; font-weight: 650; }
+.historical-grid > label, .historical-grid > .historical-field, .historical-notes, .historical-photo-group > label { display: grid; align-content: start; gap: 7px; min-width: 0; color: var(--ui-ink, var(--text)); font-size: .82rem; font-weight: 500; }
 .historical-grid > label > :is(input, select), .historical-notes > textarea { width: 100%; min-width: 0; min-height: 43px; padding: 9px 11px; border: 1px solid var(--ui-border, var(--border)); border-radius: 9px; color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); font: inherit; font-weight: 400; }
 .historical-grid > label > :is(input, select):focus-visible, .historical-notes > textarea:focus-visible { outline: 2px solid var(--ui-accent, var(--accent)); outline-offset: 2px; }
 .historical-grid > label > input[readonly] { color: var(--ui-muted, var(--muted)); background: var(--ui-surface-soft, var(--surface-2)); }
-.historical-grid .list-manager-combobox > input, .historical-location .location-picker :is(input, .location-picker-trigger) { min-height: 43px; border-color: var(--ui-border, var(--border)); color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); }
+.historical-grid .list-manager-combobox > input, .historical-location .location-picker :is(input, .location-picker-trigger) { min-height: 43px; border-color: var(--ui-border, var(--border)); color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); font-weight: 400; }
+.historical-grid .list-manager-combobox > input::placeholder, .historical-location .location-picker input::placeholder { color: var(--ui-muted, var(--muted)); opacity: 1; }
+.historical-location .location-picker-option { font-weight: 400; }
 .historical-job-screen small { color: var(--ui-muted, var(--muted)); font-size: .72rem; font-weight: 400; line-height: 1.45; }
 .historical-job-screen small[role="alert"] { color: var(--danger); }
 .historical-location { grid-row: span 2; }
@@ -31,7 +33,7 @@
 .historical-photo span { display: block; overflow: hidden; padding: 5px 7px; color: var(--ui-muted, var(--muted)); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
 .historical-photo button { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--ui-border, var(--border)); border-radius: 50%; color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); cursor: pointer; }
 .historical-review { background: color-mix(in srgb, var(--ui-accent, var(--accent)) 5%, var(--ui-surface, var(--surface))) !important; }
-.historical-review button { min-height: 44px; padding: 10px 19px; border: 1px solid var(--ui-accent, var(--accent)); border-radius: 9px; color: var(--on-accent, white); background: var(--ui-accent, var(--accent)); font: inherit; font-weight: 700; cursor: pointer; }
+.historical-review button { min-height: 44px; padding: 10px 19px; border: 1px solid var(--ui-accent, var(--accent)); border-radius: 9px; color: var(--on-accent, white); background: var(--ui-accent, var(--accent)); font: inherit; font-weight: 600; cursor: pointer; }
 .historical-review button:hover:not(:disabled) { filter: brightness(.92); }
 .historical-review button:disabled { opacity: .55; cursor: wait; }
 .historical-error { color: var(--danger) !important; }
