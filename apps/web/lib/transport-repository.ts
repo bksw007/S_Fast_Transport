@@ -1089,6 +1089,11 @@ export async function uploadProof(job: TransportJob, file: File, actor: UserProf
 }
 
 export async function createTrackingShareLink(job: TransportJob, actor: UserProfile, expiry?: Date) {
+  if (job.historical) {
+    if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่แชร์ใบงานย้อนหลังได้");
+    const current = (await getDoc(doc(db, "today_jobs", job.id))).data();
+    if (current?.historical !== true || current.status !== "completed") throw new Error("ใบงานย้อนหลังนี้ไม่พร้อมให้แชร์");
+  }
   if (!expiry) {
     const automaticLinks = await getDocs(query(
       collection(db, "tracking_share_links"),
@@ -1119,13 +1124,13 @@ export async function createTrackingShareLink(job: TransportJob, actor: UserProf
     ...(job.pickupPlace ? { pickupPlace: job.pickupPlace } : {}),
     ...(job.deliveryPlace ? { deliveryPlace: job.deliveryPlace } : {}),
     vehicleLabel: job.vehiclePlate,
-    carrierName: companySettings.name || job.carrierName || actor.organizationName || "S Fast Transport",
+    carrierName: (job.historical ? job.carrierName || companySettings.name : companySettings.name || job.carrierName) || actor.organizationName || "S Fast Transport",
     eta: job.eta,
-    lastUpdatedAt: job.currentLocation.updatedAt,
-    currentLocation: {
+    lastUpdatedAt: job.historical ? job.completedAt ?? job.recordedAt ?? "" : job.currentLocation.updatedAt,
+    ...(!job.historical ? { currentLocation: {
       lat: job.currentLocation.lat,
       lng: job.currentLocation.lng
-    },
+    } } : {}),
     createdByUid: actor.uid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()

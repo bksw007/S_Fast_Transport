@@ -6,6 +6,7 @@ const ts = require('typescript');
 const source = fs.readFileSync('apps/web/lib/historical-job.ts', 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 const writes = [];
+let syncedLink;
 const current = { historical: true, status: 'completed', workOrder: 'JN-20261010001PE', pickupDate: '2026-10-10' };
 const firestore = {
   collection: (_db, path) => ({ path }),
@@ -29,7 +30,8 @@ const mocks = {
   './transport-repository': { hasApprovedAccess: () => true, isMainAdmin: () => true },
   './historical-work-order': {},
   './google-routes-distance': { coordinateFingerprint: place => place ? `${place.lat},${place.lng}` : '' },
-  './settings-repository': { loadCompanySettings: async () => ({ name: 'S Fast Transport' }) }
+  './settings-repository': { loadCompanySettings: async () => ({ name: 'S Fast Transport' }) },
+  './job-detail-repository': { syncEditedShareLinks: async (_jobId, values) => { syncedLink = values; } }
 };
 const context = { exports: {}, require: name => mocks[name] ?? {}, Intl, Date, Number, String, Error };
 vm.runInNewContext(code, context);
@@ -50,6 +52,8 @@ const draft = {
   assert.ok(!('workOrder' in writes[0]));
   assert.ok(!('pickupDate' in writes[0]));
   assert.ok(!('historicalEvidence' in writes[0]));
+  assert.equal(syncedLink.carrierName, 'S Fast Transport');
+  assert.equal(syncedLink.lastUpdatedAt, new Date('2026-10-10T13:00:00+07:00').toISOString());
   await assert.rejects(context.exports.updateHistoricalJob(job, { ...draft, pickupDate: '2026-10-11' }, { uid: 'admin', organizationId: 'main' }), /วันที่รับสินค้า/);
   assert.equal(writes.length, 1);
   console.log('PASS: historical edits preserve the work order, pickup date, and evidence');

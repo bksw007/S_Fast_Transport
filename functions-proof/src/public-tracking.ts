@@ -21,6 +21,11 @@ function proofSummary(proof: unknown) {
 }
 
 function selectedAsset(job: DocumentData, kind: string, stage: string, index: number): string {
+  if (job.historical === true) {
+    return kind === "photo" && ["pickup", "delivery", "document"].includes(stage)
+      && Number.isInteger(index) && index >= 0 && index < 10
+      ? value(job.historicalEvidence?.[stage]?.[index]) : "";
+  }
   if (kind === "issue") return value(job.lastIssue?.photoPath);
   if (stage === "handover" && kind === "photo" && Number.isInteger(index) && index >= 0 && index < 10) {
     return value(job.handoverDocumentPhotoPaths?.[index]);
@@ -62,7 +67,11 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
 
     if (request.query.kind) {
       const path = selectedAsset(job, value(request.query.kind), value(request.query.stage), Number(request.query.index));
-      if (!path.startsWith(`proof_of_delivery/${jobId}/`)) { response.status(404).send("Asset unavailable"); return; }
+      const allowedPrefix = job.historical === true
+        ? `historical_jobs/${jobId}/` : `proof_of_delivery/${jobId}/`;
+      if (!path.startsWith(allowedPrefix) || job.historical === true && !path.includes(`/${value(request.query.stage)}/`)) {
+        response.status(404).send("Asset unavailable"); return;
+      }
       const file = getStorage().bucket(storageBucket).file(path);
       const [metadata] = await file.getMetadata();
       const contentType = metadata.contentType || "";
@@ -83,6 +92,8 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
     const issue = job.lastIssue && typeof job.lastIssue === "object" ? job.lastIssue as DocumentData : null;
     response.json({
       workOrder: value(job.workOrder),
+      historical: job.historical === true,
+      recordedAt: job.createdAt?.toDate?.()?.toISOString?.() ?? "",
       status: value(job.status),
       customer: value(job.customer),
       carrierName: value(job.carrierName || share.carrierName),
@@ -110,8 +121,9 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
       eta: value(job.eta),
       arrivedDeliveryAt: job.arrivedDeliveryAt?.toDate?.()?.toISOString?.() ?? value(job.arrivedDeliveryAt),
       completedAt: job.completedAt?.toDate?.()?.toISOString?.() ?? value(job.completedAt),
-      pickupProof: proofSummary(job.pickupProof),
-      deliveryProof: proofSummary(job.deliveryProof),
+      pickupProof: job.historical === true ? { photoCount: Math.min(job.historicalEvidence?.pickup?.length ?? 0, 10), hasSignature: false, signerName: "", signedAt: "" } : proofSummary(job.pickupProof),
+      deliveryProof: job.historical === true ? { photoCount: Math.min(job.historicalEvidence?.delivery?.length ?? 0, 10), hasSignature: false, signerName: "", signedAt: "" } : proofSummary(job.deliveryProof),
+      documentPhotoCount: job.historical === true ? Math.min(job.historicalEvidence?.document?.length ?? 0, 10) : 0,
       returnPickupProof: proofSummary(job.returnPickupProof),
       returnDeliveryProof: proofSummary(job.returnDeliveryProof),
       handoverDocumentPhotoCount: Array.isArray(job.handoverDocumentPhotoPaths) ? Math.min(job.handoverDocumentPhotoPaths.length, 10) : 0,

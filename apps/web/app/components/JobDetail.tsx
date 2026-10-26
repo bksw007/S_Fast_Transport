@@ -222,8 +222,8 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted, startE
   return <section className="detail-panel job-detail-functional">
     <div className="job-detail-toolbar">
       <div className="detail-head"><div className="job-detail-identity"><span className="job-detail-emblem"><Truck size={26} /></span><div><span className="job-detail-eyebrow">ใบงานขนส่ง</span><h2>{job.workOrder}</h2><p>{job.customer}</p></div><span className={`job-detail-status ${job.status === "problem" || job.status === "cancelled" ? "is-alert" : ""}`}>{statusLabels[job.status]}</span></div><div className="detail-actions">
-        {!job.historical && <><button disabled={busy || !canWrite} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
-        <button disabled={busy || !canWrite} onClick={() => void share("qr")}><QrCode size={18} /> QR</button></>}
+        <button disabled={busy || !canWrite || (job.historical && !canEditJob(job, actor))} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
+        <button disabled={busy || !canWrite || (job.historical && !canEditJob(job, actor))} onClick={() => void share("qr")}><QrCode size={18} /> QR</button>
         <button aria-label="แก้ไขใบงาน" title="แก้ไขใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite || !canEditJob(job, actor)} onClick={() => { setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>
         {job.historical && canWrite && canAdministerJob(job, actor) && <button type="button" disabled={busy} onClick={() => setConfirmHistoricalCancel(true)}>ยกเลิกใบงาน</button>}
       </div></div>

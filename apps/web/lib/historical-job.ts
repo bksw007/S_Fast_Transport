@@ -7,6 +7,7 @@ import { hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-re
 import { historicalWorkOrder } from "./historical-work-order";
 import { loadCompanySettings } from "./settings-repository";
 import { coordinateFingerprint } from "./google-routes-distance";
+import { syncEditedShareLinks } from "./job-detail-repository";
 import type { JobPlace, TransportJob } from "@s-fast-transport/shared";
 
 export const historicalPhotoCategories = ["pickup", "delivery", "document", "expense"] as const;
@@ -181,5 +182,10 @@ export async function updateHistoricalJob(job: TransportJob, draft: HistoricalJo
       jobId: job.id, type: "details_updated", message: "แก้ไขรายละเอียดใบงานย้อนหลัง",
       actorUid: actor.uid, actorName: actor.displayName, organizationId: "main", timestamp: serverTimestamp()
     });
+  });
+  await syncEditedShareLinks(job.id, {
+    organizationId: "main", carrierName, customer: draft.customer.trim(), pickupLocation: draft.pickupLocation.trim(),
+    pickupPlace: draft.pickupPlace, deliveryLocation: draft.deliveryLocation.trim(), deliveryPlace: draft.deliveryPlace,
+    vehiclePlate: draft.vehiclePlate.trim(), eta: draft.deliveryTime, lastUpdatedAt: completed.toISOString()
   });
 }

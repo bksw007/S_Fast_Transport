@@ -21,6 +21,8 @@ export type PublicTrackingJob = {
 export type PublicProof = { photoCount: number; hasSignature: boolean; signerName: string; signedAt: string };
 export type PublicTrackingDetails = {
   workOrder: string;
+  historical: boolean;
+  recordedAt: string;
   status: string;
   customer: string;
   carrierName: string;
@@ -48,6 +50,7 @@ export type PublicTrackingDetails = {
   returnPickupProof: PublicProof;
   returnDeliveryProof: PublicProof;
   handoverDocumentPhotoCount: number;
+  documentPhotoCount: number;
   returnArrivedDeliveryAt: string;
   issue: { type: string; note: string; reportedAt: string; resolvedAt: string; resolutionNote: string; hasPhoto: boolean } | null;
 };
@@ -60,10 +63,11 @@ function publicTrackingAccessUrl(token: string) {
   return url;
 }
 
-export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", kind: "photo" | "signature", index?: number): string;
+export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery" | "document", kind: "photo", index?: number): string;
+export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery", kind: "signature"): string;
 export function publicTrackingAssetUrl(token: string, stage: "handover", kind: "photo", index?: number): string;
 export function publicTrackingAssetUrl(token: string, stage: "issue", kind: "issue"): string;
-export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery" | "handover" | "issue", kind: "photo" | "signature" | "issue", index = 0) {
+export function publicTrackingAssetUrl(token: string, stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery" | "handover" | "document" | "issue", kind: "photo" | "signature" | "issue", index = 0) {
   const url = publicTrackingAccessUrl(token);
   url.searchParams.set("stage", stage);
   url.searchParams.set("kind", kind);
@@ -124,7 +128,7 @@ function toPublicTrackingJob(data: DocumentData): PublicTrackingJob {
     carrierName: data.carrierName ?? "S Fast Transport",
     eta: data.eta ?? "กำลังคำนวณ",
     lastUpdatedAt: data.lastUpdatedAt ?? "-",
-    location: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
+    location: Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0) ? { lat, lng } : null
   };
 }
 

@@ -86,7 +86,8 @@ export default function PublicTrackingPage() {
       signature: proof.hasSignature ? publicTrackingAssetUrl(params.token, stage, "signature") : undefined
     });
     const reportJob: CompletionReportJob = {
-      status: "completed", workOrder: details.workOrder, customer: details.customer, carrierName: details.carrierName,
+      status: "completed", historical: details.historical, recordedAt: details.recordedAt,
+      workOrder: details.workOrder, customer: details.customer, carrierName: details.carrierName,
       jobDate: details.jobDate, cargoType: details.cargoType, tripCount: details.tripCount,
       pickupLocation: details.pickupLocation, pickupDate: details.pickupDate, pickupTime: details.pickupTime,
       deliveryLocation: details.deliveryLocation, deliveryDate: details.deliveryDate, deliveryTime: details.deliveryTime,
@@ -101,7 +102,11 @@ export default function PublicTrackingPage() {
       returnArrivedDeliveryAt: details.returnArrivedDeliveryAt,
       lastIssue: details.issue ?? undefined
     };
-    preview.document.write(completionReportHtml(reportJob, reportProof("pickup", details.pickupProof), reportProof("delivery", details.deliveryProof), `${window.location.origin}/icons/truck-logo.png`, new Date(), details.returnTrip ? { pickup: reportProof("returnPickup", details.returnPickupProof), delivery: reportProof("returnDelivery", details.returnDeliveryProof) } : undefined, details.issue?.hasPhoto ? publicTrackingAssetUrl(params.token, "issue", "issue") : undefined, Array.from({ length: details.handoverDocumentPhotoCount || 0 }, (_, index) => publicTrackingAssetUrl(params.token, "handover", "photo", index))));
+    preview.document.write(completionReportHtml(reportJob, reportProof("pickup", details.pickupProof), reportProof("delivery", details.deliveryProof), `${window.location.origin}/icons/truck-logo.png`, new Date(), details.returnTrip ? { pickup: reportProof("returnPickup", details.returnPickupProof), delivery: reportProof("returnDelivery", details.returnDeliveryProof) } : undefined, details.issue?.hasPhoto ? publicTrackingAssetUrl(params.token, "issue", "issue") : undefined, Array.from({ length: details.handoverDocumentPhotoCount || 0 }, (_, index) => publicTrackingAssetUrl(params.token, "handover", "photo", index)), details.historical ? {
+      pickup: reportProof("pickup", details.pickupProof).photos,
+      delivery: reportProof("delivery", details.deliveryProof).photos,
+      document: Array.from({ length: details.documentPhotoCount }, (_, index) => publicTrackingAssetUrl(params.token, "document", "photo", index))
+    } : undefined));
     preview.document.close();
     preview.focus();
   }
@@ -110,7 +115,7 @@ export default function PublicTrackingPage() {
     <main className="tracking-shell">
       <header className="tracking-header">
         <div className="tracking-brand"><Image src="/icons/truck-logo.png" alt="S Fast Transport" width={58} height={58} priority /><div><strong>S Fast Transport</strong><span>Customer Tracking</span></div></div>
-        <span className="tracking-live"><span /> อัปเดตอัตโนมัติ</span>
+        <span className="tracking-live"><span /> {details?.historical ? "บันทึกย้อนหลัง" : "อัปเดตอัตโนมัติ"}</span>
       </header>
       <section className="tracking-hero">
         <div><span className="tracking-kicker">งานขนส่ง {tracking.workOrder}</span><h1>{statusLabel}</h1><p>{tracking.customerName} · ดำเนินการโดย {tracking.carrierName}</p></div>
@@ -133,7 +138,7 @@ export default function PublicTrackingPage() {
           <article className="tracking-summary">
             <div><Truck size={20} /><span>รถที่ให้บริการ</span><strong>{tracking.vehicleLabel}</strong></div>
             <div><PackageCheck size={20} /><span>สถานะล่าสุด</span><strong>{statusLabel}</strong></div>
-            <div><CheckCircle2 size={20} /><span>อัปเดตล่าสุด</span><strong>{thaiDateTime(tracking.lastUpdatedAt)}</strong></div>
+            <div><CheckCircle2 size={20} /><span>{details?.historical ? "ปิดงานเมื่อ" : "อัปเดตล่าสุด"}</span><strong>{thaiDateTime(tracking.lastUpdatedAt)}</strong></div>
           </article>
           <article className="tracking-driver-card">
             <div className="tracking-section-title"><UserRound size={20} /><div><strong>ติดต่อคนขับ</strong><span>ผู้รับผิดชอบใบงานนี้</span></div></div>
@@ -147,22 +152,23 @@ export default function PublicTrackingPage() {
         <AlertTriangle size={22} /><div><strong>{details.issue.resolvedAt ? "ปัญหาที่แจ้งได้รับการจัดการแล้ว" : "คนขับแจ้งปัญหาเข้ามา"}</strong><p>{driverIssueLabels[details.issue.type] || "ปัญหาการขนส่ง"}{details.issue.note ? ` · ${details.issue.note}` : ""}</p><small>แจ้งเมื่อ {thaiDateTime(details.issue.reportedAt)}{details.issue.resolvedAt ? ` · ดำเนินการแล้ว ${thaiDateTime(details.issue.resolvedAt)}` : ""}</small>{details.issue.resolutionNote && <p>การดำเนินการ: {details.issue.resolutionNote}</p>}{details.issue.hasPhoto && <a href={publicTrackingAssetUrl(params.token, "issue", "issue")} target="_blank" rel="noreferrer"><Image unoptimized src={publicTrackingAssetUrl(params.token, "issue", "issue")} alt="ภาพประกอบปัญหาที่คนขับแจ้ง" width={320} height={220} /><span>เปิดภาพประกอบขนาดเต็ม</span></a>}</div>
       </section>}
       <section className="tracking-evidence-grid" aria-label="หลักฐานการขนส่ง">
-        <ProofCard token={params.token} stage="pickup" title="หลักฐานจากจุดรับ" proof={details?.pickupProof} loading={detailsLoading} />
-        <ProofCard token={params.token} stage="delivery" title="หลักฐานจากจุดส่ง" proof={details?.deliveryProof} loading={detailsLoading} />
+        <ProofCard token={params.token} stage="pickup" title="หลักฐานจากจุดรับ" proof={details?.pickupProof} loading={detailsLoading} showSignature={!details?.historical} />
+        <ProofCard token={params.token} stage="delivery" title="หลักฐานจากจุดส่ง" proof={details?.deliveryProof} loading={detailsLoading} showSignature={!details?.historical} />
+        {details?.historical && <ProofCard token={params.token} stage="document" title="รูปเอกสาร" proof={{ photoCount: details.documentPhotoCount, hasSignature: false, signerName: "", signedAt: "" }} loading={detailsLoading} showSignature={false} />}
         {details?.returnTrip && <><ProofCard token={params.token} stage="returnPickup" title="ขากลับ · หลักฐานจุดรับ" proof={details.returnPickupProof} loading={detailsLoading} /><ProofCard token={params.token} stage="returnDelivery" title="ขากลับ · หลักฐานจุดส่ง" proof={details.returnDeliveryProof} loading={detailsLoading} /></>}
-        <article className="tracking-proof-card"><div className="tracking-section-title"><Camera size={20} /><div><strong>เอกสารนำส่ง</strong><span>{details?.handoverDocumentPhotoCount ? `${details.handoverDocumentPhotoCount} ภาพ` : "ภาพเอกสารที่คนขับบันทึก"}</span></div></div>{details?.handoverDocumentPhotoCount ? <div className="tracking-proof-photos">{Array.from({ length: details.handoverDocumentPhotoCount }, (_, index) => <a key={index} href={publicTrackingAssetUrl(params.token, "handover", "photo", index)} target="_blank" rel="noreferrer"><Image unoptimized src={publicTrackingAssetUrl(params.token, "handover", "photo", index)} alt={`เอกสารนำส่ง ภาพที่ ${index + 1}`} width={360} height={240} /></a>)}</div> : <p className="tracking-proof-empty">{detailsLoading ? "กำลังโหลดเอกสาร…" : "ไม่มีเอกสารนำส่งสำหรับงานนี้"}</p>}</article>
+        {!details?.historical && <article className="tracking-proof-card"><div className="tracking-section-title"><Camera size={20} /><div><strong>เอกสารนำส่ง</strong><span>{details?.handoverDocumentPhotoCount ? `${details.handoverDocumentPhotoCount} ภาพ` : "ภาพเอกสารที่คนขับบันทึก"}</span></div></div>{details?.handoverDocumentPhotoCount ? <div className="tracking-proof-photos">{Array.from({ length: details.handoverDocumentPhotoCount }, (_, index) => <a key={index} href={publicTrackingAssetUrl(params.token, "handover", "photo", index)} target="_blank" rel="noreferrer"><Image unoptimized src={publicTrackingAssetUrl(params.token, "handover", "photo", index)} alt={`เอกสารนำส่ง ภาพที่ ${index + 1}`} width={360} height={240} /></a>)}</div> : <p className="tracking-proof-empty">{detailsLoading ? "กำลังโหลดเอกสาร…" : "ไม่มีเอกสารนำส่งสำหรับงานนี้"}</p>}</article>}
       </section>
-      <section className="tracking-report"><div><strong>รายงานการขนส่ง</strong><span>รายงานการขนส่ง พร้อมภาพและลายเซ็น{details?.returnTrip ? "ทั้งขาไปและขากลับ" : "ทั้งสองจุด"}</span></div><button type="button" onClick={openReport} disabled={!canDownloadReport}><Download size={18} /> ดาวน์โหลดรายงานการขนส่ง</button>{!canDownloadReport && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
+      <section className="tracking-report"><div><strong>รายงานการขนส่ง</strong><span>{details?.historical ? "รายงานพร้อมรูปหลักฐานที่ผู้ดูแลบันทึกย้อนหลัง" : `รายงานการขนส่ง พร้อมภาพและลายเซ็น${details?.returnTrip ? "ทั้งขาไปและขากลับ" : "ทั้งสองจุด"}`}</span></div><button type="button" onClick={openReport} disabled={!canDownloadReport}><Download size={18} /> ดาวน์โหลดรายงานการขนส่ง</button>{!canDownloadReport && <small>ดาวน์โหลดได้เมื่องานเสร็จสมบูรณ์</small>}</section>
       <footer className="tracking-footer">ลิงก์นี้แสดงข้อมูลเฉพาะใบงานนี้ รวมถึงเบอร์ติดต่อคนขับและหลักฐานการส่งมอบ จนกว่าลิงก์จะหมดอายุ</footer>
     </main>
   );
 }
 
-function ProofCard({ token, stage, title, proof, loading }: { token: string; stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery"; title: string; proof?: PublicProof; loading: boolean }) {
+function ProofCard({ token, stage, title, proof, loading, showSignature = true }: { token: string; stage: "pickup" | "delivery" | "returnPickup" | "returnDelivery" | "document"; title: string; proof?: PublicProof; loading: boolean; showSignature?: boolean }) {
   return <article className="tracking-proof-card">
     <div className="tracking-section-title"><Camera size={20} /><div><strong>{title}</strong><span>{proof?.photoCount ? `${proof.photoCount} ภาพ` : "ภาพถ่ายและลายเซ็น"}</span></div></div>
     {proof?.photoCount ? <div className="tracking-proof-photos">{Array.from({ length: proof.photoCount }, (_, index) => <a key={index} href={publicTrackingAssetUrl(token, stage, "photo", index)} target="_blank" rel="noreferrer"><Image unoptimized src={publicTrackingAssetUrl(token, stage, "photo", index)} alt={`${title} ภาพที่ ${index + 1}`} width={360} height={240} /></a>)}</div> : <p className="tracking-proof-empty">{loading ? "กำลังโหลดหลักฐาน..." : "ยังไม่มีภาพจากจุดนี้"}</p>}
-    {proof?.hasSignature ? <div className="tracking-signature"><div><PenLine size={17} /><span>ลายเซ็น {proof.signerName || "ผู้รับสินค้า"}</span><small>{thaiDateTime(proof.signedAt)}</small></div><Image unoptimized src={publicTrackingAssetUrl(token, stage, "signature")} alt={`ลายเซ็น${proof.signerName || title}`} width={240} height={110} /></div> : <p className="tracking-proof-empty">{loading ? "" : "ยังไม่มีลายเซ็นจากจุดนี้"}</p>}
+    {showSignature && stage !== "document" && (proof?.hasSignature ? <div className="tracking-signature"><div><PenLine size={17} /><span>ลายเซ็น {proof.signerName || "ผู้รับสินค้า"}</span><small>{thaiDateTime(proof.signedAt)}</small></div><Image unoptimized src={publicTrackingAssetUrl(token, stage, "signature")} alt={`ลายเซ็น${proof.signerName || title}`} width={240} height={110} /></div> : <p className="tracking-proof-empty">{loading ? "" : "ยังไม่มีลายเซ็นจากจุดนี้"}</p>)}
   </article>;
 }
 

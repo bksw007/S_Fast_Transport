@@ -91,8 +91,9 @@ async function loadDriverAssignment(driverId: string, organizationId: string) {
   return { driverId, assignedDriverUid: driver.userUid as string, driverName: String(user.fullName || driver.name), driverPhone: String(user.phone || driver.phone || "") };
 }
 
-async function syncEditedShareLinks(jobId: string, values: {
+export async function syncEditedShareLinks(jobId: string, values: {
   organizationId: string;
+  carrierName?: string;
   customer: string;
   pickupLocation: string;
   pickupPlace?: TransportJob["pickupPlace"];
@@ -100,6 +101,7 @@ async function syncEditedShareLinks(jobId: string, values: {
   deliveryPlace?: TransportJob["deliveryPlace"];
   vehiclePlate: string;
   eta: string;
+  lastUpdatedAt?: string;
 }) {
   const links = await getDocs(query(
     collection(db, "tracking_share_links"),
@@ -111,12 +113,14 @@ async function syncEditedShareLinks(jobId: string, values: {
   const batch = writeBatch(db);
   links.docs.forEach(link => batch.update(link.ref, {
     customerName: values.customer,
+    ...(values.carrierName ? { carrierName: values.carrierName } : {}),
     pickupLocation: values.pickupLocation,
     pickupPlace: values.pickupPlace ?? deleteField(),
     deliveryLocation: values.deliveryLocation,
     deliveryPlace: values.deliveryPlace ?? deleteField(),
     vehicleLabel: values.vehiclePlate,
     eta: values.eta,
+    ...(values.lastUpdatedAt ? { lastUpdatedAt: values.lastUpdatedAt } : {}),
     updatedAt: serverTimestamp()
   }));
   await batch.commit();
