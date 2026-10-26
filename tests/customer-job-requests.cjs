@@ -10,7 +10,7 @@ const ref = path => ({ path, id: path.split('/').at(-1), get: async () => snapsh
 const snapshot = item => ({ exists: records.has(item.path), data: () => records.get(item.path) });
 const db = {
   doc: path => ref(path),
-  collection: path => ({ doc: () => ref(`${path}/request-1`) }),
+  collection: path => ({ doc: () => ref(`${path}/request-1`), get: async () => ({ docs: [...records.keys()].filter(key => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes('/')).map(key => ({ id: key.split('/').at(-1), data: () => records.get(key) })) }) }),
   runTransaction: async action => action({
     get: async item => snapshot(item),
     create(item, data) { if (records.has(item.path)) throw new Error('duplicate create'); writes.push({ path: item.path, data }); records.set(item.path, data); },
@@ -84,5 +84,14 @@ records.set('users/admin-user', { role: 'admin', active: true, approvalStatus: '
   await context.exports.emailCustomerJobRequest({ params: { requestId: 'request-2' }, data: { before: { data: () => request }, after: { data: () => accepted } } });
   assert.equal(calls.length, 9, 'acceptance mail reaches every recipient too');
   assert.match(calls[6].text, /JN-20261014001/);
+  records.set('customers/archived', { name: 'Deleted Co', aliases: ['Deleted Co'], deletedAt: 'NOW', active: false });
+  records.set('customer_names/deleted%20co', { customerId: 'archived' });
+  let linkedCustomerId = '';
+  const newJob = { data: () => ({ customer: 'Deleted Co' }), ref: { update: async change => { linkedCustomerId = change.customerId; } } };
+  await context.exports.linkJobToCustomer({ data: { before: { data: () => undefined }, after: newJob } });
+  assert.equal(linkedCustomerId, '', 'archived customer must not receive new jobs through a stale name index');
+  records.set('customers/replacement', { name: 'Deleted Co', active: true });
+  await context.exports.linkJobToCustomer({ data: { before: { data: () => undefined }, after: newJob } });
+  assert.equal(linkedCustomerId, 'replacement');
   console.log('PASS: customer request validation, two separate location stores, review permissions, and email recipients');
 })().catch(error => { console.error(error); process.exitCode = 1; });

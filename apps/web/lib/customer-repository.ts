@@ -13,19 +13,24 @@ export async function resolveCustomerId(name: string, actor: UserProfile): Promi
   if (!normalized || cleanName.length > 200) throw new Error("กรุณาระบุบริษัทผู้ว่าจ้างให้ถูกต้อง");
   const nameRef = doc(db, "customer_names", encodeURIComponent(normalized));
   const existingName = await getDoc(nameRef);
-  if (existingName.exists()) return String(existingName.data().customerId);
+  if (existingName.exists()) {
+    const indexedCustomer = await getDoc(doc(db, "customers", String(existingName.data().customerId)));
+    if (indexedCustomer.exists() && !indexedCustomer.data().deletedAt) return indexedCustomer.id;
+  }
   const customers = await getDocs(collection(db, "customers"));
   const matches = customers.docs.filter(item => {
     const data = item.data();
-    return [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])].some(value => normalizeCustomerName(String(value ?? "")) === normalized);
+    return !data.deletedAt && [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])].some(value => normalizeCustomerName(String(value ?? "")) === normalized);
   });
   if (matches.length > 1) throw new Error("พบบริษัทลูกค้าชื่อซ้ำ กรุณาตรวจสอบในเมนูลูกค้าก่อนบันทึก");
   const matchedCustomerId = matches[0]?.id;
   const customerRef = doc(collection(db, "customers"));
   return runTransaction(db, async tx => {
     const matched = await tx.get(nameRef);
-    if (matched.exists()) return String(matched.data().customerId);
-    if (matchedCustomerId) {
+    const indexed = matched.exists() ? await tx.get(doc(db, "customers", String(matched.data().customerId))) : null;
+    if (indexed?.exists() && !indexed.data().deletedAt) return indexed.id;
+    const candidate = matchedCustomerId ? await tx.get(doc(db, "customers", matchedCustomerId)) : null;
+    if (candidate?.exists() && !candidate.data().deletedAt) {
       tx.set(nameRef, { customerId: matchedCustomerId });
       return matchedCustomerId;
     }
@@ -52,6 +57,7 @@ export async function reconcileCustomerReferences(actor: UserProfile): Promise<{
   const byName = new Map<string, Set<string>>();
   for (const item of customerDocs.docs) {
     const data = item.data();
+    if (data.deletedAt) continue;
     for (const name of [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])]) {
       const key = normalizeCustomerName(String(name ?? ""));
       if (!key) continue;
@@ -84,7 +90,7 @@ function assertAccess(actor: UserProfile) {
   }
 }
 export function subscribeCustomers(onData: (items: Customer[]) => void, onError: (message: string) => void) {
-  return onSnapshot(collection(db, "customers"), snapshot => onData(snapshot.docs.map(item => {
+  return onSnapshot(collection(db, "customers"), snapshot => onData(snapshot.docs.filter(item => !item.data().deletedAt).map(item => {
     const data = item.data();
     return { id: item.id, name: data.name ?? "", contactName: data.contactName ?? "", phone: data.phone ?? "", email: data.email ?? "", taxId: data.taxId ?? "", address: data.address ?? "", notes: data.notes ?? "", active: data.active !== false, aliases: data.aliases ?? [] };
   }).sort((a, b) => a.name.localeCompare(b.name, "th"))), error => onError(error.message));
@@ -113,6 +119,24 @@ export async function saveCustomer(draft: CustomerDraft, existing: Customer | nu
 export async function setCustomerActive(customer: Customer, active: boolean, actor: UserProfile) {
   assertAccess(actor);
   await updateDoc(doc(db, "customers", customer.id), { active, updatedAt: serverTimestamp(), updatedByUid: actor.uid });
+}
+export async function deleteCustomer(customer: Customer, actor: UserProfile) {
+  assertAccess(actor);
+  const ref = doc(db, "customers", customer.id);
+  await runTransaction(db, async tx => {
+    const current = await tx.get(ref);
+    if (!current.exists() || current.data().deletedAt) throw new Error("ไม่พบลูกค้ารายนี้ในรายการที่ใช้งานอยู่");
+    const names = [...new Set([current.data().name, ...(Array.isArray(current.data().aliases) ? current.data().aliases : [])].map(value => normalizeCustomerName(String(value ?? ""))).filter(Boolean))];
+    const optionRefs = names.map(name => doc(db, "organizations", "main", "list_options", `customer--${encodeURIComponent(name)}`));
+    const mappings = await Promise.all(names.map(name => tx.get(doc(db, "customer_names", encodeURIComponent(name)))));
+    const options = await Promise.all(optionRefs.map(optionRef => tx.get(optionRef)));
+    tx.update(ref, { active: false, deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedByUid: actor.uid });
+    names.forEach((name, index) => {
+      if (mappings[index].data()?.customerId !== customer.id) return;
+      tx.delete(doc(db, "customer_names", encodeURIComponent(name)));
+      if (options[index].exists() && options[index].data().organizationId === "main" && options[index].data().field === "customer") tx.delete(optionRefs[index]);
+    });
+  });
 }
 export function subscribeCustomerLinks(onData: (items: CustomerLink[]) => void, onError: (message: string) => void) {
   return onSnapshot(collection(db, "tracking_share_links"), snapshot => onData(snapshot.docs.map(item => {

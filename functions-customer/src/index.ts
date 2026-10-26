@@ -232,11 +232,15 @@ export const linkJobToCustomer = onDocumentWritten({
   if (!normalized) return;
   const indexed = await db.doc(`customer_names/${encodeURIComponent(normalized)}`).get();
   let customerId = indexed.exists ? String(indexed.data()?.customerId ?? "") : "";
+  if (customerId) {
+    const customer = await db.doc(`customers/${customerId}`).get();
+    if (!customer.exists || customer.data()?.deletedAt) customerId = "";
+  }
   if (!customerId) {
     const customers = await db.collection("customers").get();
     const matches = customers.docs.filter(item => {
       const data = item.data();
-      return [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])]
+      return !data.deletedAt && [data.name, ...(Array.isArray(data.aliases) ? data.aliases : [])]
         .some(name => String(name ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("th-TH") === normalized);
     });
     if (matches.length === 1) customerId = matches[0].id;
