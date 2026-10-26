@@ -59,7 +59,7 @@ export function groupReportJobs(jobs: TransportJob[], groupBy: GroupBy, now: num
     const company = job.carrierName || job.organizationId || "ไม่ระบุบริษัท";
     const waiting = job.status === "pending_subcontract" || job.status === "subcontract_accepted";
     const label = groupBy === "vehicle" ? waiting ? "ยังไม่มอบหมายรถ" : job.vehiclePlate : groupBy === "driver" ? waiting ? "ยังไม่มอบหมายคนขับ" : job.driverName : groupBy === "company" ? company : job.customer;
-    const identity = groupBy === "driver" ? waiting ? "unassigned" : job.assignedDriverUid || job.driverName : groupBy === "company" ? reportCompanyKey(job) : label;
+    const identity = groupBy === "driver" ? waiting ? "unassigned" : job.driverId ? `driver:${job.driverId}` : job.assignedDriverUid ? `user:${job.assignedDriverUid}` : `name:${job.driverName}` : groupBy === "company" ? reportCompanyKey(job) : label;
     const key = JSON.stringify([groupBy === "customer" ? "" : reportCompanyKey(job), identity]);
     const group = groups.get(key) || { label, company: groupBy === "customer" ? "ทุกบริษัทที่เลือก" : company, jobs: [] };
     group.jobs.push(job);

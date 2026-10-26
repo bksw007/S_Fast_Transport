@@ -48,6 +48,10 @@ assert.equal(filterReportJobs([{ ...base, id: 'today', jobDate: '2026-09-17' }],
 const sorted = filterReportJobs([{ ...base, id: 'older', jobDate: '2026-09-18', pickupDate: '2026-09-15' }, { ...base, id: 'newer', jobDate: '2026-09-14' }], { ...filters, start: '', end: '' }, now);
 assert.equal(sorted[0].id, 'newer', 'Report order follows pickup date');
 assert.equal(groupReportJobs([onTime, { ...late, assignedDriverUid: 'driver-2' }], 'driver', now).length, 2, 'Different drivers with the same name must not merge');
+const currentRun = { ...onTime, driverId: 'main-driver-1', assignedDriverUid: 'user-1' };
+const historicalRun = { ...late, historical: true, carrierOrganizationId: 'main', driverId: 'main-driver-1', assignedDriverUid: undefined };
+assert.equal(groupReportJobs([currentRun, historicalRun], 'driver', now).length, 1, 'Historical and current jobs for the same driver ID merge');
+assert.equal(groupReportJobs([currentRun, { ...historicalRun, driverId: 'main-driver-2' }], 'driver', now).length, 2, 'Same-name drivers with different IDs remain separate');
 assert.equal(groupReportJobs([onTime, { ...late, organizationId: 'other' }], 'vehicle', now).length, 2, 'Same plate across organizations must not merge');
 assert.equal(groupReportJobs(jobs, 'company', now)[0].onTimeRate, 50);
 const waiting = { ...base, id: 'partner-waiting', organizationId: 'partner', carrierName: 'Partner', status: 'pending_subcontract', driverName: 'รอมอบหมาย', vehiclePlate: '', assignedDriverUid: undefined };
