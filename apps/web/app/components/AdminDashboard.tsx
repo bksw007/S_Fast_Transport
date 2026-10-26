@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Search, Trash2, Truck, UserRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Pencil, Search, Trash2, Truck, UserRound } from "lucide-react";
 import { historyMonthLabel, jobHistoryMonth, statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { bangkokDateKey, nextStopSchedule } from "@/lib/job-card-schedule";
+import { canEditJob } from "@/lib/job-detail-repository";
+import type { UserProfile } from "@/lib/transport-repository";
 
 type Filter = "all" | "active" | "attention" | "completed" | "cancelled";
 const filters: { id: Filter; label: string }[] = [
@@ -21,12 +23,15 @@ const stopSchedule = (date?: string, time?: string) => [date, time].filter(Boole
 const currentBangkokMonth = () => bangkokDateKey().slice(0, 7);
 const pageSize = 12;
 
-export default function AdminDashboard({ jobs, deletedJobs = [], dataState, selectedJobId, onSelectJob, onPermanentlyDelete }: {
+export default function AdminDashboard({ jobs, deletedJobs = [], dataState, selectedJobId, onSelectJob, onEditJob, actor, canWrite, onPermanentlyDelete }: {
   jobs: TransportJob[];
   deletedJobs?: TransportJob[];
   dataState: "loading" | "ready" | "error";
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
+  onEditJob: (jobId: string) => void;
+  actor: UserProfile;
+  canWrite: boolean;
   onPermanentlyDelete?: (job: TransportJob) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
@@ -114,7 +119,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
       {dataState === "loading" ? <div className="dashboard-empty" role="status"><Clock3 size={30} /><h3>กำลังโหลดใบงาน</h3><p>กำลังรวบรวมข้อมูลภาพรวมของคุณ</p></div>
         : dataState === "error" ? <div className="dashboard-empty" role="alert"><AlertTriangle size={30} /><h3>โหลดข้อมูลไม่สำเร็จ</h3><p>ตรวจสอบการเชื่อมต่อ แล้วเปิด Dashboard อีกครั้งหรือรีเฟรชหน้า</p></div>
         : !shown.length ? <div className="dashboard-empty"><Search size={30} /><h3>{allJobs.length ? "ไม่พบงานที่ตรงกับตัวกรอง" : "ยังไม่มีใบงาน"}</h3><p>{allJobs.length ? "ลองเปลี่ยนคำค้นหา สถานะ หรือเดือน" : "เมื่อมีใบงาน ระบบจะแสดงภาพรวมและรายการงานที่นี่"}</p>{(search || filter !== "all" || month !== "all") && <button onClick={() => { setSearch(""); setMonth("all"); selectFilter("all"); }}>ล้างตัวกรอง</button>}</div>
-        : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => { const deleted = deletedIds.has(job.id); const interactiveCard = !deleted && filter !== "cancelled"; const Card = interactiveCard ? "button" : "div"; const eta = nextStopSchedule(job); return <Card type={interactiveCard ? "button" : undefined} className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} aria-haspopup={interactiveCard ? "dialog" : undefined} aria-label={interactiveCard ? `เปิดรายละเอียดใบงาน ${job.workOrder}` : undefined} data-selected={selectedJobId === job.id} onClick={interactiveCard ? () => onSelectJob(job.id) : undefined}>
+        : <><div className="dashboard-job-grid">{shown.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(job => { const deleted = deletedIds.has(job.id); const interactiveCard = !deleted && filter !== "cancelled"; const Card = interactiveCard ? "button" : "div"; const eta = nextStopSchedule(job); return <article className={`dashboard-job ${needsAttention(job) ? "needs-attention" : ""}`} key={job.id} data-selected={selectedJobId === job.id}><Card type={interactiveCard ? "button" : undefined} className="dashboard-card-main" aria-haspopup={interactiveCard ? "dialog" : undefined} aria-label={interactiveCard ? `เปิดรายละเอียดใบงาน ${job.workOrder}` : undefined} onClick={interactiveCard ? () => onSelectJob(job.id) : undefined}>
           <span className="dashboard-job-top"><span className={`dashboard-work-order ${job.status === "cancelled" ? "cancelled" : job.originOrganizationId === "main" && job.organizationId && job.organizationId !== "main" ? "subcontract" : ""}`}>{job.workOrder}</span><span className={`dashboard-job-status ${needsAttention(job) ? "attention" : job.status === "completed" ? "completed" : ""}`}>{deleted ? "ลบใบงานแล้ว" : statusLabels[job.status]}</span></span>
           <span className="dashboard-customer">{job.customer}</span>
           <span className="dashboard-job-route">
@@ -124,9 +129,10 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
           </span>
           <span className="dashboard-job-assignment"><span><UserRound size={15} />{job.driverName || "ยังไม่ระบุคนขับ"}</span><span><Truck size={15} />{job.vehiclePlate || "ยังไม่ระบุรถ"}</span></span>
           {needsAttention(job) && <span className="dashboard-job-alert"><AlertTriangle size={14} />{attentionMessage(job)}</span>}
-          <span className="dashboard-job-footer"><span><Clock3 size={14} /> {job.status === "cancelled" ? "ยกเลิก" : `ETA ${eta.label}`} {job.status === "cancelled" ? (job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH") : "—") : eta.value}</span>{interactiveCard && <span>ดูรายละเอียด<ArrowRight size={16} /></span>}{!deleted && filter === "cancelled" && <button type="button" className="dashboard-detail-link" onClick={() => onSelectJob(job.id)}>ดูรายละเอียด <ArrowRight size={16} /></button>}</span>
+          </Card>
+          <div className="dashboard-job-footer"><span><Clock3 size={14} /> {job.status === "cancelled" ? "ยกเลิก" : `ETA ${eta.label}`} {job.status === "cancelled" ? (job.cancelledAt ? new Date(job.cancelledAt).toLocaleDateString("th-TH") : "—") : eta.value}</span>{!deleted && <div className="dashboard-job-actions"><button type="button" className="dashboard-detail-link" aria-label={`ดูรายละเอียดใบงาน ${job.workOrder}`} onClick={() => onSelectJob(job.id)}>ดูรายละเอียด <ArrowRight size={16} /></button>{canWrite && canEditJob(job, actor) && <button type="button" className="dashboard-edit-link" aria-label={`แก้ไขใบงาน ${job.workOrder}`} onClick={() => onEditJob(job.id)}><Pencil size={15} /> แก้ไข</button>}</div>}</div>
           {filter === "cancelled" && onPermanentlyDelete && <div className="dashboard-delete-area">{confirmJobId !== job.id ? <button type="button" className="dashboard-delete-button" onClick={() => { setConfirmJobId(job.id); setConfirmation(""); setDeleteError(""); }}><Trash2 size={15} /> ลบใบงานถาวร</button> : <div className="dashboard-delete-confirm"><strong>ลบ {job.workOrder} ถาวร?</strong><p>ใบงาน รูปหลักฐาน ลายเซ็น ตำแหน่ง และลิงก์ติดตามจะถูกลบและกู้คืนจากระบบไม่ได้</p><label>พิมพ์เลขใบงานเพื่อยืนยัน<input value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder={job.workOrder} autoComplete="off" /></label>{deleteError && <p role="alert">{deleteError}</p>}<div><button type="button" disabled={Boolean(deletingId)} onClick={() => { setConfirmJobId(""); setConfirmation(""); setDeleteError(""); }}>ยกเลิก</button><button type="button" className="danger" disabled={confirmation !== job.workOrder || Boolean(deletingId)} onClick={() => void permanentlyDelete(job)}>{deletingId === job.id ? "กำลังลบ…" : "ยืนยันลบถาวร"}</button></div></div>}</div>}
-        </Card>; })}</div><div className="dashboard-pagination"><span>แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, shown.length)} จาก {shown.length} งาน</span>{pages > 1 && <div><button aria-label="หน้าก่อนหน้า" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button><span>{currentPage} / {pages}</span><button aria-label="หน้าถัดไป" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}</div></>}
+        </article>; })}</div><div className="dashboard-pagination"><span>แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, shown.length)} จาก {shown.length} งาน</span>{pages > 1 && <div><button aria-label="หน้าก่อนหน้า" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={18} /></button><span>{currentPage} / {pages}</span><button aria-label="หน้าถัดไป" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={18} /></button></div>}</div></>}
     </section>
   </section>;
 }

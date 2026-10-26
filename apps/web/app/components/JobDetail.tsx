@@ -12,9 +12,11 @@ import { formatPhoneNumber } from "@/lib/profile-repository";
 import { coordinateFingerprint } from "@/lib/google-routes-distance";
 import { requestJobRoadDistance } from "@/lib/job-road-distance-client";
 import JobEditor from "./JobEditor";
+import HistoricalJobEditor from "./HistoricalJobEditor";
 import DriverStatusDialog, { type DriverNotice } from "./DriverStatusDialog";
 import JobRouteHistory from "./JobRouteHistory";
-import { canAdministerJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
+import { canAdministerJob, canEditJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
+import { updateHistoricalJob } from "@/lib/historical-job";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
 const issueLabels: Record<DriverIssueType, string> = { accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย", road_closed: "เส้นทางปิด", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอสินค้านาน", customer_absent: "ลูกค้าไม่อยู่", signature_refused: "ปฏิเสธเซ็นชื่อ", photo_unavailable: "ถ่ายรูปไม่ได้", goods_damaged: "สินค้าเสียหาย", other: "ปัญหาอื่น ๆ" };
@@ -142,9 +144,9 @@ function HistoricalEvidence({ job }: { job: TransportJob }) {
   return <div className="historical-detail-evidence">{error && <p role="alert">{error}</p>}{groups.map(([label, paths]) => <section key={label}><h3>{label}</h3>{paths.length ? <div className="historical-detail-photos">{paths.map((path, index) => urls[path] ? <a key={path} href={urls[path]} target="_blank" rel="noreferrer"><Image unoptimized src={urls[path]} width={180} height={130} alt={`${label} ภาพ ${index + 1}`} /></a> : <span key={path}>กำลังโหลดรูป {index + 1}…</span>)}</div> : <p>ไม่ได้แนบรูป</p>}</section>)}</div>;
 }
 
-export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { job: TransportJob; actor: UserProfile; canWrite: boolean; map: React.ReactNode; onDeleted: () => void }) {
+export default function JobDetail({ job, actor, canWrite, map, onDeleted, startEditing = false }: { job: TransportJob; actor: UserProfile; canWrite: boolean; map: React.ReactNode; onDeleted: () => void; startEditing?: boolean }) {
   const [tab, setTab] = useState(0);
-  const [panel, setPanel] = useState<"share" | "qr" | "settings" | null>(null);
+  const [panel, setPanel] = useState<"share" | "qr" | "settings" | null>(startEditing && canWrite && canEditJob(job, actor) ? "settings" : null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [saveNotice, setSaveNotice] = useState<DriverNotice | null>(null);
@@ -187,13 +189,13 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
     setBusy(true); setMessage("");
     try { await action(); setMessage(success); } catch (error) { setMessage(error instanceof Error ? error.message : "ทำรายการไม่สำเร็จ"); } finally { setBusy(false); }
   }
-  async function saveEditedJob(draft: Parameters<typeof updateJobDetails>[1]) {
+  async function saveEditedJob(save: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
     setMessage("");
     setSaveNotice({ title: "กำลังบันทึกการแก้ไข", detail: `ใบงาน ${job.workOrder} · กรุณารอสักครู่`, tone: "pending" });
     try {
-      await updateJobDetails(job, draft, actor);
+      await save();
       setPanel(null);
       setSaveNotice({ title: "บันทึกการแก้ไขสำเร็จ", detail: `อัปเดตใบงาน ${job.workOrder} เรียบร้อยแล้ว`, tone: "success" });
     } catch (error) {
@@ -222,7 +224,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
       <div className="detail-head"><div className="job-detail-identity"><span className="job-detail-emblem"><Truck size={26} /></span><div><span className="job-detail-eyebrow">ใบงานขนส่ง</span><h2>{job.workOrder}</h2><p>{job.customer}</p></div><span className={`job-detail-status ${job.status === "problem" || job.status === "cancelled" ? "is-alert" : ""}`}>{statusLabels[job.status]}</span></div><div className="detail-actions">
         {!job.historical && <><button disabled={busy || !canWrite} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
         <button disabled={busy || !canWrite} onClick={() => void share("qr")}><QrCode size={18} /> QR</button></>}
-        {!job.historical && <button aria-label="แก้ไขใบงาน" title="แก้ไขใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite || !canAdministerJob(job, actor)} onClick={() => { setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>}
+        <button aria-label="แก้ไขใบงาน" title="แก้ไขใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite || !canEditJob(job, actor)} onClick={() => { setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>
         {job.historical && canWrite && canAdministerJob(job, actor) && <button type="button" disabled={busy} onClick={() => setConfirmHistoricalCancel(true)}>ยกเลิกใบงาน</button>}
       </div></div>
       <div className="tabs" role="tablist" aria-label="ข้อมูลใบงาน">{tabs.map((label, index) => <button key={label} id={`job-tab-${index}`} role="tab" aria-selected={tab === index} aria-controls="job-tab-content" tabIndex={tab === index ? 0 : -1} className={tab === index ? "selected" : ""} onClick={() => { setTab(index); setPanel(null); }} onKeyDown={event => {
@@ -235,7 +237,10 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
       {(busy || message) && <p role="status">{busy ? "กำลังดำเนินการ…" : message}</p>}
       {panel && <aside className="job-action-panel">
         <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การแก้ไข" : "ลิงก์ติดตาม"}</button>
-        {panel === "settings" ? <JobEditor job={job} actor={actor} busy={busy} canDelete={canAdministerJob(job, actor) && (job.originOrganizationId !== "main" || isMainAdmin(actor))} onSave={saveEditedJob} onDelete={() => perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ลบใบงานแล้ว")} /> : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
+        {panel === "settings" ? job.historical
+          ? <HistoricalJobEditor job={job} actor={actor} busy={busy} onSave={draft => saveEditedJob(() => updateHistoricalJob(job, draft, actor))} />
+          : <JobEditor job={job} actor={actor} busy={busy} canDelete={canAdministerJob(job, actor) && (job.originOrganizationId !== "main" || isMainAdmin(actor))} onSave={draft => saveEditedJob(() => updateJobDetails(job, draft, actor))} onDelete={() => perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ลบใบงานแล้ว")} />
+          : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
       </aside>}
       <div role="tabpanel" id="job-tab-content" aria-labelledby={`job-tab-${tab}`} tabIndex={0}>
         {tab === 0 && <div className="job-detail-overview">

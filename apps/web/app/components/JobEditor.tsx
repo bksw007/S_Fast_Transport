@@ -126,6 +126,6 @@ export default function JobEditor({
   </form>;
 }
 
-function EditField({ label, wide = false, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
+export function EditField({ label, wide = false, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return <div className={`job-edit-field ${wide ? "wide" : ""}`}><span>{label}</span><div>{children}</div></div>;
 }

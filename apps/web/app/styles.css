@@ -5114,6 +5114,7 @@ textarea:focus {
 .dashboard-month-filter select { min-height: 36px; padding: 4px 28px 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 .dashboard-job-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .dashboard-job { display: flex; flex-direction: column; gap: 0; min-width: 0; text-align: left; border: 1px solid var(--border); padding: 20px; border-radius: 14px; background: var(--surface); transition: border-color .15s, box-shadow .15s; }
+.dashboard-card-main { display: flex; flex: 1; flex-direction: column; width: 100%; min-width: 0; padding: 0; background: transparent; text-align: left; }
 .dashboard-job:hover { border-color: var(--accent); box-shadow: 0 5px 16px rgb(0 0 0 / 6%); }
 .dashboard-job[data-selected="true"] { border-color: var(--accent); }
 .dashboard-job-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -5139,8 +5140,9 @@ textarea:focus {
 .dashboard-job-assignment svg, .dashboard-job-footer svg, .dashboard-job-alert svg { flex-shrink: 0; }
 .dashboard-job-alert { padding: 9px 10px; margin-bottom: 12px; font-size: .72rem; color: var(--dashboard-warning); background: color-mix(in srgb, var(--dashboard-warning) 8%, var(--surface)); border-radius: 8px; }
 .dashboard-job-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; font-size: .71rem; color: var(--muted); }
-.dashboard-job-footer > span:last-child { color: var(--accent); font-weight: 600; flex-shrink: 0; }
-.dashboard-detail-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; }
+.dashboard-job-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.dashboard-detail-link, .dashboard-edit-link { display: inline-flex; align-items: center; gap: 4px; padding: 7px 9px; border-radius: 8px; color: var(--accent); background: transparent; font-weight: 600; white-space: nowrap; }
+.dashboard-edit-link { border: 1px solid var(--border); background: var(--surface-2); }
 .dashboard-delete-area { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border); }
 .dashboard-delete-success { margin: 0 0 12px; color: #19604a; font-size: .8rem; font-weight: 600; }
 .dashboard-delete-button { display: inline-flex; align-items: center; gap: 7px; color: #a33e32; font-size: .76rem; font-weight: 600; }

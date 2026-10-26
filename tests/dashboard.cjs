@@ -9,19 +9,20 @@ const shared = { exports: {} };
 vm.runInNewContext(compile(fs.readFileSync('packages/shared/src/index.ts', 'utf8')), shared);
 const schedule = { exports: {}, Date, Intl };
 vm.runInNewContext(compile(fs.readFileSync('apps/web/lib/job-card-schedule.ts', 'utf8')), schedule);
-let slots = [], cursor = 0, selected, permanentlyDeleted, dismissMessage;
+let slots = [], cursor = 0, selected, edited, permanentlyDeleted, dismissMessage;
 const context = { React, exports: {}, window: { setTimeout: fn => { dismissMessage = fn; return 1; }, clearTimeout: () => {} }, require: name => {
   if (name === 'react') return { ...React, useEffect: fn => fn(), useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], value => { slots[index] = value; }]; } };
   if (name === '@s-fast-transport/shared') return shared.exports;
   if (name === '@/lib/job-card-schedule') return schedule.exports;
+  if (name === '@/lib/job-detail-repository') return { canEditJob: job => job.status !== 'cancelled' };
   return require(name);
 }};
 vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboard.tsx', 'utf8')), context);
 const currentMonth = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 7);
 const makeJob = (id, status, alerts = []) => ({ id, status, alerts, jobDate: `${currentMonth}-01`, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
-const jobs = [makeJob('active', 'assigned'), makeJob('problem', 'problem'), makeJob('done', 'completed', ['Old alert']), makeJob('cancel', 'cancelled')];
+const jobs = [makeJob('active', 'assigned'), makeJob('problem', 'problem'), { ...makeJob('done', 'completed', ['Old alert']), historical: true }, makeJob('cancel', 'cancelled')];
 let tree;
-function render(data = jobs, dataState = 'ready', deletedJobs = []) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', onSelectJob: id => { selected = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
+function render(data = jobs, dataState = 'ready', deletedJobs = []) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', actor: { role: 'admin' }, canWrite: true, onSelectJob: id => { selected = id; }, onEditJob: id => { edited = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 function cardIds() { return nodes().filter(n => n.props?.['aria-haspopup'] === 'dialog').map(n => n.props['aria-label']); }
@@ -32,6 +33,7 @@ find(n => n.props?.className === 'dashboard-metric active').props.onClick(); ren
 find(n => n.props?.className === 'dashboard-metric attention').props.onClick(); render(); assert.equal(cardIds().length, 1, 'Problem status is actionable, old closed-job alert is not');
 find(n => n.props?.className === 'dashboard-metric completed').props.onClick(); render();
 find(n => n.props?.['aria-haspopup'] === 'dialog').props.onClick(); assert.equal(selected, 'done');
+find(n => n.props?.className === 'dashboard-edit-link').props.onClick(); assert.equal(edited, 'done', 'historical dashboard card opens editing');
 find(n => n.props?.className === 'dashboard-metric all').props.onClick();
 find(n => n.props?.['aria-label'] === 'ค้นหาใบงาน').props.onChange({ target: { value: 'wo-ACTIVE' } }); render(); assert.equal(cardIds().length, 1);
 find(n => n.props?.['aria-label'] === 'ค้นหาใบงาน').props.onChange({ target: { value: 'missing' } }); render(); assert.equal(cardIds().length, 0);
@@ -125,14 +127,15 @@ function visit(node) {
 }
 visit(file);
 let received, opened;
-const navigation = { React, adminScreen: 'Dashboard', mode: 'admin', jobs, deletedJobs: [], activeJobs: jobs.slice(0, 2), jobsState: 'ready', selectedJob: jobs[2], selectedJobId: 'done', jobDetailOpen: true, canWrite: true, profile: {},
+const navigation = { React, adminScreen: 'Dashboard', mode: 'admin', jobs, deletedJobs: [], activeJobs: jobs.slice(0, 2), jobsState: 'ready', selectedJob: jobs[2], selectedJobId: 'done', jobDetailOpen: true, editOnOpen: false, canWrite: true, profile: {},
   permanentlyDeleteCancelledJob: async () => {},
-  setSelectedJobId: id => { selected = id; }, setJobDetailOpen: value => { opened = value; },
+  setSelectedJobId: id => { selected = id; }, setJobDetailOpen: value => { opened = value; }, setEditOnOpen: value => { navigation.editOnOpen = value; },
   AdminDashboard: props => { received = props; return React.createElement('div'); },
   JobDetailModal: props => props.children, JobDetail: props => React.createElement('div', null, props.job.id), GoogleLiveMap: () => null,
 };
 vm.runInNewContext(compile(`globalThis.result = (${desktop.getText(file)});`), navigation); renderToStaticMarkup(navigation.result);
 assert.equal(received.jobs, jobs); received.onSelectJob('done'); assert.equal(opened, true);
+received.onEditJob('done'); assert.equal(navigation.editOnOpen, true, 'dashboard edit opens the shared modal in edit mode');
 vm.runInNewContext(compile(mobile.getText(file)), navigation);
 renderToStaticMarkup(navigation.AdminMobileScreen({ allJobs: jobs, activeJobs: jobs.slice(0, 2), screen: 'Dashboard', jobsState: 'ready', onSelectJob: () => {} }));
 assert.equal(received.jobs, jobs, 'Mobile and desktop use the same complete dataset');

@@ -79,7 +79,6 @@
 .admin-premium-shell .dashboard-progress { background: #f2f5f0; }
 .admin-premium-shell .dashboard-filters button[aria-pressed="true"],
 .admin-premium-shell .dashboard-empty button { color: #fff; background: #264b49; }
-.admin-premium-shell .dashboard-job-footer > span:last-child,
 .admin-premium-shell .dashboard-detail-link { color: #2d5b52; }
 .admin-premium-shell .dashboard-search { border-color: #dce5dc; background: #fff; }
 .admin-premium-shell .dispatch-form-hero,

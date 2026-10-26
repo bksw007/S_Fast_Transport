@@ -310,6 +310,7 @@ export default function Home() {
     return new URLSearchParams(window.location.search).get("job") ?? "";
   });
   const [jobDetailOpen, setJobDetailOpen] = useState(false);
+  const [editOnOpen, setEditOnOpen] = useState(false);
   const [firebaseMessage, setFirebaseMessage] = useState("กำลังโหลดข้อมูลจาก Firestore...");
   const [busyMessage, setBusyMessage] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -671,7 +672,8 @@ export default function Home() {
               screen={adminScreen}
               activeJobs={activeJobs}
               selectedJobId={selectedJob.id}
-              onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard"); }}
+              onSelectJob={(jobId) => { setEditOnOpen(false); setSelectedJobId(jobId); setJobDetailOpen(adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard"); }}
+              onEditJob={(jobId) => { setEditOnOpen(true); setSelectedJobId(jobId); setJobDetailOpen(true); }}
               onCreateJob={(draft) => runAction((actor) => createJob(draft, actor))}
               onPermanentlyDelete={permanentlyDeleteCancelledJob}
               canWrite={canWrite}
@@ -711,7 +713,7 @@ export default function Home() {
               ? <MapScreen jobs={trackingJobs} selectedJob={trackingJobs.find(job => job.id === selectedJob.id) || trackingJobs[0]} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
               : <EmptyState title="ยังไม่มีรถที่กำลังปฏิบัติงาน" description="ตำแหน่งรถจะแสดงเมื่อมีงานที่เปิดการติดตาม" />
           ) : adminScreen === "Dashboard" ? (
-            <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} onSelectJob={(jobId) => { setSelectedJobId(jobId); setJobDetailOpen(true); }} onPermanentlyDelete={permanentlyDeleteCancelledJob} />
+            <AdminDashboard jobs={jobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJob.id} actor={profile} canWrite={canWrite} onSelectJob={(jobId) => { setEditOnOpen(false); setSelectedJobId(jobId); setJobDetailOpen(true); }} onEditJob={(jobId) => { setEditOnOpen(true); setSelectedJobId(jobId); setJobDetailOpen(true); }} onPermanentlyDelete={permanentlyDeleteCancelledJob} />
           ) : adminScreen === "แจ้งเตือน" ? (
             <NotificationCenter jobs={jobs} actor={profile} pendingCustomerRequestCount={pendingCustomerRequestCount} unresolvedIssueCount={unresolvedIssueCount} onAcceptCustomerRequest={request => { setPrefillRequest(request); setAdminScreen("Jobs / ใบงาน"); }} />
           ) : adminScreen === "บริษัทขนส่ง" && isMainAdmin(profile) ? (
@@ -740,10 +742,11 @@ export default function Home() {
         </aside>
       )}
       {mode === "admin" && (adminScreen === "Jobs / ใบงาน" || adminScreen === "Dashboard") && jobDetailOpen && jobs.some((job) => job.id === selectedJobId) && (
-        <JobDetailModal onClose={() => setJobDetailOpen(false)}>
+        <JobDetailModal onClose={() => { setJobDetailOpen(false); setEditOnOpen(false); }}>
           <JobDetail
             job={selectedJob}
             canWrite={canWrite}
+            startEditing={editOnOpen}
             key={selectedJob.id}
             actor={profile}
             onDeleted={() => { setJobDetailOpen(false); setSelectedJobId(""); }}
@@ -954,6 +957,7 @@ function AdminMobileScreen({
   activeJobs,
   selectedJobId,
   onSelectJob,
+  onEditJob,
   onCreateJob,
   onPermanentlyDelete,
   canWrite,
@@ -973,6 +977,7 @@ function AdminMobileScreen({
   activeJobs: TransportJob[];
   selectedJobId: string;
   onSelectJob: (jobId: string) => void;
+  onEditJob: (jobId: string) => void;
   onCreateJob: (draft: JobDraft) => Promise<CreatedJob | undefined>;
   onPermanentlyDelete: (job: TransportJob) => Promise<void>;
   canWrite: boolean;
@@ -984,7 +989,7 @@ function AdminMobileScreen({
   onAcceptCustomerRequest: (request: CustomerJobRequest) => void;
 }) {
   if (screen === "Dashboard") {
-    return <AdminDashboard jobs={allJobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJobId} onSelectJob={onSelectJob} onPermanentlyDelete={onPermanentlyDelete} />;
+    return <AdminDashboard jobs={allJobs} deletedJobs={deletedJobs} dataState={jobsState} selectedJobId={selectedJobId} actor={profile} canWrite={canWrite} onSelectJob={onSelectJob} onEditJob={onEditJob} onPermanentlyDelete={onPermanentlyDelete} />;
   }
 
   if (screen === "Jobs / ใบงาน" && isMainAdmin(profile)) {

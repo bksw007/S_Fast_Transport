@@ -46,6 +46,11 @@ export function canAdministerJob(job: Pick<TransportJob, "organizationId" | "sta
     && (isMainAdmin(actor) || (actor.role === "subcontract_admin" && actor.organizationId === job.organizationId && !["pending_subcontract", "subcontract_accepted"].includes(job.status)));
 }
 
+export function canEditJob(job: Pick<TransportJob, "organizationId" | "status" | "historical">, actor: UserProfile) {
+  return job.status !== "cancelled" && canAdministerJob(job, actor)
+    && (!job.historical || isMainAdmin(actor) && actor.organizationId === "main");
+}
+
 export async function resolveDriverIssue(job: TransportJob, note: string, actor: UserProfile) {
   if (!canAdministerJob(job, actor)) throw new Error("ไม่มีสิทธิ์จัดการปัญหาของใบงานนี้");
   const cleanNote = note.trim().slice(0, 500);

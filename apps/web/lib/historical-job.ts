@@ -1,4 +1,4 @@
-import { doc, getDoc, runTransaction, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, deleteField, doc, getDoc, runTransaction, serverTimestamp, Timestamp } from "firebase/firestore";
 import { deleteObject, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES } from "./image-upload";
@@ -6,7 +6,8 @@ import { resolveCustomerId } from "./customer-repository";
 import { hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
 import { historicalWorkOrder } from "./historical-work-order";
 import { loadCompanySettings } from "./settings-repository";
-import type { JobPlace } from "@s-fast-transport/shared";
+import { coordinateFingerprint } from "./google-routes-distance";
+import type { JobPlace, TransportJob } from "@s-fast-transport/shared";
 
 export const historicalPhotoCategories = ["pickup", "delivery", "document", "expense"] as const;
 export type HistoricalPhotoCategory = typeof historicalPhotoCategories[number];
@@ -49,9 +50,10 @@ function dateTime(value: string, label: string) {
   return parsed;
 }
 
-export function validateHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos) {
+export function validateHistoricalDetails(draft: HistoricalJobDraft) {
   const required = [draft.customer, draft.carrierOrganizationId, draft.driverId, draft.vehiclePlate, draft.pickupLocation, draft.deliveryLocation];
   if (required.some(value => !value.trim())) throw new Error("กรุณาเลือกลูกค้า บริษัทขนส่ง คนขับ และระบุทะเบียนรถกับสถานที่รับ–ส่งให้ครบ");
+  if (draft.pickupLocation.length > 160 || draft.deliveryLocation.length > 160 || draft.notes.length > 2000) throw new Error("ชื่อสถานที่หรือหมายเหตุยาวเกินกำหนด");
   if (![draft.pickupDate, draft.deliveryDate].every(validDate)) throw new Error("กรุณาระบุวันที่งานให้ถูกต้องและครบถ้วน");
   if (draft.pickupDate > bangkokToday() || draft.deliveryDate > bangkokToday()) throw new Error("งานย้อนหลังต้องไม่ระบุวันที่ในอนาคต");
   if (draft.deliveryDate < draft.pickupDate) throw new Error("วันที่ส่งสินค้าต้องไม่ก่อนวันที่รับสินค้า");
@@ -62,16 +64,19 @@ export function validateHistoricalJob(draft: HistoricalJobDraft, photos: Histori
   if (completed < dayStart || completed > new Date() || arrived && (arrived < dayStart || arrived > completed)) throw new Error("เวลาถึงจุดส่งหรือเวลาจบงานไม่สอดคล้องกับวันที่ทำงาน");
   const tripCount = Number(draft.tripCount);
   if (!Number.isInteger(tripCount) || tripCount < 1 || tripCount > 999) throw new Error("จำนวนเที่ยวต้องอยู่ระหว่าง 1–999");
+  return { completed, arrived, tripCount };
+}
+
+export function validateHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos) {
+  const details = validateHistoricalDetails(draft);
   if (!photos.pickup.length || !photos.delivery.length) throw new Error("กรุณาแนบรูปรับสินค้าและรูปลงสินค้าอย่างน้อยหมวดละ 1 รูป");
   for (const category of historicalPhotoCategories) {
     if (photos[category].length > 10 || photos[category].some(file => !isImageFile(file) || file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES)) throw new Error("แต่ละหมวดแนบได้ไม่เกิน 10 รูป และรูปต้นฉบับต้องไม่เกิน 20 MB ต่อรูป");
   }
-  return { completed, arrived, tripCount };
+  return details;
 }
 
-export async function createHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos, actor: UserProfile, onProgress?: (message: string) => void) {
-  if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่เพิ่มใบงานย้อนหลังได้");
-  const { completed, arrived, tripCount } = validateHistoricalJob(draft, photos);
+async function resolveHistoricalAssignment(draft: HistoricalJobDraft, actor: UserProfile) {
   const company = draft.carrierOrganizationId === "main" ? null : (await getDoc(doc(db, "organizations", draft.carrierOrganizationId))).data();
   if (draft.carrierOrganizationId !== "main" && (company?.type !== "subcontract" || company.deleted === true)) throw new Error("ไม่พบบริษัทขนส่งที่เลือก กรุณาเลือกใหม่");
   const carrierName = draft.carrierOrganizationId === "main"
@@ -79,6 +84,13 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
     : String(company?.name || "").trim();
   const driver = (await getDoc(doc(db, "drivers", draft.driverId))).data();
   if (!driver || driver.organizationId !== draft.carrierOrganizationId || !String(driver.name || "").trim()) throw new Error("คนขับไม่อยู่ในบริษัทขนส่งที่เลือก กรุณาเลือกใหม่");
+  return { carrierName, driverName: String(driver.name).trim(), driverPhone: String(driver.phone || "") };
+}
+
+export async function createHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos, actor: UserProfile, onProgress?: (message: string) => void) {
+  if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่เพิ่มใบงานย้อนหลังได้");
+  const { completed, arrived, tripCount } = validateHistoricalJob(draft, photos);
+  const { carrierName, driverName, driverPhone } = await resolveHistoricalAssignment(draft, actor);
   const jobRef = doc(db, "today_jobs", draft.submissionId);
   const existing = await getDoc(jobRef);
   if (existing.exists()) {
@@ -116,7 +128,7 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
       transaction.set(jobRef, {
         submissionId: draft.submissionId, historical: true, historicalEvidence: paths, workOrder: number,
         customer: draft.customer.trim(), ...(customerId ? { customerId } : {}), carrierName, carrierOrganizationId: draft.carrierOrganizationId,
-        driverId: draft.driverId, driverName: String(driver.name).trim(), driverPhone: String(driver.phone || ""), vehiclePlate: draft.vehiclePlate.trim(),
+        driverId: draft.driverId, driverName, driverPhone, vehiclePlate: draft.vehiclePlate.trim(),
         vehicleType: draft.vehicleType.trim(), cargoType: draft.cargoType.trim(), tripCount,
         jobDate: draft.pickupDate, pickupDate: draft.pickupDate, pickupTime: draft.pickupTime,
         pickupLocation: draft.pickupLocation.trim(), ...(draft.pickupPlace ? { pickupPlace: draft.pickupPlace } : {}), deliveryDate: draft.deliveryDate,
@@ -136,4 +148,38 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
     if (saved && !saved.exists()) await Promise.allSettled(uploaded.map(path => deleteObject(ref(storage, path))));
     throw error;
   }
+}
+
+export async function updateHistoricalJob(job: TransportJob, draft: HistoricalJobDraft, actor: UserProfile) {
+  if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่แก้ใบงานย้อนหลังได้");
+  const { completed, arrived, tripCount } = validateHistoricalDetails(draft);
+  if (!job.historical || draft.pickupDate !== job.pickupDate) throw new Error("วันที่รับสินค้าของใบงานย้อนหลังต้องตรงกับเลขใบงานเดิม");
+  const { carrierName, driverName, driverPhone } = await resolveHistoricalAssignment(draft, actor);
+  const customerId = await resolveCustomerId(draft.customer.trim(), actor);
+  const jobRef = doc(db, "today_jobs", job.id);
+  const eventRef = doc(collection(db, "job_events"));
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(jobRef);
+    if (!snapshot.exists() || snapshot.data().historical !== true || snapshot.data().status !== "completed") throw new Error("ใบงานย้อนหลังนี้ไม่พร้อมให้แก้ไข");
+    const current = snapshot.data();
+    if (current.workOrder !== job.workOrder || current.pickupDate !== draft.pickupDate) throw new Error("เลขใบงานหรือวันที่รับสินค้าเปลี่ยนแล้ว กรุณาเปิดใหม่");
+    const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(draft.pickupPlace, draft.deliveryPlace);
+    transaction.update(jobRef, {
+      customer: draft.customer.trim(), customerId: customerId ?? deleteField(),
+      carrierOrganizationId: draft.carrierOrganizationId, carrierName,
+      driverId: draft.driverId, driverName, driverPhone,
+      vehiclePlate: draft.vehiclePlate.trim(), vehicleType: draft.vehicleType.trim(), cargoType: draft.cargoType.trim(), tripCount,
+      jobDate: draft.pickupDate, pickupTime: draft.pickupTime,
+      pickupLocation: draft.pickupLocation.trim(), pickupPlace: draft.pickupPlace ?? deleteField(),
+      deliveryDate: draft.deliveryDate, deliveryTime: draft.deliveryTime, deliveryLocation: draft.deliveryLocation.trim(),
+      deliveryPlace: draft.deliveryPlace ?? deleteField(),
+      arrivedDeliveryAt: arrived ? Timestamp.fromDate(arrived) : deleteField(), completedAt: Timestamp.fromDate(completed),
+      ...(changedRoute ? { routeDistanceMeters: deleteField(), routeDistanceFingerprint: deleteField(), routeDistanceProvider: deleteField(), routeDistanceCalculatedAt: deleteField() } : {}),
+      eta: draft.deliveryTime, notes: draft.notes.trim(), updatedAt: serverTimestamp()
+    });
+    transaction.set(eventRef, {
+      jobId: job.id, type: "details_updated", message: "แก้ไขรายละเอียดใบงานย้อนหลัง",
+      actorUid: actor.uid, actorName: actor.displayName, organizationId: "main", timestamp: serverTimestamp()
+    });
+  });
 }
