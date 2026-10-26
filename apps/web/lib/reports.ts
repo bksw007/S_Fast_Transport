@@ -8,8 +8,8 @@ export function bangkokDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 export function deliveryDeadline(job: Pick<TransportJob, "deliveryDate" | "deliveryTime">) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(job.deliveryDate ?? "") || !/^([01]\d|2[0-3]):[0-5]\d$/.test(job.deliveryTime ?? "")) return null;
-  const time = Date.parse(`${job.deliveryDate}T${job.deliveryTime}:00+07:00`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(job.deliveryDate ?? "") || (job.deliveryTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(job.deliveryTime))) return null;
+  const time = Date.parse(`${job.deliveryDate}T${job.deliveryTime ? `${job.deliveryTime}:00` : "23:59:59.999"}+07:00`);
   return Number.isFinite(time) && bangkokDate(new Date(time)) === job.deliveryDate ? time : null;
 }
 export function deliveryResult(job: Pick<TransportJob, "status" | "deliveryDate" | "deliveryTime" | "arrivedDeliveryAt">, now: number): DeliveryResult {
