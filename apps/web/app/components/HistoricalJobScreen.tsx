@@ -84,16 +84,29 @@ export default function HistoricalJobScreen({ actor }: { actor: UserProfile }) {
         <label>ประเภทสินค้า<ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={value => change("cargoType", value)} placeholder="ประเภทสินค้า" organizationId="main" actor={actor} /></label>
         <label>จำนวนเที่ยว<input type="number" required min="1" max="999" value={draft.tripCount} onChange={event => change("tripCount", event.target.value)} /></label>
       </div></section>
-      <section><h2><span>02</span> วันเวลาและสถานที่</h2><div className="historical-grid">
-        <label>วันที่รับสินค้า<input type="date" required max={today()} value={draft.pickupDate} onChange={event => change("pickupDate", event.target.value)} /></label>
-        <label>เวลารับสินค้า<input type="time" value={draft.pickupTime} onChange={event => change("pickupTime", event.target.value)} /></label>
-        <div className="historical-field historical-location"><span>จุดรับสินค้า</span><LocationPicker value={draft.pickupLocation} place={draft.pickupPlace} title="รับงาน" organizationId="main" onChange={(value, place) => setDraft(current => ({ ...current, pickupLocation: value, pickupPlace: place }))} /></div>
-        <label>วันที่ส่งสินค้า<input type="date" required max={today()} value={draft.deliveryDate} onChange={event => change("deliveryDate", event.target.value)} /></label>
-        <label>กำหนดเวลาส่ง<input type="time" value={draft.deliveryTime} onChange={event => change("deliveryTime", event.target.value)} /></label>
-        <div className="historical-field historical-location"><span>จุดส่งสินค้า</span><LocationPicker value={draft.deliveryLocation} place={draft.deliveryPlace} title="ส่งงาน" organizationId="main" onChange={(value, place) => setDraft(current => ({ ...current, deliveryLocation: value, deliveryPlace: place }))} /></div>
-        <label>ถึงจุดส่งจริง (ถ้าทราบ)<input type="datetime-local" max={`${today()}T23:59`} value={draft.arrivedDeliveryAt} onChange={event => change("arrivedDeliveryAt", event.target.value)} /></label>
-        <label>จบงานจริง<input type="datetime-local" required max={`${today()}T23:59`} value={draft.completedAt} onChange={event => change("completedAt", event.target.value)} /></label>
-      </div><label className="historical-notes">หมายเหตุ<textarea rows={3} maxLength={2000} value={draft.notes} onChange={event => change("notes", event.target.value)} /></label></section>
+      <section><h2><span>02</span> วันเวลาและสถานที่</h2>
+        <div className="historical-route-grid">
+          <div className="historical-route-panel"><h3>จุดรับสินค้า</h3>
+            <div className="historical-route-times">
+              <label className="historical-field">วันที่รับสินค้า<input type="date" required max={today()} value={draft.pickupDate} onChange={event => change("pickupDate", event.target.value)} /></label>
+              <label className="historical-field">เวลารับสินค้า<input type="time" value={draft.pickupTime} onChange={event => change("pickupTime", event.target.value)} /></label>
+            </div>
+            <div className="historical-field historical-location"><span>สถานที่รับสินค้า</span><LocationPicker value={draft.pickupLocation} place={draft.pickupPlace} title="รับงาน" organizationId="main" onChange={(value, place) => setDraft(current => ({ ...current, pickupLocation: value, pickupPlace: place }))} /></div>
+          </div>
+          <div className="historical-route-panel"><h3>จุดส่งสินค้า</h3>
+            <div className="historical-route-times">
+              <label className="historical-field">วันที่ส่งสินค้า<input type="date" required max={today()} value={draft.deliveryDate} onChange={event => change("deliveryDate", event.target.value)} /></label>
+              <label className="historical-field">กำหนดเวลาส่ง<input type="time" value={draft.deliveryTime} onChange={event => change("deliveryTime", event.target.value)} /></label>
+            </div>
+            <div className="historical-field historical-location"><span>สถานที่ส่งสินค้า</span><LocationPicker value={draft.deliveryLocation} place={draft.deliveryPlace} title="ส่งงาน" organizationId="main" onChange={(value, place) => setDraft(current => ({ ...current, deliveryLocation: value, deliveryPlace: place }))} /></div>
+          </div>
+        </div>
+        <div className="historical-actual-times">
+          <label className="historical-field">ถึงจุดส่งจริง (ถ้าทราบ)<input type="datetime-local" max={`${today()}T23:59`} value={draft.arrivedDeliveryAt} onChange={event => change("arrivedDeliveryAt", event.target.value)} /></label>
+          <label className="historical-field">จบงานจริง<input type="datetime-local" required max={`${today()}T23:59`} value={draft.completedAt} onChange={event => change("completedAt", event.target.value)} /></label>
+        </div>
+        <label className="historical-notes">หมายเหตุ<textarea rows={3} maxLength={2000} value={draft.notes} onChange={event => change("notes", event.target.value)} /></label>
+      </section>
       <section><h2><span>03</span> รูปหลักฐาน</h2><p>แอดมินแนบรูปเอง · ต้องมีรูปรับสินค้าและรูปลงสินค้าอย่างน้อยหมวดละ 1 รูป · ไม่ต้องมีลายเซ็น</p><div className="historical-photo-grid">{historicalPhotoCategories.map(category => <div className="historical-photo-group" key={category}><label>{photoLabels[category]}{category === "pickup" || category === "delivery" ? " *" : ""}<input type="file" accept="image/*" multiple disabled={busy} onChange={event => { addPhotos(category, event.target.files); event.target.value = ""; }} /></label><small>{photos[category].length}/10 รูป · รูปต้นฉบับไม่เกิน 20 MB</small><div className="historical-photo-list">{photos[category].map((file, index) => <SelectedPhoto key={`${file.name}-${file.lastModified}-${index}`} file={file} disabled={busy} onRemove={() => setPhotos(current => ({ ...current, [category]: current[category].filter((_, position) => position !== index) }))} />)}</div></div>)}</div><p>รูปค่าใช้จ่ายเป็นหลักฐานประกอบใบงาน ยังไม่สร้างรายการเบิกจ่ายหรือยอดเงินอัตโนมัติ</p></section>
       <section className="historical-review"><h2><span>04</span> ตรวจสอบก่อนบันทึก</h2><p>{draft.pickupDate ? `งานนี้จะอยู่ในรายงานตามวันที่รับสินค้า ${draft.pickupDate}` : "เลือกวันที่รับสินค้าเพื่อกำหนดเดือนรายงาน"} · สถานะเสร็จแล้ว · ไม่แจ้งงานใหม่หรือเปิด GPS</p>{message && <p role="status">{message}</p>}{error && <p role="alert" className="historical-error">{error}</p>}<button type="submit" disabled={busy || !driversReady || Boolean(driverData?.error)}>{busy ? "กำลังบันทึก…" : "บันทึกใบงานย้อนหลัง"}</button></section>
     </form>

@@ -11,16 +11,20 @@
 .historical-job-screen form > section > h2 span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: var(--ui-accent, var(--accent)); background: var(--ui-surface-soft, var(--surface-2)); font-size: .66rem; font-weight: 600; letter-spacing: .04em; }
 .historical-job-screen form > section > p { margin: 0 0 16px; color: var(--ui-muted, var(--muted)); font-size: .83rem; line-height: 1.6; }
 .historical-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px 16px; }
-.historical-grid > label, .historical-grid > .historical-field, .historical-notes, .historical-photo-group > label { display: grid; align-content: start; gap: 7px; min-width: 0; color: var(--ui-ink, var(--text)); font-size: .82rem; font-weight: 500; }
-.historical-grid > label > :is(input, select), .historical-notes > textarea { width: 100%; min-width: 0; min-height: 43px; padding: 9px 11px; border: 1px solid var(--ui-border, var(--border)); border-radius: 9px; color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); font: inherit; font-weight: 400; }
-.historical-grid > label > :is(input, select):focus-visible, .historical-notes > textarea:focus-visible { outline: 2px solid var(--ui-accent, var(--accent)); outline-offset: 2px; }
+.historical-grid > label, .historical-field, .historical-notes, .historical-photo-group > label { display: grid; align-content: start; gap: 7px; min-width: 0; color: var(--ui-ink, var(--text)); font-size: .82rem; font-weight: 500; }
+.historical-grid > label > :is(input, select), .historical-field > :is(input, select), .historical-notes > textarea { width: 100%; min-width: 0; min-height: 43px; padding: 9px 11px; border: 1px solid var(--ui-border, var(--border)); border-radius: 9px; color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); font: inherit; font-weight: 400; }
+.historical-grid > label > :is(input, select):focus-visible, .historical-field > :is(input, select):focus-visible, .historical-notes > textarea:focus-visible { outline: 2px solid var(--ui-accent, var(--accent)); outline-offset: 2px; }
 .historical-grid > label > input[readonly] { color: var(--ui-muted, var(--muted)); background: var(--ui-surface-soft, var(--surface-2)); }
 .historical-grid .list-manager-combobox > input, .historical-location .location-picker :is(input, .location-picker-trigger) { min-height: 43px; border-color: var(--ui-border, var(--border)); color: var(--ui-ink, var(--text)); background: var(--ui-surface, var(--surface)); font-weight: 400; }
 .historical-grid .list-manager-combobox > input::placeholder, .historical-location .location-picker input::placeholder { color: var(--ui-muted, var(--muted)); opacity: 1; }
 .historical-location .location-picker-option { font-weight: 400; }
 .historical-job-screen small { color: var(--ui-muted, var(--muted)); font-size: .72rem; font-weight: 400; line-height: 1.45; }
 .historical-job-screen small[role="alert"] { color: var(--danger); }
-.historical-location { grid-row: span 2; }
+.historical-route-grid, .historical-actual-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.historical-route-panel { display: grid; align-content: start; gap: 17px; min-width: 0; }
+.historical-route-panel h3 { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--ui-border, var(--border)); color: var(--ui-accent, var(--accent)); font-size: .9rem; font-weight: 600; }
+.historical-route-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.historical-actual-times { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--ui-border, var(--border)); }
 .historical-location .location-picker { min-width: 0; }
 .historical-notes { margin-top: 18px; }
 .historical-notes textarea { resize: vertical; }
@@ -43,4 +47,5 @@
 .historical-detail-photos { display: flex; flex-wrap: wrap; gap: 10px; }
 .historical-detail-photos img { max-width: 180px; height: 130px; object-fit: cover; border-radius: 8px; }
 @media (max-width: 1100px) { .historical-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .historical-grid, .historical-photo-grid { grid-template-columns: 1fr; } .historical-job-screen form > section { padding: 18px; } .historical-location { grid-row: auto; } }
+@media (max-width: 1200px) { .historical-route-times { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .historical-grid, .historical-route-grid, .historical-actual-times, .historical-photo-grid { grid-template-columns: 1fr; } .historical-job-screen form > section { padding: 18px; } .historical-route-grid { gap: 26px; } }
