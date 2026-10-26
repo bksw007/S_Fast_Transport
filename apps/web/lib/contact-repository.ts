@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { canManageOrganizationLists, type UserProfile } from "./transport-repository";
 import { resolveCustomerId } from "./customer-repository";
@@ -14,7 +14,7 @@ export function validateContact(draft: ContactDraft): ContactDraft {
   return clean;
 }
 export function subscribeContacts(orgId: string, onItems: (items: SavedContact[]) => void, onError: (message: string) => void) {
-  return onSnapshot(collection(db, "organizations", orgId, "contacts"), snapshot => onItems(snapshot.docs.map(item => ({ ...emptyContact, ...item.data(), id: item.id } as SavedContact)).sort((a, b) => a.name.localeCompare(b.name, "th"))), error => onError(error.message));
+  return onSnapshot(collection(db, "organizations", orgId, "contacts"), snapshot => onItems(snapshot.docs.filter(item => !item.data().deletedAt).map(item => ({ ...emptyContact, ...item.data(), id: item.id } as SavedContact)).sort((a, b) => a.name.localeCompare(b.name, "th"))), error => onError(error.message));
 }
 export async function saveContact(draft: ContactDraft, id: string | undefined, actor: UserProfile) {
   const orgId = actor.organizationId ?? "main";
@@ -29,4 +29,15 @@ export async function setContactActive(id: string, active: boolean, actor: UserP
   const orgId = actor.organizationId ?? "main";
   if (!canManageOrganizationLists(actor, orgId)) throw new Error("ไม่มีสิทธิ์จัดการสมุดรายชื่อ");
   await updateDoc(doc(db, "organizations", orgId, "contacts", id), { active, updatedAt: serverTimestamp(), updatedBy: actor.uid });
+}
+
+export async function deleteContact(id: string, actor: UserProfile) {
+  const orgId = actor.organizationId ?? "main";
+  if (!canManageOrganizationLists(actor, orgId)) throw new Error("ไม่มีสิทธิ์จัดการสมุดรายชื่อ");
+  const ref = doc(db, "organizations", orgId, "contacts", id);
+  await runTransaction(db, async transaction => {
+    const current = await transaction.get(ref);
+    if (!current.exists() || current.data().deletedAt || current.data().organizationId !== orgId) throw new Error("ไม่พบผู้ติดต่อรายนี้ในสมุดรายชื่อ");
+    transaction.update(ref, { active: false, deletedAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: actor.uid });
+  });
 }

@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { emptyContact, saveContact, setContactActive, subscribeContacts, type ContactDraft, type SavedContact, validateContact } from "@/lib/contact-repository";
+import { useEffect, useRef, useState } from "react";
+import { deleteContact, emptyContact, saveContact, setContactActive, subscribeContacts, type ContactDraft, type SavedContact, validateContact } from "@/lib/contact-repository";
 import { canManageOrganizationLists, subscribeListOptions, type UserProfile } from "@/lib/transport-repository";
 
 import { subscribeCustomers } from "@/lib/customer-repository";
@@ -53,12 +53,42 @@ export default function ContactBook({ actor }: { actor: UserProfile }) {
   const [editing, setEditing] = useState<SavedContact | "new" | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<SavedContact | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const canWrite = canManageOrganizationLists(actor, orgId);
   const filtered = items.filter(item => [item.name, item.phone, item.company, item.location].join(" ").toLowerCase().includes(search.toLowerCase()));
+  async function confirmDelete() {
+    if (!deleting || busy) return;
+    setBusy(true); setDeleteError(""); setMessage("");
+    try {
+      await deleteContact(deleting.id, actor);
+      if (editing !== "new" && editing?.id === deleting.id) setEditing(null);
+      setMessage(`ลบ ${deleting.name} จากสมุดรายชื่อแล้ว`);
+      setDeleting(null);
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "ลบผู้ติดต่อไม่สำเร็จ กรุณาลองใหม่");
+    } finally { setBusy(false); }
+  }
   return <section className="screen customer-screen"><header><span className="eyebrow">CONTACT BOOK</span><h1>สมุดรายชื่อ</h1><p>ผู้ติดต่อจุดรับและจุดส่งของบริษัท เลือกใช้ซ้ำได้ในทุกใบงาน</p></header>
     <div className="customer-toolbar"><label className="customer-search">ค้นหาผู้ติดต่อ<input value={search} onChange={e => setSearch(e.target.value)} placeholder="ชื่อ เบอร์โทร บริษัท หรือสถานที่" /></label><button disabled={!canWrite || busy} onClick={() => setEditing("new")}>เพิ่มผู้ติดต่อ</button></div>
     {error && <p role="alert">โหลดสมุดรายชื่อไม่สำเร็จ: {error}</p>}{message && <p role="status">{message}</p>}
     {editing && <ContactEditor key={editing === "new" ? "new" : editing.id} actor={actor} initial={editing === "new" ? undefined : editing} id={editing === "new" ? undefined : editing.id} onSave={() => { setEditing(null); setMessage("บันทึกแล้ว ข้อมูลในใบงานเดิมจะไม่เปลี่ยนแปลง"); }} onCancel={() => setEditing(null)} />}
-    {loading ? <p>กำลังโหลดรายชื่อ…</p> : !error && !filtered.length ? <p>ไม่พบรายชื่อ เพิ่มผู้ติดต่อเพื่อเลือกใช้ในใบงาน</p> : filtered.map(item => <article className="customer-card" key={item.id}><div><h2>{item.name}</h2><a href={`tel:${item.phone.replace(/[^+\d]/g, "")}`}>{formatPhoneNumber(item.phone)}</a><p>{[item.company, item.location].filter(Boolean).join(" · ")}</p>{item.notes && <p>{item.notes}</p>}<small>{item.active ? "เปิดใช้งาน" : "พักใช้งาน"}</small></div><div className="customer-actions"><button disabled={!canWrite || busy} onClick={() => setEditing(item)}>แก้ไข</button><button disabled={!canWrite || busy} onClick={async () => { setBusy(true); try { await setContactActive(item.id, !item.active, actor); setMessage("เปลี่ยนสถานะแล้ว"); } catch { setMessage("เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่"); } finally { setBusy(false); } }}>{item.active ? "พักใช้งาน" : "เปิดใช้งาน"}</button></div></article>)}
+    {loading ? <p>กำลังโหลดรายชื่อ…</p> : !error && !filtered.length ? <p>ไม่พบรายชื่อ เพิ่มผู้ติดต่อเพื่อเลือกใช้ในใบงาน</p> : filtered.map(item => <article className="customer-card" key={item.id}><div><h2>{item.name}</h2><a href={`tel:${item.phone.replace(/[^+\d]/g, "")}`}>{formatPhoneNumber(item.phone)}</a><p>{[item.company, item.location].filter(Boolean).join(" · ")}</p>{item.notes && <p>{item.notes}</p>}<small>{item.active ? "เปิดใช้งาน" : "พักใช้งาน"}</small></div><div className="customer-actions"><button disabled={!canWrite || busy} onClick={() => setEditing(item)}>แก้ไข</button><button disabled={!canWrite || busy} onClick={async () => { setBusy(true); try { await setContactActive(item.id, !item.active, actor); setMessage("เปลี่ยนสถานะแล้ว"); } catch { setMessage("เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่"); } finally { setBusy(false); } }}>{item.active ? "พักใช้งาน" : "เปิดใช้งาน"}</button><button className="customer-delete-button" type="button" disabled={!canWrite || busy} onClick={() => { setDeleteError(""); setDeleting(item); }}>ลบ</button></div></article>)}
+    {deleting && <ContactDeleteDialog contact={deleting} busy={busy} error={deleteError} onCancel={() => setDeleting(null)} onConfirm={() => void confirmDelete()} />}
   </section>;
+}
+
+function ContactDeleteDialog({ contact, busy, error, onCancel, onConfirm }: { contact: SavedContact; busy: boolean; error: string; onCancel: () => void; onConfirm: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  return <dialog ref={dialogRef} className="customer-delete-dialog" aria-labelledby="contact-delete-title" aria-describedby="contact-delete-description" onCancel={event => { event.preventDefault(); if (!busy) onCancel(); }}>
+    <h2 id="contact-delete-title">ลบผู้ติดต่อรายนี้?</h2>
+    <p id="contact-delete-description"><strong>{contact.name}</strong> จะถูกนำออกจากสมุดรายชื่อและตัวเลือกในใบงานใหม่ ข้อมูลผู้ติดต่อในใบงานเดิมจะยังคงอยู่</p>
+    {error && <p className="customer-error" role="alert">{error}</p>}
+    <div className="customer-delete-dialog-actions"><button type="button" disabled={busy} autoFocus onClick={onCancel}>ยกเลิก</button><button type="button" disabled={busy} onClick={onConfirm}>{busy ? "กำลังลบ…" : "ยืนยันลบ"}</button></div>
+  </dialog>;
 }

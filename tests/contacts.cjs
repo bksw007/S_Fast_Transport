@@ -6,7 +6,17 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 let writes = [], canWrite = true;
-const firestore = { collection: (_, ...p) => p.join('/'), doc: (_, ...p) => p.join('/'), serverTimestamp: () => 'NOW', addDoc: async (path, data) => { writes.push({ path, data }); return { id: 'new-contact' }; }, updateDoc: async (path, data) => writes.push({ path, data }) };
+const savedContact = { name: 'Contact', phone: '081-123-4567', company: 'Company', location: 'Warehouse', notes: '', active: true, organizationId: 'main' };
+const firestore = {
+  collection: (_, ...p) => p.join('/'), doc: (_, ...p) => p.join('/'), serverTimestamp: () => 'NOW',
+  addDoc: async (path, data) => { writes.push({ path, data }); return { id: 'new-contact' }; },
+  updateDoc: async (path, data) => writes.push({ path, data }),
+  runTransaction: async (_db, callback) => callback({
+    get: async () => ({ exists: () => true, data: () => savedContact }),
+    update: (path, data) => { writes.push({ path, data }); Object.assign(savedContact, data); }
+  }),
+  onSnapshot: (_path, receive) => { receive({ docs: [{ id: 'existing', data: () => savedContact }] }); return () => {}; }
+};
 const ctx = { exports: {}, require: name => name === 'firebase/firestore' ? firestore : name === './transport-repository' ? { canManageOrganizationLists: () => canWrite } : name === './customer-repository' ? { resolveCustomerId: async () => 'customer-1' } : { db: {} } };
 vm.runInNewContext(compile('apps/web/lib/contact-repository.ts'), ctx);
 const api = ctx.exports;
@@ -24,8 +34,16 @@ const actor = { uid: 'admin', organizationId: 'main' };
   assert.equal(writes[1].data.active, undefined, 'editing must preserve inactive status');
   assert.ok(writes.every(write => !write.path.includes('today_jobs')), 'contact changes must not rewrite historical jobs');
   await api.setContactActive('existing', false, actor); assert.equal(writes[2].data.active, false);
+  await api.deleteContact('existing', actor);
+  assert.equal(writes[3].path, 'organizations/main/contacts/existing');
+  assert.equal(savedContact.active, false);
+  assert.equal(savedContact.deletedAt, 'NOW');
+  let visible;
+  api.subscribeContacts('main', items => { visible = items; }, () => {});
+  assert.equal(visible.length, 0, 'deleted contact is hidden from the book and future job pickers');
+  await assert.rejects(api.deleteContact('existing', actor), /ไม่พบผู้ติดต่อ/);
   for (const bad of [{ name: '' }, { phone: '123' }, { phone: 'javascript:alert(1)' }, { notes: 'x'.repeat(501) }]) assert.throws(() => api.validateContact({ ...draft, ...bad }));
-  canWrite = false; await assert.rejects(() => api.saveContact(draft, undefined, actor)); await assert.rejects(() => api.setContactActive('existing', false, actor));
+  canWrite = false; await assert.rejects(() => api.saveContact(draft, undefined, actor)); await assert.rejects(() => api.setContactActive('existing', false, actor)); await assert.rejects(() => api.deleteContact('existing', actor));
   let value = { id: '', name: '', phone: '', notes: '' };
   assert.equal(phoneApi.formatPhoneNumber('+66 80 069 3681'), '080-069-3681');
   const contact = { ...draft, phone: '0811234567', name: 'Contact', id: 'saved', active: true };
