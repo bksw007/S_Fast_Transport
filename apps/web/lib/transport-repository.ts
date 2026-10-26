@@ -1155,6 +1155,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     workOrder: data.workOrder ?? id,
     historical: data.historical === true,
     recordedAt: timestampToIso(data.createdAt),
+    carrierOrganizationId: data.carrierOrganizationId ?? undefined,
     historicalEvidence: data.historicalEvidence ?? undefined,
     customer: data.customer ?? "-",
     customerId: data.customerId ?? undefined,

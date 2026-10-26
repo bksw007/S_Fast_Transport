@@ -5,6 +5,8 @@ import { compressImageForUpload, isImageFile, MAX_SOURCE_IMAGE_BYTES } from "./i
 import { resolveCustomerId } from "./customer-repository";
 import { hasApprovedAccess, isMainAdmin, type UserProfile } from "./transport-repository";
 import { historicalWorkOrder } from "./historical-work-order";
+import { loadCompanySettings } from "./settings-repository";
+import type { JobPlace } from "@s-fast-transport/shared";
 
 export const historicalPhotoCategories = ["pickup", "delivery", "document", "expense"] as const;
 export type HistoricalPhotoCategory = typeof historicalPhotoCategories[number];
@@ -12,19 +14,20 @@ export type HistoricalPhotos = Record<HistoricalPhotoCategory, File[]>;
 export type HistoricalJobDraft = {
   submissionId: string;
   customer: string;
-  carrierName: string;
-  driverName: string;
+  carrierOrganizationId: string;
+  driverId: string;
   vehiclePlate: string;
   vehicleType: string;
   cargoType: string;
   tripCount: string;
-  jobDate: string;
   pickupDate: string;
   pickupTime: string;
   pickupLocation: string;
+  pickupPlace?: JobPlace;
   deliveryDate: string;
   deliveryTime: string;
   deliveryLocation: string;
+  deliveryPlace?: JobPlace;
   arrivedDeliveryAt: string;
   completedAt: string;
   notes: string;
@@ -47,11 +50,11 @@ function dateTime(value: string, label: string) {
 }
 
 export function validateHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos) {
-  const required = [draft.customer, draft.carrierName, draft.driverName, draft.vehiclePlate, draft.pickupLocation, draft.deliveryLocation];
-  if (required.some(value => !value.trim())) throw new Error("กรุณากรอกลูกค้า บริษัทขนส่ง คนขับ ทะเบียนรถ และสถานที่รับ–ส่งให้ครบ");
-  if (![draft.pickupDate, draft.jobDate, draft.deliveryDate].every(validDate)) throw new Error("กรุณาระบุวันที่งานให้ถูกต้องและครบถ้วน");
-  if (draft.pickupDate > bangkokToday() || draft.deliveryDate > bangkokToday() || draft.jobDate > bangkokToday()) throw new Error("งานย้อนหลังต้องไม่ระบุวันที่ในอนาคต");
-  if (draft.jobDate > draft.pickupDate || draft.deliveryDate < draft.pickupDate) throw new Error("ลำดับวันที่รับงาน รับสินค้า และส่งสินค้าไม่ถูกต้อง");
+  const required = [draft.customer, draft.carrierOrganizationId, draft.driverId, draft.vehiclePlate, draft.pickupLocation, draft.deliveryLocation];
+  if (required.some(value => !value.trim())) throw new Error("กรุณาเลือกลูกค้า บริษัทขนส่ง คนขับ และระบุทะเบียนรถกับสถานที่รับ–ส่งให้ครบ");
+  if (![draft.pickupDate, draft.deliveryDate].every(validDate)) throw new Error("กรุณาระบุวันที่งานให้ถูกต้องและครบถ้วน");
+  if (draft.pickupDate > bangkokToday() || draft.deliveryDate > bangkokToday()) throw new Error("งานย้อนหลังต้องไม่ระบุวันที่ในอนาคต");
+  if (draft.deliveryDate < draft.pickupDate) throw new Error("วันที่ส่งสินค้าต้องไม่ก่อนวันที่รับสินค้า");
   if (draft.pickupTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.pickupTime) || draft.deliveryTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.deliveryTime)) throw new Error("เวลาในใบงานไม่ถูกต้อง");
   const completed = dateTime(draft.completedAt, "เวลาจบงานจริง");
   const arrived = draft.arrivedDeliveryAt ? dateTime(draft.arrivedDeliveryAt, "เวลาถึงจุดส่งจริง") : null;
@@ -69,6 +72,13 @@ export function validateHistoricalJob(draft: HistoricalJobDraft, photos: Histori
 export async function createHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos, actor: UserProfile, onProgress?: (message: string) => void) {
   if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่เพิ่มใบงานย้อนหลังได้");
   const { completed, arrived, tripCount } = validateHistoricalJob(draft, photos);
+  const company = draft.carrierOrganizationId === "main" ? null : (await getDoc(doc(db, "organizations", draft.carrierOrganizationId))).data();
+  if (draft.carrierOrganizationId !== "main" && (company?.type !== "subcontract" || company.deleted === true)) throw new Error("ไม่พบบริษัทขนส่งที่เลือก กรุณาเลือกใหม่");
+  const carrierName = draft.carrierOrganizationId === "main"
+    ? (await loadCompanySettings("main")).name || actor.organizationName || "S Fast Transport"
+    : String(company?.name || "").trim();
+  const driver = (await getDoc(doc(db, "drivers", draft.driverId))).data();
+  if (!driver || driver.organizationId !== draft.carrierOrganizationId || !String(driver.name || "").trim()) throw new Error("คนขับไม่อยู่ในบริษัทขนส่งที่เลือก กรุณาเลือกใหม่");
   const jobRef = doc(db, "today_jobs", draft.submissionId);
   const existing = await getDoc(jobRef);
   if (existing.exists()) {
@@ -105,12 +115,12 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
       transaction.set(counterRef, { dateKey, lastSequence: sequence, updatedAt: serverTimestamp() });
       transaction.set(jobRef, {
         submissionId: draft.submissionId, historical: true, historicalEvidence: paths, workOrder: number,
-        customer: draft.customer.trim(), ...(customerId ? { customerId } : {}), carrierName: draft.carrierName.trim(),
-        driverName: draft.driverName.trim(), driverPhone: "", vehiclePlate: draft.vehiclePlate.trim(),
+        customer: draft.customer.trim(), ...(customerId ? { customerId } : {}), carrierName, carrierOrganizationId: draft.carrierOrganizationId,
+        driverId: draft.driverId, driverName: String(driver.name).trim(), driverPhone: String(driver.phone || ""), vehiclePlate: draft.vehiclePlate.trim(),
         vehicleType: draft.vehicleType.trim(), cargoType: draft.cargoType.trim(), tripCount,
-        jobDate: draft.jobDate, pickupDate: draft.pickupDate, pickupTime: draft.pickupTime,
-        pickupLocation: draft.pickupLocation.trim(), deliveryDate: draft.deliveryDate,
-        deliveryTime: draft.deliveryTime, deliveryLocation: draft.deliveryLocation.trim(),
+        jobDate: draft.pickupDate, pickupDate: draft.pickupDate, pickupTime: draft.pickupTime,
+        pickupLocation: draft.pickupLocation.trim(), ...(draft.pickupPlace ? { pickupPlace: draft.pickupPlace } : {}), deliveryDate: draft.deliveryDate,
+        deliveryTime: draft.deliveryTime, deliveryLocation: draft.deliveryLocation.trim(), ...(draft.deliveryPlace ? { deliveryPlace: draft.deliveryPlace } : {}),
         ...(arrived ? { arrivedDeliveryAt: Timestamp.fromDate(arrived) } : {}), completedAt: Timestamp.fromDate(completed),
         notes: draft.notes.trim(), organizationId: "main", originOrganizationId: "main",
         status: "completed", trackingStatus: "completed", trackingEnabled: false,

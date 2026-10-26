@@ -6,7 +6,7 @@ import { statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 import { completionReportHtml, type ReportProof } from "@/lib/job-completion-report";
-import { bangkokDate, deliveryLabels, deliveryResult, filterReportJobs, groupReportJobs, summarizeJobs, type GroupBy, type ReportFilters } from "@/lib/reports";
+import { bangkokDate, deliveryLabels, deliveryResult, filterReportJobs, groupReportJobs, reportCompanyKey, summarizeJobs, type GroupBy, type ReportFilters } from "@/lib/reports";
 
 const tabs = ["อัตราส่งตรงเวลา", "งานสำเร็จและงานล่าช้า", "ประสิทธิภาพรถและคนขับ", "ส่งออก Excel หรือ PDF", "รายงานรายใบงาน"];
 const rate = (value: number | null) => value === null ? "—" : `${value}%`;
@@ -30,7 +30,7 @@ export function ReportsScreen({ jobs, dataState = "ready" }: { jobs: TransportJo
   const filtered = useMemo(() => invalidDates ? [] : filterReportJobs(jobs, filters, now), [jobs, filters, now, invalidDates]);
   const summary = useMemo(() => summarizeJobs(filtered, now), [filtered, now]);
   const groups = useMemo(() => groupReportJobs(filtered, groupBy, now), [filtered, groupBy, now]);
-  const companies = [...new Map(jobs.map(job => [job.organizationId || "unknown", job.carrierName || job.organizationId || "ไม่ระบุบริษัท"])).entries()].sort((a, b) => a[1].localeCompare(b[1], "th"));
+  const companies = [...new Map(jobs.map(job => [reportCompanyKey(job), job.carrierName || job.organizationId || "ไม่ระบุบริษัท"])).entries()].sort((a, b) => a[1].localeCompare(b[1], "th"));
   const customers = [...new Set(jobs.map(job => job.customer))].sort((a, b) => a.localeCompare(b, "th"));
   const pages = Math.max(1, Math.ceil(filtered.length / 25));
   const currentPage = Math.min(page, pages);

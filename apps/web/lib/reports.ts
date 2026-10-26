@@ -38,12 +38,14 @@ export function summarizeJobs(jobs: TransportJob[], now: number) {
   return { ...counts, active: counts.total - counts.completed - counts.cancelled, evaluated, onTimeRate: evaluated ? Math.round(counts.onTime / evaluated * 1000) / 10 : null };
 }
 export type ReportFilters = { start: string; end: string; organization: string; customer: string; search: string; status: string };
+export const reportCompanyKey = (job: Pick<TransportJob, "carrierOrganizationId" | "historical" | "carrierName" | "organizationId">) =>
+  job.carrierOrganizationId || (job.historical ? job.carrierName : job.organizationId) || "unknown";
 export function filterReportJobs(jobs: TransportJob[], filters: ReportFilters, now: number) {
   const term = filters.search.trim().toLocaleLowerCase("th");
   return jobs.filter(job => {
     if ((filters.start || filters.end) && !job.pickupDate) return false;
     if (filters.start && job.pickupDate! < filters.start || filters.end && job.pickupDate! > filters.end) return false;
-    if (filters.organization && (job.organizationId || "unknown") !== filters.organization) return false;
+    if (filters.organization && reportCompanyKey(job) !== filters.organization) return false;
     if (filters.customer && job.customer !== filters.customer) return false;
     if (filters.status === "delayed" && !["late", "overdue"].includes(deliveryResult(job, now))) return false;
     if (filters.status && filters.status !== "delayed" && job.status !== filters.status) return false;
@@ -57,8 +59,8 @@ export function groupReportJobs(jobs: TransportJob[], groupBy: GroupBy, now: num
     const company = job.carrierName || job.organizationId || "ไม่ระบุบริษัท";
     const waiting = job.status === "pending_subcontract" || job.status === "subcontract_accepted";
     const label = groupBy === "vehicle" ? waiting ? "ยังไม่มอบหมายรถ" : job.vehiclePlate : groupBy === "driver" ? waiting ? "ยังไม่มอบหมายคนขับ" : job.driverName : groupBy === "company" ? company : job.customer;
-    const identity = groupBy === "driver" ? waiting ? "unassigned" : job.assignedDriverUid || job.driverName : groupBy === "company" ? job.organizationId || company : label;
-    const key = JSON.stringify([groupBy === "customer" ? "" : job.organizationId || company, identity]);
+    const identity = groupBy === "driver" ? waiting ? "unassigned" : job.assignedDriverUid || job.driverName : groupBy === "company" ? reportCompanyKey(job) : label;
+    const key = JSON.stringify([groupBy === "customer" ? "" : reportCompanyKey(job), identity]);
     const group = groups.get(key) || { label, company: groupBy === "customer" ? "ทุกบริษัทที่เลือก" : company, jobs: [] };
     group.jobs.push(job);
     groups.set(key, group);

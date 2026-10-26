@@ -68,6 +68,7 @@ export type TransportJob = {
   workOrder: string;
   historical?: boolean;
   recordedAt?: string;
+  carrierOrganizationId?: string;
   historicalEvidence?: { pickup: string[]; delivery: string[]; document: string[]; expense: string[] };
   customer: string;
   customerId?: string;

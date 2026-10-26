@@ -100,6 +100,7 @@ export function LocationPicker({
     </div>
     <input
       value={value}
+      aria-label={`ชื่อสถานที่${title}`}
       maxLength={160}
       placeholder={`ชื่อสถานที่${title === "รับงาน" ? "รับ" : "ส่ง"}ที่แสดงในใบงาน`}
       onChange={(event) => onChange(event.target.value, place ? { ...place, name: event.target.value } : undefined)}
