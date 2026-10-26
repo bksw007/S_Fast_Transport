@@ -161,6 +161,7 @@ export const notifyLineGroupOfNewJob = onDocumentCreated({
 }, async (event) => {
   const job = event.data?.data();
   if (!job || !job.workOrder) return;
+  if (job.historical === true) return;
   if (job.originOrganizationId === "main" && job.organizationId && job.organizationId !== "main") return;
 
   const jobId = event.params.jobId;

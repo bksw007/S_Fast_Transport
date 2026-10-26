@@ -104,6 +104,18 @@ service firebase.storage {
         );
     }
 
+    match /historical_jobs/{jobId}/{uid}/{category}/{fileName} {
+      allow read: if isMainAdmin() || sameOrganization(jobId) || isJobCustomer(jobId);
+      allow create: if isMainAdmin()
+        && profile().data.organizationId == "main"
+        && uid == request.auth.uid
+        && category in ["pickup", "delivery", "document", "expense"]
+        && request.resource.size > 0
+        && request.resource.size <= 1 * 1024 * 1024
+        && request.resource.contentType.matches("image/jpeg|image/png|image/webp");
+      allow delete: if isMainAdmin() && profile().data.organizationId == "main" && uid == request.auth.uid;
+    }
+
     match /driver_expenses/{jobId}/{uid}/{fileName} {
       allow read: if isMainAdmin()
         || (isSubcontractAdmin() && (isOtherExpenseInOrganization(jobId, uid) || sameOrganization(jobId)))

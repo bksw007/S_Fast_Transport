@@ -2,6 +2,8 @@
 import JobContacts from "./JobContacts";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { getDownloadURL, ref } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 import { QrCode, Settings, Share2, Truck, MapPin, FileText, Clock3, UserRound, PackageCheck } from "lucide-react";
 import { statusLabels, type DriverIssueType, type TransportJob } from "@s-fast-transport/shared";
 import { createTrackingShareLink, isMainAdmin, saveJobRouteDistance, uploadProof, type UserProfile } from "@/lib/transport-repository";
@@ -16,7 +18,7 @@ import { canAdministerJob, deleteJob, resolveDriverIssue, updateJobDetails } fro
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
 const issueLabels: Record<DriverIssueType, string> = { accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย", road_closed: "เส้นทางปิด", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอสินค้านาน", customer_absent: "ลูกค้าไม่อยู่", signature_refused: "ปฏิเสธเซ็นชื่อ", photo_unavailable: "ถ่ายรูปไม่ได้", goods_damaged: "สินค้าเสียหาย", other: "ปัญหาอื่น ๆ" };
-const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH") : "รอบันทึกเวลา";
+const dateLabel = (value: number | string) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }) : "รอบันทึกเวลา";
 const mapUrl = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 const validPoint = (lat: unknown, lng: unknown) => typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat !== 0 || lng !== 0);
 
@@ -120,6 +122,26 @@ function EvidencePreview({ data }: { data: JobRecord["data"] }) {
   return <a className="job-proof-preview" href={url} target="_blank" rel="noreferrer" aria-label={`เปิดภาพหลักฐาน ${label}`}><Image unoptimized src={url} width={480} height={320} alt={`ภาพตัวอย่าง ${label}`} /></a>;
 }
 
+function HistoricalEvidence({ job }: { job: TransportJob }) {
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const groups = [
+    ["รูปรับสินค้า", job.historicalEvidence?.pickup ?? []],
+    ["รูปลงสินค้า", job.historicalEvidence?.delivery ?? []],
+    ["รูปเอกสาร", job.historicalEvidence?.document ?? []],
+    ["รูปค่าใช้จ่ายคนขับ", job.historicalEvidence?.expense ?? []]
+  ] as const;
+  useEffect(() => {
+    let active = true;
+    const paths = groups.flatMap(([, items]) => items);
+    void Promise.all(paths.map(async path => [path, await getDownloadURL(ref(storage, path))] as const)).then(entries => {
+      if (active) setUrls(Object.fromEntries(entries));
+    }).catch(() => { if (active) setError("โหลดรูปหลักฐานไม่สำเร็จ กรุณาเปิดใบงานใหม่"); });
+    return () => { active = false; };
+  }, [job.id]);
+  return <div className="historical-detail-evidence">{error && <p role="alert">{error}</p>}{groups.map(([label, paths]) => <section key={label}><h3>{label}</h3>{paths.length ? <div className="historical-detail-photos">{paths.map((path, index) => urls[path] ? <a key={path} href={urls[path]} target="_blank" rel="noreferrer"><Image unoptimized src={urls[path]} width={180} height={130} alt={`${label} ภาพ ${index + 1}`} /></a> : <span key={path}>กำลังโหลดรูป {index + 1}…</span>)}</div> : <p>ไม่ได้แนบรูป</p>}</section>)}</div>;
+}
+
 export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { job: TransportJob; actor: UserProfile; canWrite: boolean; map: React.ReactNode; onDeleted: () => void }) {
   const [tab, setTab] = useState(0);
   const [panel, setPanel] = useState<"share" | "qr" | "settings" | null>(null);
@@ -127,6 +149,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
   const [message, setMessage] = useState("");
   const [saveNotice, setSaveNotice] = useState<DriverNotice | null>(null);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [confirmHistoricalCancel, setConfirmHistoricalCancel] = useState(false);
   const [link, setLink] = useState("");
   const [qr, setQr] = useState("");
   const [requestedDistance, setRequestedDistance] = useState<RequestedDistanceState | null>(null);
@@ -197,9 +220,10 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
   return <section className="detail-panel job-detail-functional">
     <div className="job-detail-toolbar">
       <div className="detail-head"><div className="job-detail-identity"><span className="job-detail-emblem"><Truck size={26} /></span><div><span className="job-detail-eyebrow">ใบงานขนส่ง</span><h2>{job.workOrder}</h2><p>{job.customer}</p></div><span className={`job-detail-status ${job.status === "problem" || job.status === "cancelled" ? "is-alert" : ""}`}>{statusLabels[job.status]}</span></div><div className="detail-actions">
-        <button disabled={busy || !canWrite} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
-        <button disabled={busy || !canWrite} onClick={() => void share("qr")}><QrCode size={18} /> QR</button>
-        <button aria-label="แก้ไขใบงาน" title="แก้ไขใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite || !canAdministerJob(job, actor)} onClick={() => { setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>
+        {!job.historical && <><button disabled={busy || !canWrite} onClick={() => void share("share")}><Share2 size={18} /> Share</button>
+        <button disabled={busy || !canWrite} onClick={() => void share("qr")}><QrCode size={18} /> QR</button></>}
+        {!job.historical && <button aria-label="แก้ไขใบงาน" title="แก้ไขใบงาน" aria-expanded={panel === "settings"} disabled={busy || !canWrite || !canAdministerJob(job, actor)} onClick={() => { setPanel(panel === "settings" ? null : "settings"); setMessage(""); }}><Settings size={18} /></button>}
+        {job.historical && canWrite && canAdministerJob(job, actor) && <button type="button" disabled={busy} onClick={() => setConfirmHistoricalCancel(true)}>ยกเลิกใบงาน</button>}
       </div></div>
       <div className="tabs" role="tablist" aria-label="ข้อมูลใบงาน">{tabs.map((label, index) => <button key={label} id={`job-tab-${index}`} role="tab" aria-selected={tab === index} aria-controls="job-tab-content" tabIndex={tab === index ? 0 : -1} className={tab === index ? "selected" : ""} onClick={() => { setTab(index); setPanel(null); }} onKeyDown={event => {
         const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : null;
@@ -207,6 +231,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
       }}>{label}</button>)}</div>
     </div>
     <div className="job-detail-body" ref={bodyRef}>
+      {confirmHistoricalCancel && <div role="alert" className="job-delete-confirm"><span>ยืนยันยกเลิก {job.workOrder}? งานจะออกจากรายงานงานสำเร็จ</span><button type="button" disabled={busy} onClick={() => setConfirmHistoricalCancel(false)}>กลับ</button><button type="button" disabled={busy} onClick={() => void perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ยกเลิกใบงานแล้ว")}>ยืนยันยกเลิก</button></div>}
       {(busy || message) && <p role="status">{busy ? "กำลังดำเนินการ…" : message}</p>}
       {panel && <aside className="job-action-panel">
         <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การแก้ไข" : "ลิงก์ติดตาม"}</button>
@@ -221,13 +246,14 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted }: { jo
             <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงานจากผู้ว่าจ้าง": job.jobDate, "ประเภทสินค้า": job.cargoType }} />
             <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "ประเภทรถ": job.vehicleType, "จำนวนรอบ": job.tripCount }} />
             <DetailGroup title="กำหนดการรับ-ส่งสินค้า" icon={<Clock3 size={18} />} fields={{ "กำหนดรับ": [job.pickupDate, job.pickupTime].filter(Boolean).join(" "), "กำหนดส่ง": [job.deliveryDate, job.deliveryTime].filter(Boolean).join(" ") }} />
+            {job.historical && <DetailGroup title="บันทึกย้อนหลัง" icon={<Clock3 size={18} />} fields={{ "ถึงจุดส่งจริง": dateLabel(job.arrivedDeliveryAt || ""), "จบงานจริง": dateLabel(job.completedAt || ""), "บันทึกเข้าระบบ": dateLabel(job.recordedAt || "") }} />}
             {job.returnTrip && <DetailGroup title="กำหนดการขากลับ" icon={<Clock3 size={18} />} fields={{ "กำหนดรับสินค้ากลับ": `${job.returnTrip.pickupDate} ${job.returnTrip.pickupTime}`, "กำหนดส่งสินค้ากลับ": `${job.returnTrip.deliveryDate} ${job.returnTrip.deliveryTime}`, "หลักฐานจุดรับ": job.returnPickupProof ? `${job.returnPickupProof.photoPaths.length} รูป · ${job.returnPickupProof.signerName}` : "รอบันทึก", "หลักฐานจุดส่ง": job.returnDeliveryProof ? `${job.returnDeliveryProof.photoPaths.length} รูป · ${job.returnDeliveryProof.signerName}` : "รอบันทึก" }} />}
             <DetailGroup title="หมายเหตุ" icon={<PackageCheck size={18} />} fields={{ "รายละเอียดเพิ่มเติม": job.notes || "ไม่มีหมายเหตุเพิ่มเติม" }} />
           </div>
         </div>}
 
-        {tab === 1 && <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(async () => { await uploadProof(job, file, actor); }, "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} job={job} kind="proofs" /></>}
-        {tab === 2 && <><p>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์ตำแหน่ง"} · ล่าสุด {dateLabel(job.currentLocation.updatedAt)}</p>{job.trackingStatus !== "not_started" && validPoint(job.currentLocation.lat, job.currentLocation.lng) ? <>{map}<a href={mapUrl(job.currentLocation.lat, job.currentLocation.lng)} target="_blank" rel="noreferrer">เปิดตำแหน่งล่าสุดใน Google Maps</a><p>ความเร็ว {job.currentLocation.speed} กม./ชม. · ความแม่นยำ {job.currentLocation.accuracy} เมตร</p></> : <p>ยังไม่มีพิกัดสำหรับงานนี้</p>}</>}
+        {tab === 1 && (job.historical ? <HistoricalEvidence job={job} /> : <><label className="upload-button">แนบรูป / PDF<input aria-label="แนบหลักฐาน" type="file" accept="image/*,.pdf" disabled={busy || !canWrite} onChange={event => { const file = event.target.files?.[0]; if (file) void perform(async () => { await uploadProof(job, file, actor); }, "อัปโหลดหลักฐานแล้ว"); event.target.value = ""; }} /></label><p>รูปต้นฉบับไม่เกิน 20 MB · PDF ไม่เกิน 10 MB</p><Records key={`${job.id}-proofs`} job={job} kind="proofs" /></>)}
+        {tab === 2 && (job.historical ? <p>ใบงานย้อนหลังไม่ได้ติดตาม GPS</p> : <><p>{job.trackingEnabled ? "กำลังแชร์ตำแหน่ง" : "หยุดแชร์ตำแหน่ง"} · ล่าสุด {dateLabel(job.currentLocation.updatedAt)}</p>{job.trackingStatus !== "not_started" && validPoint(job.currentLocation.lat, job.currentLocation.lng) ? <>{map}<a href={mapUrl(job.currentLocation.lat, job.currentLocation.lng)} target="_blank" rel="noreferrer">เปิดตำแหน่งล่าสุดใน Google Maps</a><p>ความเร็ว {job.currentLocation.speed} กม./ชม. · ความแม่นยำ {job.currentLocation.accuracy} เมตร</p></> : <p>ยังไม่มีพิกัดสำหรับงานนี้</p>}</>)}
         {tab === 3 && <Records key={`${job.id}-locations`} job={job} kind="locations" />}
         {tab === 4 && <Records key={`${job.id}-events`} job={job} kind="events" />}
       </div>

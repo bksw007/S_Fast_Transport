@@ -95,6 +95,7 @@ import { auth, ensureLocalAuthPersistence } from "@/lib/firebase-auth";
 import { ListManagerComboBox } from "@/app/components/ListManagerComboBox";
 import { LocationPicker } from "@/app/components/LocationPicker";
 import { ReportsScreen } from "@/app/components/ReportsScreen";
+import HistoricalJobScreen from "@/app/components/HistoricalJobScreen";
 import { CustomerManagementScreen } from "@/app/components/CustomerManagementScreen";
 import { reconcileCustomerReferences, subscribeCustomers, type Customer } from "@/lib/customer-repository";
 import { FleetAndDriversScreen, SubcontractCompaniesScreen } from "@/app/components/ResourceManagementScreens";
@@ -703,6 +704,8 @@ export default function Home() {
 
           </> : adminScreen === "งานที่ได้รับมอบหมาย" && profile.role === "subcontract_admin" ? (
             <AssignedSubcontractJobsScreen jobs={jobs} actor={profile} />
+          ) : adminScreen === "เพิ่มใบงานย้อนหลัง" && isMainAdmin(profile) ? (
+            <HistoricalJobScreen actor={profile} />
           ) : adminScreen === "Live Tracking" ? (
             trackingJobs.length > 0
               ? <MapScreen jobs={trackingJobs} selectedJob={trackingJobs.find(job => job.id === selectedJob.id) || trackingJobs[0]} selectedJobId={selectedJob.id} onSelectJob={setSelectedJobId} />
@@ -775,6 +778,7 @@ const adminMenuDetails = [
   { label: adminMenu[0], description: "ภาพรวมวันนี้", icon: Gauge },
   { label: adminMenu[14], description: "รับงานจากบริษัทหลักและมอบหมายรถกับคนขับ", icon: ListChecks, subcontractOnly: true },
   { label: adminMenu[1], description: "สร้างและจัดการงาน", icon: ListChecks },
+  { label: adminMenu[15], description: "บันทึกงานที่เสร็จแล้วพร้อมรูปหลักฐาน", icon: FilePenLine, mainOnly: true },
   { label: adminMenu[2], description: "ติดตามรถแบบสด", icon: MapPin },
   { label: adminMenu[3], description: "ซับคอนแท็ค", icon: Building2, mainOnly: true },
   { label: adminMenu[4], description: "รถและผู้ปฏิบัติงาน", icon: Users },
@@ -827,7 +831,7 @@ function SectionMenu({
   const groups = mode === "driver"
     ? [{ title: "งานของฉัน", items }]
     : [
-        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "งานที่ได้รับมอบหมาย", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
+        { title: "งานขนส่ง", items: items.filter(item => ["Dashboard", "Jobs / ใบงาน", "เพิ่มใบงานย้อนหลัง", "งานที่ได้รับมอบหมาย", "Live Tracking", "ตั้งค่าพิกัดแผนที่", "แจ้งเตือน"].includes(item.label)) },
         { title: "งานคนขับ", items: profile.role === "subcontract_admin" ? [] : [{ label: "แอดมินคนขับ", description: "ใช้งานหน้าคนขับสำหรับงานที่มอบหมายให้ตัวเอง", icon: Truck }] },
         { title: "ข้อมูลและรายงาน", items: items.filter(item => ["บริษัทขนส่ง", "รถและคนขับ", "ลูกค้า", "สมุดรายชื่อ", "Reports", "รายการเบิกค่าใช้จ่าย"].includes(item.label)) },
         { title: "บัญชีและระบบ", items: items.filter(item => ["User Management", "โปรไฟล์", "Settings"].includes(item.label)) }
@@ -997,6 +1001,8 @@ function AdminMobileScreen({
       />
     );
   }
+
+  if (screen === "เพิ่มใบงานย้อนหลัง" && isMainAdmin(profile)) return <HistoricalJobScreen actor={profile} />;
 
   if (screen === "งานที่ได้รับมอบหมาย" && profile.role === "subcontract_admin") return <AssignedSubcontractJobsScreen jobs={allJobs} actor={profile} />;
 

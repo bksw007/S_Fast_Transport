@@ -1,0 +1,28 @@
+.historical-job-screen { max-width: 1180px; margin: 0 auto; }
+.historical-job-screen > header h1 { display: flex; align-items: center; gap: 10px; }
+.historical-job-screen > header p, .historical-job-screen section > p { color: #647477; }
+.historical-job-screen form { display: grid; gap: 18px; margin-top: 22px; }
+.historical-job-screen form > section { padding: 22px; border: 1px solid #dce6e4; border-radius: 15px; background: white; }
+.historical-job-screen h2 { margin: 0 0 16px; font-size: 18px; }
+.historical-grid, .historical-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.historical-job-screen label { display: grid; align-content: start; gap: 7px; font-weight: 600; }
+.historical-job-screen input:not([type=file]), .historical-job-screen textarea { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #cbd9d6; border-radius: 8px; font: inherit; color: #183531; background: white; }
+.historical-job-screen input[readonly] { background: #f2f6f5; }
+.historical-job-screen small { color: #697b7c; font-weight: 400; }
+.historical-notes { margin-top: 16px; }
+.historical-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.historical-photo-group { padding: 16px; border: 1px solid #dce6e4; border-radius: 10px; }
+.historical-photo-group input { max-width: 100%; font: inherit; font-weight: 400; }
+.historical-photo-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.historical-photo { width: 120px; position: relative; border: 1px solid #dce6e4; border-radius: 8px; overflow: hidden; }
+.historical-photo img { width: 100%; height: 90px; object-fit: cover; }
+.historical-photo span { display: block; padding: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.historical-photo button { position: absolute; top: 4px; right: 4px; border: 0; border-radius: 50%; background: white; cursor: pointer; }
+.historical-review button { padding: 11px 20px; border: 0; border-radius: 9px; background: #176b57; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.historical-review button:disabled { opacity: .6; cursor: wait; }
+.historical-error { color: #a3342d !important; }
+.historical-success { padding: 14px; border-radius: 9px; background: #e4f4eb; color: #176b57; }
+@media (max-width: 800px) { .historical-grid, .historical-photo-grid { grid-template-columns: 1fr; } .historical-job-screen form > section { padding: 16px; } }
+.historical-detail-evidence { display: grid; gap: 20px; }
+.historical-detail-photos { display: flex; flex-wrap: wrap; gap: 10px; }
+.historical-detail-photos img { max-width: 180px; height: 130px; object-fit: cover; border-radius: 8px; }

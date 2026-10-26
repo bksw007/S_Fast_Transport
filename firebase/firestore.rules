@@ -104,7 +104,7 @@ service cloud.firestore {
     }
 
     function canReadJob(data) {
-      return isMainAdmin() || sameOrganization(data) || data.assignedDriverUid == request.auth.uid
+      return isMainAdmin() || sameOrganization(data) || data.get("assignedDriverUid", "") == request.auth.uid
         || (role() == "customer"
           && profile().data.customerId is string
           && profile().data.customerId.size() > 0
@@ -379,6 +379,29 @@ service cloud.firestore {
       allow read: if activeUser() && canReadJob(resource.data);
       allow create: if isMainCompanyAdmin()
         && (
+          (request.resource.data.historical == true
+            && request.resource.data.organizationId == "main"
+            && request.resource.data.originOrganizationId == "main"
+            && request.resource.data.status == "completed"
+            && request.resource.data.trackingStatus == "completed"
+            && request.resource.data.trackingEnabled == false
+            && !request.resource.data.keys().hasAny(["assignedDriverUid", "trackingShareToken"])
+            && request.resource.data.createdByUid == request.auth.uid
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.completedAt is timestamp
+            && request.resource.data.completedAt <= request.time
+            && request.resource.data.workOrder.matches('JN-[0-9]{8}[0-9]{3,}PE')
+            && request.resource.data.historicalEvidence.pickup is list
+            && request.resource.data.historicalEvidence.delivery is list
+            && request.resource.data.historicalEvidence.pickup.size() >= 1
+            && request.resource.data.historicalEvidence.pickup.size() <= 10
+            && request.resource.data.historicalEvidence.delivery.size() >= 1
+            && request.resource.data.historicalEvidence.delivery.size() <= 10
+            && request.resource.data.historicalEvidence.document is list
+            && request.resource.data.historicalEvidence.document.size() <= 10
+            && request.resource.data.historicalEvidence.expense is list
+            && request.resource.data.historicalEvidence.expense.size() <= 10)
+          ||
           (request.resource.data.organizationId == "main"
             && request.resource.data.status == "assigned"
             && request.resource.data.get("originOrganizationId", "main") == "main")

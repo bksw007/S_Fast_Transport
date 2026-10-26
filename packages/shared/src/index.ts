@@ -66,6 +66,9 @@ export type ReturnTrip = {
 export type TransportJob = {
   id: string;
   workOrder: string;
+  historical?: boolean;
+  recordedAt?: string;
+  historicalEvidence?: { pickup: string[]; delivery: string[]; document: string[]; expense: string[] };
   customer: string;
   customerId?: string;
   driverName: string;
@@ -220,7 +223,8 @@ export const adminMenu = [
   "Settings",
   "สมุดรายชื่อ",
   "รายการเบิกค่าใช้จ่าย",
-  "งานที่ได้รับมอบหมาย"
+  "งานที่ได้รับมอบหมาย",
+  "เพิ่มใบงานย้อนหลัง"
 ] as const;
 
 export const driverMenu = [
