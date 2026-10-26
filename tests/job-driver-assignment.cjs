@@ -56,6 +56,25 @@ function reset() {
   assert.equal(firstJob.data.driverId, 'driver-b');
   assert.equal(firstJob.data.driverName, 'Same name');
   assert.equal(firstJob.data.driverPhone, '333');
+  reset();
+  const multiDraft = { ...draft, tripCount: '3', submissionId: 'submission-three' };
+  const multiCreated = await context.exports.createJob(multiDraft, actor);
+  const roundJobs = writes.filter(write => write.path.startsWith('today_jobs/'));
+  const roundLinks = writes.filter(write => write.path.startsWith('tracking_share_links/'));
+  assert.equal(roundJobs.length, 3, 'each requested round creates a separate job card');
+  assert.equal(roundLinks.length, 3, 'each round has its own tracking link');
+  assert.equal(records[`job_counters/${multiCreated.workOrder.slice(3, 11)}`].lastSequence, 3);
+  assert.deepEqual(Array.from(multiCreated.workOrders), roundJobs.map(write => write.data.workOrder));
+  assert.deepEqual(roundJobs.map(write => write.data.roundNumber), [1, 2, 3]);
+  assert.ok(roundJobs.every(write => write.data.roundTotal === 3 && write.data.tripCount === 1));
+  assert.ok(roundJobs.every(write => records[`tracking_share_links/${write.data.trackingShareToken}`].jobId === write.path.split('/').at(-1)));
+  const writeCount = writes.length;
+  const repeated = await context.exports.createJob(multiDraft, actor);
+  assert.deepEqual(Array.from(repeated.workOrders), Array.from(multiCreated.workOrders), 'a retry returns the same rounds');
+  assert.equal(writes.length, writeCount, 'a retry does not create more rounds');
+  for (const tripCount of ['0', '1.5', '201', 'abc']) {
+    reset(); await assert.rejects(() => context.exports.createJob({ ...draft, tripCount }, actor), /จำนวนรอบ/); assert.equal(writes.length, 0);
+  }
   const pickupPlace = { lat: 13.7563, lng: 100.5018 };
   const deliveryPlace = { lat: 13.65, lng: 100.65 };
   reset(); const calculatedOrder = await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace }, actor);

@@ -120,7 +120,7 @@ export type JobDraft = {
   notes: string;
 };
 
-export type CreatedJob = { workOrder: string; trackingToken: string };
+export type CreatedJob = { workOrder: string; trackingToken: string; workOrders: string[] };
 
 export type ListOptionField =
   | "customer"
@@ -406,6 +406,8 @@ export async function submitAccessRequest(
 
 export async function createJob(draft: JobDraft, actor: UserProfile) {
   if (!isMainAdmin(actor) || actor.organizationId !== "main" || !hasApprovedAccess(actor)) throw new Error("เฉพาะบริษัทหลักเท่านั้นที่สร้างใบงานได้");
+  const roundTotal = Number(draft.tripCount ?? 1);
+  if (!Number.isInteger(roundTotal) || roundTotal < 1 || roundTotal > 200) throw new Error("จำนวนรอบต้องอยู่ระหว่าง 1–200");
   const now = new Date().toISOString();
   const dateKey = formatJobDateKey(new Date(now));
   const organizationId = draft.assignedOrganizationId || "main";
@@ -444,8 +446,12 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
   delete jobFields.assignedOrganizationId;
   const checkedReturnTrip = validateReturnTrip(returnTrip, draft.deliveryDate, draft.deliveryTime);
   const jobRef = submissionId ? doc(db, "today_jobs", submissionId) : doc(collection(db, "today_jobs"));
-  const trackingToken = crypto.randomUUID().replaceAll("-", "");
-  const trackingLinkRef = doc(db, "tracking_share_links", trackingToken);
+  const rounds = Array.from({ length: roundTotal }, (_, index) => {
+    const roundNumber = index + 1;
+    const roundJobRef = index === 0 ? jobRef : doc(db, "today_jobs", `${jobRef.id}-round-${roundNumber}`);
+    const trackingToken = crypto.randomUUID().replaceAll("-", "");
+    return { roundNumber, jobRef: roundJobRef, trackingToken, trackingLinkRef: doc(db, "tracking_share_links", trackingToken) };
+  });
   const trackingExpiresAt = Timestamp.fromDate(new Date(Date.now() + companySettings.trackingLinkDays * 86400000));
   const counterRef = doc(db, "job_counters", dateKey);
   const requestRef = draft.sourceRequestId ? doc(db, "customer_job_requests", draft.sourceRequestId) : null;
@@ -456,7 +462,7 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
       if (!submissionId || existing.createdByUid !== actor.uid || existing.organizationId !== organizationId || existing.submissionId !== submissionId) {
         throw new Error("ไม่สามารถใช้รายการบันทึกนี้ซ้ำได้ กรุณาเริ่มสร้างใบงานใหม่");
       }
-      return { workOrder: existing.workOrder as string, trackingToken: existing.trackingShareToken as string, created: false };
+      return { workOrders: (existing.roundWorkOrders as string[] | undefined) ?? [existing.workOrder as string], trackingToken: existing.trackingShareToken as string, created: false };
     }
     const counterSnapshot = await transaction.get(counterRef);
     const requestSnapshot = requestRef ? await transaction.get(requestRef) : null;
@@ -467,75 +473,81 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     const currentSequence = counterSnapshot.exists() && Number.isInteger(counterSnapshot.data().lastSequence)
       ? counterSnapshot.data().lastSequence
       : 0;
-    const nextSequence = currentSequence + 1;
-    const nextWorkOrder = `JN-${dateKey}${String(nextSequence).padStart(3, "0")}`;
+    const workOrders = rounds.map((_, index) => `JN-${dateKey}${String(currentSequence + index + 1).padStart(3, "0")}`);
     transaction.set(counterRef, {
       dateKey,
-      lastSequence: nextSequence,
+      lastSequence: currentSequence + roundTotal,
       updatedAt: serverTimestamp()
     });
-    transaction.set(jobRef, {
-      ...jobFields,
-      ...(submissionId ? { submissionId } : {}),
-      createdByUid: actor.uid,
-      ...((source?.customerId || customerId) ? { customerId: source?.customerId || customerId } : {}),
-      ...(pickupPlace ? { pickupPlace } : {}),
-      ...(deliveryPlace ? { deliveryPlace } : {}),
-      ...(checkedReturnTrip ? { returnTrip: checkedReturnTrip, activeLeg: 1 } : {}),
-      workOrder: nextWorkOrder,
-      ...(subcontract ? { driverId: "", driverName: "", driverPhone: "", vehiclePlate: "" } : {
-        assignedDriverUid: driver!.userUid,
-        driverName: assignedUser!.fullName || driver!.name,
-        driverPhone: assignedUser!.phone || driver!.phone || ""
-      }),
-      organizationId,
-      originOrganizationId: "main",
-      trackingShareToken: trackingToken,
-      carrierName,
-      status: subcontract ? "pending_subcontract" : "assigned",
-      trackingStatus: "not_started",
-      trackingEnabled: false,
-      lastUpdatedMinutes: 0,
-      currentLocation: { ...defaultLocation, updatedAt: now },
-      alerts: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    transaction.set(trackingLinkRef, {
-      jobId: jobRef.id,
-      organizationId,
-      enabled: true,
-      expiresAt: trackingExpiresAt,
-      workOrder: nextWorkOrder,
-      customerName: draft.customer,
-      statusLabel: statusLabels[subcontract ? "pending_subcontract" : "assigned"],
-      pickupLocation: draft.pickupLocation,
-      deliveryLocation: draft.deliveryLocation,
-      ...(pickupPlace ? { pickupPlace } : {}),
-      ...(deliveryPlace ? { deliveryPlace } : {}),
-      vehicleLabel: subcontract ? "ยังไม่มอบหมาย" : draft.vehiclePlate,
-      carrierName,
-      eta: draft.eta,
-      lastUpdatedAt: now,
-      currentLocation: { lat: defaultLocation.lat, lng: defaultLocation.lng },
-      createdByUid: actor.uid,
-      source: "job_created",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    if (requestRef) transaction.update(requestRef, { status: "accepted", jobId: jobRef.id, workOrder: nextWorkOrder, decidedByUid: actor.uid, decidedAt: serverTimestamp() });
-    return { workOrder: nextWorkOrder, trackingToken, created: true };
+    for (let index = 0; index < rounds.length; index++) {
+      const round = rounds[index];
+      const nextWorkOrder = workOrders[index];
+      transaction.set(round.jobRef, {
+        ...jobFields,
+        tripCount: 1,
+        ...(roundTotal > 1 ? { roundGroupId: jobRef.id, roundNumber: round.roundNumber, roundTotal } : {}),
+        ...(index === 0 && roundTotal > 1 ? { roundWorkOrders: workOrders } : {}),
+        ...(submissionId ? { submissionId } : {}),
+        createdByUid: actor.uid,
+        ...((source?.customerId || customerId) ? { customerId: source?.customerId || customerId } : {}),
+        ...(pickupPlace ? { pickupPlace } : {}),
+        ...(deliveryPlace ? { deliveryPlace } : {}),
+        ...(checkedReturnTrip ? { returnTrip: checkedReturnTrip, activeLeg: 1 } : {}),
+        workOrder: nextWorkOrder,
+        ...(subcontract ? { driverId: "", driverName: "", driverPhone: "", vehiclePlate: "" } : {
+          assignedDriverUid: driver!.userUid,
+          driverName: assignedUser!.fullName || driver!.name,
+          driverPhone: assignedUser!.phone || driver!.phone || ""
+        }),
+        organizationId,
+        originOrganizationId: "main",
+        trackingShareToken: round.trackingToken,
+        carrierName,
+        status: subcontract ? "pending_subcontract" : "assigned",
+        trackingStatus: "not_started",
+        trackingEnabled: false,
+        lastUpdatedMinutes: 0,
+        currentLocation: { ...defaultLocation, updatedAt: now },
+        alerts: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      transaction.set(round.trackingLinkRef, {
+        jobId: round.jobRef.id,
+        organizationId,
+        enabled: true,
+        expiresAt: trackingExpiresAt,
+        workOrder: nextWorkOrder,
+        customerName: draft.customer,
+        statusLabel: statusLabels[subcontract ? "pending_subcontract" : "assigned"],
+        pickupLocation: draft.pickupLocation,
+        deliveryLocation: draft.deliveryLocation,
+        ...(pickupPlace ? { pickupPlace } : {}),
+        ...(deliveryPlace ? { deliveryPlace } : {}),
+        vehicleLabel: subcontract ? "ยังไม่มอบหมาย" : draft.vehiclePlate,
+        carrierName,
+        eta: draft.eta,
+        lastUpdatedAt: now,
+        currentLocation: { lat: defaultLocation.lat, lng: defaultLocation.lng },
+        createdByUid: actor.uid,
+        source: "job_created",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+    if (requestRef) transaction.update(requestRef, { status: "accepted", jobId: jobRef.id, workOrder: workOrders[0], decidedByUid: actor.uid, decidedAt: serverTimestamp() });
+    return { workOrders, trackingToken: rounds[0].trackingToken, created: true };
   });
   const fingerprint = coordinateFingerprint(pickupPlace, deliveryPlace);
   if (result.created && fingerprint && pickupPlace && deliveryPlace) {
     try {
       const distanceMeters = await requestJobRoadDistance(jobRef.id, pickupPlace, deliveryPlace);
-      await saveJobRouteDistance(jobRef.id, distanceMeters, fingerprint, actor);
+      await Promise.all(rounds.map(round => saveJobRouteDistance(round.jobRef.id, distanceMeters, fingerprint, actor)));
     } catch {
       // The job is already saved; its details screen can retry the distance calculation later.
     }
   }
-  return { workOrder: result.workOrder, trackingToken: result.trackingToken } satisfies CreatedJob;
+  return { workOrder: result.workOrders[0], workOrders: result.workOrders, trackingToken: result.trackingToken } satisfies CreatedJob;
 }
 
 export async function acceptSubcontractJob(jobId: string, actor: UserProfile) {
@@ -1213,6 +1225,8 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     returnArrivedDeliveryAt: timestampToIso(data.returnArrivedDeliveryAt),
     assignedDriverUid: data.assignedDriverUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,
+    roundNumber: Number(data.roundNumber) || undefined,
+    roundTotal: Number(data.roundTotal) || undefined,
     notes: data.notes ?? "",
     carrierName: data.carrierName ?? undefined
   };

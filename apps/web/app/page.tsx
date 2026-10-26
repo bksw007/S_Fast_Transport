@@ -2093,7 +2093,7 @@ function JobSummaryCard({
       <button className="job-summary-toggle" type="button" aria-expanded={expanded} onClick={toggleDetails}>
         <span className="job-summary-toggle-icon"><MapPin size={19} /></span>
         <span className="job-summary-topline">
-          <small>ใบงาน {job.workOrder}</small>
+          <small>ใบงาน {job.workOrder}{(job.roundTotal || 0) > 1 ? ` · รอบ ${job.roundNumber}/${job.roundTotal}` : ""}</small>
           <span className={job.alerts.length ? "status danger" : "status"}>{job.returnTrip ? `${returnLeg ? "ขากลับ" : "ขาไป"} · ` : ""}{statusLabels[job.status]}</span>
         </span>
         <span className="job-summary-toggle-chevron" aria-hidden="true">
@@ -2419,7 +2419,7 @@ function AdminView({
 }) {
   const [draft, setDraft] = useState<JobDraft>(() => prefillRequest ? draftFromCustomerRequest(prefillRequest) : createEmptyJobDraft());
   const [formVersion, setFormVersion] = useState(0);
-  const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrder: string; link: string } | { kind: "clear" } | null>(null);
+  const [formNotice, setFormNotice] = useState<{ kind: "saved"; workOrders: string[]; link: string } | { kind: "clear" } | null>(null);
   const [savingJob, setSavingJob] = useState(false);
   const submittingJobRef = useRef(false);
   const [drivers, setDrivers] = useState<TransportDriver[]>([]);
@@ -2484,7 +2484,7 @@ function AdminView({
       if (created) {
         resetJobForm();
         if (draft.sourceRequestId) onPrefillClear();
-        setFormNotice({ kind: "saved", workOrder: created.workOrder, link: `https://sfasttransport.vercel.app/track/${created.trackingToken}` });
+        setFormNotice({ kind: "saved", workOrders: created.workOrders, link: `https://sfasttransport.vercel.app/track/${created.trackingToken}` });
       }
     } finally {
       submittingJobRef.current = false;
@@ -2516,7 +2516,7 @@ function AdminView({
               <DispatchField label="วันที่รับงานจากผู้ว่าจ้าง"><input type="date" value={draft.jobDate} onChange={(event) => updateDraft("jobDate", event.target.value)} /></DispatchField>
               <DispatchField label="ประเภทสินค้า"><ListManagerComboBox field="cargo_type" value={draft.cargoType} onChange={(value) => updateDraft("cargoType", value)} placeholder="ค้นหาหรือเพิ่มประเภทสินค้า" organizationId={organizationId} actor={profile} /></DispatchField>
               <DispatchField label="ประเภทรถ"><ListManagerComboBox field="vehicle_type" value={draft.vehicleType} onChange={(value) => updateDraft("vehicleType", value)} placeholder="ค้นหาหรือเพิ่มประเภทรถ" organizationId={organizationId} actor={profile} /></DispatchField>
-              <DispatchField label="จำนวนรอบ"><input type="number" min="1" value={draft.tripCount} onChange={(event) => updateDraft("tripCount", event.target.value)} /></DispatchField>
+              <DispatchField label="จำนวนรอบ"><input type="number" min="1" max="200" step="1" required value={draft.tripCount} onChange={(event) => updateDraft("tripCount", event.target.value)} /><small>แต่ละรอบสร้างเป็นใบงานแยกกัน โดยคัดลอกวันเวลาเริ่มต้นเดียวกัน</small></DispatchField>
             </div>
 
             <div className="dispatch-stops">
@@ -2601,7 +2601,7 @@ function DispatchFormNotice({
   onClose,
   onConfirmClear
 }: {
-  notice: { kind: "saved"; workOrder: string; link: string } | { kind: "clear" };
+  notice: { kind: "saved"; workOrders: string[]; link: string } | { kind: "clear" };
   onClose: () => void;
   onConfirmClear: () => void;
 }) {
@@ -2642,12 +2642,12 @@ function DispatchFormNotice({
           <h2 id="dispatch-notice-title">{isClear ? "ล้างข้อมูลในฟอร์ม?" : "บันทึกใบแจ้งงานสำเร็จ"}</h2>
           <p id="dispatch-notice-description">{isClear
             ? "ข้อมูลที่กรอกไว้ในฟอร์มนี้จะถูกล้างทั้งหมด"
-            : <>สร้างเลขที่ใบแจ้งงาน <strong>{notice.workOrder}</strong> เรียบร้อยแล้ว</>}
+            : <>สร้างใบแจ้งงาน {notice.workOrders.length} รอบ: <strong>{notice.workOrders.join(", ")}</strong> เรียบร้อยแล้ว</>}
           </p>
         </div>
         {notice.kind === "saved" && <div className="dispatch-notice-share">
-          <label>ลิงก์ติดตามสถานะ<input readOnly value={notice.link} onFocus={event => event.target.select()} /></label>
-          {qr && <><Image unoptimized src={qr} width={240} height={240} alt={`QR ติดตามใบงาน ${notice.workOrder}`} /><a download={`tracking-${notice.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}
+          <label>ลิงก์ติดตามสถานะรอบแรก<input readOnly value={notice.link} onFocus={event => event.target.select()} /></label>
+          {qr && <><Image unoptimized src={qr} width={240} height={240} alt={`QR ติดตามใบงาน ${notice.workOrders[0]}`} /><a download={`tracking-${notice.workOrders[0]}.png`} href={qr}>ดาวน์โหลด QR</a></>}
           <div className="dispatch-notice-share-actions">
             <button type="button" onClick={() => void navigator.clipboard.writeText(notice.link).then(() => setCopied(true))}>{copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}</button>
             <a href={notice.link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a>

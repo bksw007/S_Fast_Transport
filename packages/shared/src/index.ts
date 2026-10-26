@@ -134,6 +134,8 @@ export type TransportJob = {
   assignedDriverUid?: string;
   driverPhotoUrl?: string;
   tripCount?: number;
+  roundNumber?: number;
+  roundTotal?: number;
   notes?: string;
 };
 
