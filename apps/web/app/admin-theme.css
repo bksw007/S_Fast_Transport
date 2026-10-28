@@ -123,6 +123,8 @@
 .admin-premium-shell[data-theme="dark"] .dashboard-job[data-selected="true"] { border-color: #6d8d79; background: #30423a; }
 .admin-premium-shell[data-theme="dark"] .dashboard-work-order.subcontract { color: #bde7ff; background: #173e54; box-shadow: inset 3px 0 #38bdf8; }
 .admin-premium-shell[data-theme="dark"] .dashboard-work-order.cancelled { color: #fecaca; background: #4c2026; box-shadow: inset 3px 0 #f87171; }
+.admin-premium-shell[data-theme="dark"] .dashboard-acceptance-status.pending { color: #fde68a; background: #4a361e; }
+.admin-premium-shell[data-theme="dark"] .dashboard-acceptance-status.accepted { color: #bbf7d0; background: #1e4934; }
 .admin-premium-shell[data-theme="dark"] .sidebar-workspace,
 .admin-premium-shell[data-theme="dark"] .dispatch-form-hero,
 .admin-premium-shell[data-theme="dark"] .resource-form > header { border-color: #3e504b; color: #edf1ed; background: #263534; }

@@ -132,6 +132,7 @@ export type TransportJob = {
   handoverDocumentPhotoPaths?: string[];
   returnArrivedDeliveryAt?: string;
   assignedDriverUid?: string;
+  acceptedByUid?: string;
   driverPhotoUrl?: string;
   tripCount?: number;
   roundNumber?: number;

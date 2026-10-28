@@ -451,6 +451,12 @@ service cloud.firestore {
               && get(/databases/$(database)/documents/users/$(request.resource.data.assignedDriverUid)).data.approvalStatus == "approved")
             || (!(resource.data.status in ["pending_subcontract", "subcontract_accepted"])
               && !(request.resource.data.status in ["pending_subcontract", "subcontract_accepted"])
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                "workOrder", "customer", "customerId", "jobDate", "cargoType", "vehicleType", "tripCount", "returnTrip",
+                "pickupLocation", "pickupPlace", "pickupDate", "pickupTime", "pickupContactId", "pickupContact", "pickupContactPhone", "pickupContactNotes",
+                "deliveryLocation", "deliveryPlace", "deliveryDate", "deliveryTime", "deliveryContactId", "deliveryContact", "deliveryContactPhone", "deliveryContactNotes",
+                "eta", "notes", "driverId", "vehicleId", "vehiclePlate", "assignedDriverUid", "driverName", "driverPhone", "carrierName", "trackingShareToken"
+              ])
               && (resource.data.get("originOrganizationId", "") != "main"
                 || (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["deletedAt", "deletedByUid", "deletedByName"])
                   && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["status"])

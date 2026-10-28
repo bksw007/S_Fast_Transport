@@ -1229,6 +1229,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     handoverDocumentPhotoPaths: Array.isArray(data.handoverDocumentPhotoPaths) ? data.handoverDocumentPhotoPaths.filter((path: unknown): path is string => typeof path === "string") : undefined,
     returnArrivedDeliveryAt: timestampToIso(data.returnArrivedDeliveryAt),
     assignedDriverUid: data.assignedDriverUid ?? undefined,
+    acceptedByUid: data.acceptedByUid ?? undefined,
     tripCount: Number(data.tripCount) || 1,
     roundNumber: Number(data.roundNumber) || undefined,
     roundTotal: Number(data.roundTotal) || undefined,

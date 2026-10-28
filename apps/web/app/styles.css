@@ -5145,7 +5145,10 @@ textarea:focus {
 .dashboard-job-assignment > span, .dashboard-job-footer > span, .dashboard-job-alert { display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .dashboard-job-assignment svg, .dashboard-job-footer svg, .dashboard-job-alert svg { flex-shrink: 0; }
 .dashboard-job-alert { padding: 9px 10px; margin-bottom: 12px; font-size: .72rem; color: var(--dashboard-warning); background: color-mix(in srgb, var(--dashboard-warning) 8%, var(--surface)); border-radius: 8px; }
-.dashboard-job-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; font-size: .71rem; color: var(--muted); }
+.dashboard-job-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 12px; font-size: .71rem; color: var(--muted); }
+.dashboard-acceptance-status { padding: 5px 9px; border-radius: 20px; font-weight: 700; white-space: nowrap; }
+.dashboard-acceptance-status.pending { color: #92400e; background: #fef3c7; }
+.dashboard-acceptance-status.accepted { color: #166534; background: #dcfce7; }
 .dashboard-job-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .dashboard-detail-link, .dashboard-edit-link { display: inline-flex; align-items: center; gap: 4px; padding: 7px 9px; border-radius: 8px; color: var(--accent); background: transparent; font-weight: 600; white-space: nowrap; }
 .dashboard-edit-link { border: 1px solid var(--border); background: var(--surface-2); }

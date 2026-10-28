@@ -49,8 +49,11 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/job-detail-r
 }).outputText, context);
 
 const actor = { uid: 'admin', displayName: 'Admin', organizationId: 'main', organizationName: 'S Fast Transport' };
+const subcontractActor = { uid: 'partner-admin', role: 'subcontract_admin', organizationId: 'partner' };
 const draft = assignedOrganizationId => ({ assignedOrganizationId, customer: 'Customer', jobDate: '2026-10-24', driverId: '', vehiclePlate: '', pickupLocation: 'Origin', deliveryLocation: 'Destination', tripCount: 1, notes: '' });
 (async () => {
+  assert.equal(context.exports.canEditJob({ status: 'assigned', organizationId: 'partner' }, subcontractActor), false);
+  await assert.rejects(context.exports.updateJobDetails({ id: 'job-1' }, draft('main'), subcontractActor), /เฉพาะแอดมินบริษัทหลัก/);
   await context.exports.updateJobDetails({ id: 'job-1' }, draft('partner'), actor);
   const subcontractJob = records.get('today_jobs/job-1');
   assert.equal(subcontractJob.status, 'pending_subcontract');

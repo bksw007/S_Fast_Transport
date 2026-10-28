@@ -47,8 +47,7 @@ export function canAdministerJob(job: Pick<TransportJob, "organizationId" | "sta
 }
 
 export function canEditJob(job: Pick<TransportJob, "organizationId" | "status" | "historical">, actor: UserProfile) {
-  return job.status !== "cancelled" && canAdministerJob(job, actor)
-    && (!job.historical || isMainAdmin(actor) && actor.organizationId === "main");
+  return job.status !== "cancelled" && isMainAdmin(actor) && actor.organizationId === "main" && canAdministerJob(job, actor);
 }
 
 export async function resolveDriverIssue(job: TransportJob, note: string, actor: UserProfile) {
@@ -127,6 +126,7 @@ export async function syncEditedShareLinks(jobId: string, values: {
 }
 
 export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, actor: UserProfile) {
+  if (!isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่แก้ไขใบงานได้");
   const values = validateJobEditDraft(draft);
   const jobRef = doc(db, "today_jobs", job.id);
   const initialSnapshot = await getDoc(jobRef);

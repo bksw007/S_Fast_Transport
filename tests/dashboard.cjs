@@ -14,7 +14,7 @@ const context = { React, exports: {}, window: { setTimeout: fn => { dismissMessa
   if (name === 'react') return { ...React, useEffect: fn => fn(), useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial; return [slots[index], value => { slots[index] = value; }]; } };
   if (name === '@s-fast-transport/shared') return shared.exports;
   if (name === '@/lib/job-card-schedule') return schedule.exports;
-  if (name === '@/lib/job-detail-repository') return { canEditJob: job => job.status !== 'cancelled' };
+  if (name === '@/lib/job-detail-repository') return { canEditJob: (job, actor) => job.status !== 'cancelled' && actor.organizationId === 'main' };
   return require(name);
 }};
 vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboard.tsx', 'utf8')), context);
@@ -22,7 +22,7 @@ const currentMonth = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().sli
 const makeJob = (id, status, alerts = []) => ({ id, status, alerts, jobDate: `${currentMonth}-01`, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
 const jobs = [makeJob('active', 'assigned'), makeJob('problem', 'problem'), { ...makeJob('done', 'completed', ['Old alert']), historical: true }, makeJob('cancel', 'cancelled')];
 let tree;
-function render(data = jobs, dataState = 'ready', deletedJobs = []) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', actor: { role: 'admin' }, canWrite: true, onSelectJob: id => { selected = id; }, onEditJob: id => { edited = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
+function render(data = jobs, dataState = 'ready', deletedJobs = [], actor = { role: 'admin', organizationId: 'main' }) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', actor, canWrite: true, onSelectJob: id => { selected = id; }, onEditJob: id => { edited = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 function cardIds() { return nodes().filter(n => n.props?.['aria-haspopup'] === 'dialog').map(n => n.props['aria-label']); }
@@ -74,7 +74,7 @@ const datedJobs = [
   { ...makeJob('old-attention', 'problem'), pickupDate: '2026-10-09' },
   makeJob('undated', 'assigned')
 ];
-function visibleOrders() { return nodes().filter(n => n.props?.className?.startsWith('dashboard-work-order')).map(n => n.props.children); }
+function visibleOrders() { return nodes().filter(n => n.props?.className?.startsWith('dashboard-work-order')).map(n => React.Children.toArray(n.props.children).join('')); }
 function selectTab(label) { nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(label)).props.onClick(); render(datedJobs); }
 slots = []; render(datedJobs); find(n => n.type === 'select' && n.props?.value === currentMonth).props.onChange({ target: { value: 'all' } }); render(datedJobs);
 assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-new-completed', 'WO-new-cancelled', 'WO-old-attention', 'WO-older-active', 'WO-old-completed', 'WO-old-cancelled', 'WO-undated']);
@@ -114,6 +114,16 @@ slots = []; render([{ ...makeJob('subcontract', 'pending_subcontract'), organiza
 assert.equal(nodes().filter(n => n.props?.className === 'dashboard-work-order subcontract').length, 1, 'only jobs delegated by the main company have a blue work-order marker');
 slots = []; render([{ ...makeJob('cancelled-subcontract', 'cancelled'), organizationId: 'partner', originOrganizationId: 'main' }, makeJob('cancelled-main', 'cancelled'), makeJob('main', 'assigned')]);
 assert.equal(nodes().filter(n => n.props?.className === 'dashboard-work-order cancelled').length, 2, 'cancelled jobs have a red work-order marker, including subcontract jobs');
+const partner = { role: 'subcontract_admin', organizationId: 'partner' };
+slots = []; render([
+  { ...makeJob('waiting', 'pending_subcontract'), originOrganizationId: 'main', organizationId: 'partner' },
+  { ...makeJob('accepted', 'subcontract_accepted'), originOrganizationId: 'main', organizationId: 'partner', acceptedByUid: 'partner-admin' },
+  { ...makeJob('cancelled-before', 'cancelled'), originOrganizationId: 'main', organizationId: 'partner' },
+  { ...makeJob('cancelled-after', 'cancelled'), originOrganizationId: 'main', organizationId: 'partner', acceptedByUid: 'partner-admin' }
+], 'ready', [], partner);
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-edit-link').length, 0, 'subcontract admins cannot edit from the dashboard');
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-acceptance-status pending').length, 2);
+assert.equal(nodes().filter(n => n.props?.className === 'dashboard-acceptance-status accepted').length, 2);
 assert.ok(dateOnlyCards.includes('ETA ส่งสินค้า อีก 2 วัน'), 'delivery date is shown after pickup');
 
 const source = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
