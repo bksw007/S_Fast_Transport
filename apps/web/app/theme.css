@@ -340,7 +340,7 @@ button, input, select, textarea { font-family: inherit; }
 .driver-premium-shell .driver-today-card .job-summary-toggle:hover { background: #f9faf6; }
 .driver-premium-shell .driver-today-card .job-summary-toggle-icon { display: none; }
 .driver-premium-shell .driver-today-card .job-summary-topline { grid-column: 1; gap: 7px; }
-.driver-premium-shell .driver-today-card .job-summary-topline > small { color: #2c4545; font-size: .76rem; font-weight: 600; }
+.driver-premium-shell .driver-today-card .job-summary-topline > small { color: #2c4545; font-size: .76rem; font-weight: 600; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .driver-premium-shell .driver-today-card .job-summary-toggle .status { color: #426158; background: #eaf0ed; font-size: .63rem; white-space: normal; text-align: center; }
 .driver-premium-shell .driver-today-card .job-summary-toggle .status.danger { color: #9b5d4e; background: #faf1ed; }
 .driver-premium-shell .driver-today-card .job-summary-toggle-chevron { grid-column: 2; grid-row: 1; color: #879a91; }

@@ -277,6 +277,11 @@ const emptySelectedJob: TransportJob = {
 };
 let googleMapsLoader: Promise<void> | null = null;
 
+function keepDriverSelection(current: string, jobs: TransportJob[], driverUid: string): string {
+  const chosenJob = jobs.find(job => job.id === current && job.assignedDriverUid === driverUid);
+  return chosenJob && !["completed", "cancelled"].includes(chosenJob.status) ? current : "";
+}
+
 function readAppearance(): { theme: "light" | "dark"; fontScale: number } {
   try {
     if (typeof window !== "undefined") {
@@ -434,6 +439,9 @@ export default function Home() {
         setJobsState(failed ? "error" : "ready");
         setJobs(nextJobs);
         setSelectedJobId((current) => {
+          if (profile.role === "driver" || adminDriverMode) {
+            return keepDriverSelection(current, nextJobs, profile.uid);
+          }
           const currentJob = nextJobs.find(job => job.id === current);
           if (currentJob && !["completed", "cancelled"].includes(currentJob.status)) return current;
           return nextJobs.find(job => !["completed", "cancelled"].includes(job.status))?.id ?? currentJob?.id ?? nextJobs[0]?.id ?? "";
@@ -442,7 +450,7 @@ export default function Home() {
       (message) => { failed = true; setJobsState("error"); setFirebaseMessage(`อ่าน Firestore ไม่สำเร็จ: ${message}`); },
       setDeletedJobs
     );
-  }, [user, profile]);
+  }, [user, profile, adminDriverMode]);
 
   useEffect(() => {
     if (authReady && profile?.role === "customer" && profile.customerId && hasApprovedAccess(profile)) window.location.replace("/customer");
@@ -475,7 +483,7 @@ export default function Home() {
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? emptySelectedJob,
     [jobs, selectedJobId]
   );
-  const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? ownDriverJobs[0] ?? emptySelectedJob;
+  const selectedDriverJob = ownDriverJobs.find(job => job.id === selectedJobId) ?? emptySelectedJob;
   const activeJobs = useMemo(() => jobs.filter((job) => job.trackingEnabled || job.status !== "completed"), [jobs]);
   const trackingJobs = useMemo(() => activeJobs.filter(job => !["pending_subcontract", "subcontract_accepted"].includes(job.status)), [activeJobs]);
   const unresolvedIssueCount = useMemo(() => jobs.filter(job => job.lastIssue && !job.lastIssue.resolvedAt).length, [jobs]);
@@ -524,6 +532,7 @@ export default function Home() {
         if (["completed", "cancelled"].includes(status)) {
           stopPwaJobTracking();
           setTrackingMessage("หยุดแชร์ตำแหน่งแล้ว");
+          setSelectedJobId(current => current === targetJob.id ? "" : current);
         }
         setFirebaseMessage("บันทึกสถานะงานสำเร็จ");
       }
@@ -638,7 +647,7 @@ export default function Home() {
           adminScreen={adminScreen}
           onDriverScreenChange={setDriverScreen}
           onAdminScreenChange={(screen) => { setJobDetailOpen(false); setAdminScreen(screen); }}
-          onEnterDriverMode={() => { setJobDetailOpen(false); setDriverScreen("งานของฉัน"); setSelectedJobId(ownDriverJobs[0]?.id ?? ""); setAdminDriverMode(true); }}
+          onEnterDriverMode={() => { setJobDetailOpen(false); setDriverScreen("งานของฉัน"); setSelectedJobId(""); setAdminDriverMode(true); }}
           onLeaveDriverMode={() => { setAdminDriverMode(false); setSelectedJobId(""); }}
           onNavigate={() => setMobileMenuOpen(false)}
         />
@@ -936,12 +945,12 @@ function DriverMobileScreen({
 
   if (screen === "แผนที่งานของฉัน") {
     const currentJobs = jobs.filter(job => !["completed", "cancelled"].includes(job.status));
-    const currentJob = currentJobs.find(job => job.id === selectedJobId) ?? currentJobs[0];
-    return currentJob ? <MapScreen jobs={currentJobs} selectedJob={currentJob} selectedJobId={currentJob.id} onSelectJob={onSelectJob} driverView /> : <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="แผนที่จะปรากฏเมื่อเริ่มงานขนส่ง" />;
+    const currentJob = currentJobs.find(job => job.id === selectedJobId);
+    return currentJob ? <MapScreen jobs={currentJobs} selectedJob={currentJob} selectedJobId={currentJob.id} onSelectJob={onSelectJob} driverView /> : <EmptyState title="ยังไม่ได้เลือกใบงาน" description="เปิดงานของฉันเพื่อเลือกใบงานที่ต้องการก่อนดูแผนที่" />;
   }
 
-  if (["completed", "cancelled"].includes(selectedJob.status)) {
-    return <EmptyState title="ยังไม่มีงานที่กำลังขนส่ง" description="งานที่เสร็จแล้วดูได้ในเมนูประวัติงาน" />;
+  if (!selectedJob.id || ["completed", "cancelled"].includes(selectedJob.status)) {
+    return <EmptyState title="ยังไม่ได้เลือกใบงาน" description="เปิดงานของฉันเพื่อเลือกใบงานที่ต้องการรับและเริ่มแชร์ตำแหน่ง" />;
   }
 
   return <DriverView job={selectedJob} profile={profile} canWrite={canWrite} trackingMessage={trackingMessage} onAction={onAction} onReportIssue={() => onReportIssue(selectedJob)} onNotice={onNotice} onBackToJobs={onBackToJobs} />;

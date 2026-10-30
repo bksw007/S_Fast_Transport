@@ -8,12 +8,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/job-card-sch
 
 const sourceText = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const source = ts.createSourceFile('page.tsx', sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const wanted = new Set(['nextDriverAction', 'activeDriverStop', 'formatStopSchedule', 'routeDistanceLabel', 'stopNavigationUrl', 'JobSummaryCard']);
+const wanted = new Set(['nextDriverAction', 'activeDriverStop', 'formatStopSchedule', 'routeDistanceLabel', 'stopNavigationUrl', 'JobSummaryCard', 'keepDriverSelection']);
 const statements = source.statements.filter(node =>
   (ts.isFunctionDeclaration(node) && node.name && wanted.has(node.name.text))
   || (ts.isVariableStatement(node) && /(driverNextActionByStatus|thaiShortMonths)/.test(node.getText(source)))
 );
-const code = `${statements.map(node => node.getText(source)).join('\n')}\nexport { JobSummaryCard };`;
+const code = `${statements.map(node => node.getText(source)).join('\n')}\nexport { JobSummaryCard, keepDriverSelection };`;
 const context = {
   exports: {},
   React,
@@ -22,6 +22,7 @@ const context = {
   useState: () => [true, () => {}],
   formatPhoneNumber: value => value,
   activeLeg: value => value.returnTrip && value.activeLeg === 2 ? 2 : 1,
+  driverReturnTrip: value => value.returnTrip || null,
   statusLabels: { assigned: 'มอบหมายแล้ว', accepted: 'รับงานแล้ว', to_delivery: 'กำลังไปจุดส่ง' },
   driverActions: [
     { id: 'start_tracking', label: 'เริ่มแชร์ตำแหน่ง', nextStatus: 'accepted' },
@@ -69,6 +70,15 @@ assert.equal(context.exports.routeDistanceLabel(64500), 'ระยะทาง�
 assert.equal(context.exports.routeDistanceLabel(undefined), 'ยังไม่มีข้อมูลระยะทาง');
 assert.equal(context.exports.stopNavigationUrl('FMT', { navigationUrl: 'https://maps.example/pickup' }), 'https://maps.example/pickup');
 assert.match(context.exports.stopNavigationUrl('FMT บางนา', undefined), /query=FMT%20%E0%B8%9A%E0%B8%B2%E0%B8%87%E0%B8%99%E0%B8%B2/);
+const assignedJobs = [
+  { id: 'job-1', assignedDriverUid: 'driver-1', status: 'completed' },
+  { id: 'job-2', assignedDriverUid: 'driver-1', status: 'assigned' },
+  { id: 'job-3', assignedDriverUid: 'driver-2', status: 'assigned' }
+];
+assert.equal(context.exports.keepDriverSelection('job-2', assignedJobs, 'driver-1'), 'job-2');
+assert.equal(context.exports.keepDriverSelection('job-1', assignedJobs, 'driver-1'), '', 'completed job must not auto-select the next assignment');
+assert.equal(context.exports.keepDriverSelection('', assignedJobs, 'driver-1'), '', 'opening the driver menu must not select a job');
+assert.equal(context.exports.keepDriverSelection('job-3', assignedJobs, 'driver-1'), '', 'another driver’s job must not be selected');
 
 let action, issueJobId;
 const tree = context.exports.JobSummaryCard({ job: job('accepted'), selected: true, canWrite: true, onSelect: () => {}, onAction: (status, selectedJob) => { action = [status, selectedJob.id]; }, onReportIssue: selectedJob => { issueJobId = selectedJob.id; } });
@@ -117,5 +127,6 @@ assert.ok(nodes(problemTree).some(node => node.props?.className === 'job-issue-b
 const css = fs.readFileSync('apps/web/app/styles.css', 'utf8') + fs.readFileSync('apps/web/app/theme.css', 'utf8');
 assert.match(css, /\.job-summary-toggle\s*\{[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto;/s);
 assert.match(css, /\.job-summary-route\s*\{[^}]*white-space:\s*normal;/s);
+assert.match(css, /\.driver-premium-shell \.driver-today-card \.job-summary-topline > small\s*\{[^}]*white-space:\s*normal;[^}]*overflow-wrap:\s*anywhere;/s);
 
 console.log('PASS: today job card exposes exactly its next driver action');
