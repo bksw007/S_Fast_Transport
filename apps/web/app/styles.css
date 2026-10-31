@@ -5185,7 +5185,7 @@ textarea:focus {
   .dashboard-header { gap: 12px; margin-bottom: 20px; }
   .dashboard-header h1 { font-size: 1.8rem; }
   .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .dashboard-metric.cancelled { grid-column: 1 / -1; }
+  .dashboard-metric.all { grid-column: 1 / -1; }
   .dashboard-metric { padding: 16px 14px; gap: 16px; }
   .dashboard-metric > strong { font-size: 2rem; }
   .dashboard-metric-top { font-size: .7rem; }
