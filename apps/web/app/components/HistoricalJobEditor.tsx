@@ -23,7 +23,7 @@ export default function HistoricalJobEditor({ job, actor, busy, onSave, onSavePh
     vehiclePlate: job.vehiclePlate, vehicleType: job.vehicleType ?? "", cargoType: job.cargoType ?? "", tripCount: String(job.tripCount ?? 1),
     pickupDate: job.pickupDate ?? "", pickupTime: job.pickupTime ?? "", pickupLocation: job.pickupLocation, pickupPlace: job.pickupPlace,
     deliveryDate: job.deliveryDate ?? "", deliveryTime: job.deliveryTime ?? "", deliveryLocation: job.deliveryLocation, deliveryPlace: job.deliveryPlace,
-    arrivedDeliveryAt: localDateTime(job.arrivedDeliveryAt), completedAt: localDateTime(job.completedAt), notes: job.notes ?? ""
+    arrivedPickupAt: localDateTime(job.arrivedPickupAt), arrivedDeliveryAt: localDateTime(job.arrivedDeliveryAt || job.completedAt), notes: job.notes ?? ""
   }));
   const [organizations, setOrganizations] = useState<SubcontractOrganization[]>([]);
   const [companyError, setCompanyError] = useState("");
@@ -73,8 +73,8 @@ export default function HistoricalJobEditor({ job, actor, busy, onSave, onSavePh
       </fieldset>
     </div>
     <section className="job-edit-section"><h4>เวลาจริงและหมายเหตุ</h4><div className="job-edit-grid">
-      <EditField label="ถึงจุดส่งจริง (ถ้าทราบ)"><input type="datetime-local" value={draft.arrivedDeliveryAt} onChange={event => change("arrivedDeliveryAt", event.target.value)} /></EditField>
-      <EditField label="จบงานจริง"><input type="datetime-local" required value={draft.completedAt} onChange={event => change("completedAt", event.target.value)} /></EditField>
+      <EditField label="ถึงจุดรับจริง"><input type="datetime-local" value={draft.arrivedPickupAt} onChange={event => change("arrivedPickupAt", event.target.value)} /></EditField>
+      <EditField label="ถึงจุดส่งจริง"><input type="datetime-local" required value={draft.arrivedDeliveryAt} onChange={event => change("arrivedDeliveryAt", event.target.value)} /></EditField>
       <EditField label="หมายเหตุ" wide><textarea rows={3} maxLength={2000} value={draft.notes} onChange={event => change("notes", event.target.value)} /></EditField>
     </div></section>
     <div className="job-edit-actions"><button className="primary" type="submit" disabled={busy || !driversReady}><Save size={17} /> บันทึกการแก้ไข</button></div>

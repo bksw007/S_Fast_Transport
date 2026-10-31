@@ -43,6 +43,7 @@ export type PublicTrackingDetails = {
   returnTrip: { pickupLocation: string; pickupDate: string; pickupTime: string; deliveryLocation: string; deliveryDate: string; deliveryTime: string } | null;
   activeLeg: 1 | 2;
   eta: string;
+  arrivedPickupAt: string;
   arrivedDeliveryAt: string;
   completedAt: string;
   pickupProof: PublicProof;

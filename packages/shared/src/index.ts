@@ -109,6 +109,7 @@ export type TransportJob = {
   pickupTime?: string;
   deliveryDate?: string;
   deliveryTime?: string;
+  arrivedPickupAt?: string;
   arrivedDeliveryAt?: string;
   completedAt?: string;
   cancelledAt?: string;

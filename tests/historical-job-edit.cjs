@@ -43,7 +43,7 @@ const draft = {
   submissionId: job.id, customer: 'Customer', carrierOrganizationId: 'main', driverId: 'driver-1', vehiclePlate: 'ABC-123',
   vehicleType: 'Truck', cargoType: 'Parts', tripCount: '1', pickupDate: current.pickupDate, pickupTime: '09:00',
   pickupLocation: 'Bangkok', deliveryDate: '2026-10-10', deliveryTime: '12:00', deliveryLocation: 'Rayong',
-  arrivedDeliveryAt: '2026-10-10T12:00', completedAt: '2026-10-10T13:00', notes: 'Corrected'
+  arrivedPickupAt: '2026-10-10T09:15', arrivedDeliveryAt: '2026-10-10T13:00', notes: 'Corrected'
 };
 
 (async () => {
@@ -51,12 +51,15 @@ const draft = {
   assert.equal(writes.length, 1);
   assert.equal(writes[0].jobDate, draft.pickupDate);
   assert.equal(writes[0].driverName, 'Driver');
+  assert.equal(writes[0].arrivedPickupAt.toISOString(), new Date('2026-10-10T09:15:00+07:00').toISOString());
+  assert.equal(writes[0].arrivedDeliveryAt.toISOString(), writes[0].completedAt.toISOString());
   assert.ok(!('workOrder' in writes[0]));
   assert.ok(!('pickupDate' in writes[0]));
   assert.ok(!('historicalEvidence' in writes[0]));
   assert.equal(syncedLink.carrierName, 'S Fast Transport');
   assert.equal(syncedLink.lastUpdatedAt, new Date('2026-10-10T13:00:00+07:00').toISOString());
   await assert.rejects(context.exports.updateHistoricalJob(job, { ...draft, pickupDate: '2026-10-11' }, { uid: 'admin', organizationId: 'main' }), /วันที่รับสินค้า/);
+  await assert.rejects(context.exports.updateHistoricalJob(job, { ...draft, arrivedPickupAt: '2026-10-10T14:00' }, { uid: 'admin', organizationId: 'main' }), /ไม่สอดคล้อง/);
   assert.equal(writes.length, 1);
   const emptyPhotos = { pickup: [], delivery: [], document: [], expense: [] };
   assert.doesNotThrow(() => context.exports.validateHistoricalJob(draft, emptyPhotos), 'historical jobs can be created before photos are available');
@@ -70,5 +73,12 @@ const draft = {
   await assert.rejects(context.exports.appendHistoricalPhotos(job, { ...emptyPhotos, pickup: [photo] }, { uid: 'admin', organizationId: 'main' }), /เกิน 10 รูป/);
   assert.equal(writes.length, 2);
   assert.equal(deleted.length, 1, 'failed append cleans up newly uploaded files');
+  const previousCompletion = { toDate: () => new Date('2026-10-10T14:00:00+07:00') };
+  current.arrivedDeliveryAt = { toDate: () => new Date('2026-10-10T13:00:00+07:00') };
+  current.completedAt = previousCompletion;
+  await context.exports.updateHistoricalJob(job, draft, { uid: 'admin', organizationId: 'main' });
+  assert.equal(writes[2].completedAt, previousCompletion, 'editing other fields preserves an older close time');
+  await context.exports.updateHistoricalJob(job, { ...draft, arrivedDeliveryAt: '2026-10-10T15:00' }, { uid: 'admin', organizationId: 'main' });
+  assert.equal(writes[3].completedAt.toISOString(), new Date('2026-10-10T15:00:00+07:00').toISOString());
   console.log('PASS: historical jobs allow empty photos and later appends without replacing existing evidence');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -34,8 +34,8 @@ export type HistoricalJobDraft = {
   deliveryTime: string;
   deliveryLocation: string;
   deliveryPlace?: JobPlace;
+  arrivedPickupAt: string;
   arrivedDeliveryAt: string;
-  completedAt: string;
   notes: string;
 };
 
@@ -63,13 +63,13 @@ export function validateHistoricalDetails(draft: HistoricalJobDraft) {
   if (draft.pickupDate > bangkokToday() || draft.deliveryDate > bangkokToday()) throw new Error("งานย้อนหลังต้องไม่ระบุวันที่ในอนาคต");
   if (draft.deliveryDate < draft.pickupDate) throw new Error("วันที่ส่งสินค้าต้องไม่ก่อนวันที่รับสินค้า");
   if (draft.pickupTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.pickupTime) || draft.deliveryTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.deliveryTime)) throw new Error("เวลาในใบงานไม่ถูกต้อง");
-  const completed = dateTime(draft.completedAt, "เวลาจบงานจริง");
-  const arrived = draft.arrivedDeliveryAt ? dateTime(draft.arrivedDeliveryAt, "เวลาถึงจุดส่งจริง") : null;
+  const arrived = dateTime(draft.arrivedDeliveryAt, "เวลาถึงจุดส่งจริง");
+  const arrivedPickup = draft.arrivedPickupAt ? dateTime(draft.arrivedPickupAt, "เวลาถึงจุดรับจริง") : null;
   const dayStart = dateTime(`${draft.pickupDate}T00:00`, "วันที่รับสินค้า");
-  if (completed < dayStart || completed > new Date() || arrived && (arrived < dayStart || arrived > completed)) throw new Error("เวลาถึงจุดส่งหรือเวลาจบงานไม่สอดคล้องกับวันที่ทำงาน");
+  if (arrived < dayStart || arrived > new Date() || arrivedPickup && (arrivedPickup < dayStart || arrivedPickup > arrived)) throw new Error("เวลาถึงจุดรับหรือจุดส่งไม่สอดคล้องกับวันที่ทำงาน");
   const tripCount = Number(draft.tripCount);
   if (!Number.isInteger(tripCount) || tripCount < 1 || tripCount > 999) throw new Error("จำนวนเที่ยวต้องอยู่ระหว่าง 1–999");
-  return { completed, arrived, tripCount };
+  return { completed: arrived, arrived, arrivedPickup, tripCount };
 }
 
 export function validateHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos) {
@@ -113,7 +113,7 @@ async function resolveHistoricalAssignment(draft: HistoricalJobDraft, actor: Use
 
 export async function createHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos, actor: UserProfile, onProgress?: (message: string) => void) {
   if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่เพิ่มใบงานย้อนหลังได้");
-  const { completed, arrived, tripCount } = validateHistoricalJob(draft, photos);
+  const { completed, arrived, arrivedPickup, tripCount } = validateHistoricalJob(draft, photos);
   const { carrierName, driverName, driverPhone } = await resolveHistoricalAssignment(draft, actor);
   const jobRef = doc(db, "today_jobs", draft.submissionId);
   const existing = await getDoc(jobRef);
@@ -146,7 +146,7 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
         jobDate: draft.pickupDate, pickupDate: draft.pickupDate, pickupTime: draft.pickupTime,
         pickupLocation: draft.pickupLocation.trim(), ...(draft.pickupPlace ? { pickupPlace: draft.pickupPlace } : {}), deliveryDate: draft.deliveryDate,
         deliveryTime: draft.deliveryTime, deliveryLocation: draft.deliveryLocation.trim(), ...(draft.deliveryPlace ? { deliveryPlace: draft.deliveryPlace } : {}),
-        ...(arrived ? { arrivedDeliveryAt: Timestamp.fromDate(arrived) } : {}), completedAt: Timestamp.fromDate(completed),
+        ...(arrivedPickup ? { arrivedPickupAt: Timestamp.fromDate(arrivedPickup) } : {}), arrivedDeliveryAt: Timestamp.fromDate(arrived), completedAt: Timestamp.fromDate(completed),
         notes: draft.notes.trim(), organizationId: "main", originOrganizationId: "main",
         status: "completed", trackingStatus: "completed", trackingEnabled: false,
         lastUpdatedMinutes: 0, currentLocation: { lat: 0, lng: 0, speed: 0, heading: 0, accuracy: 0, updatedAt: new Date().toISOString() },
@@ -195,7 +195,7 @@ export async function appendHistoricalPhotos(job: TransportJob, photos: Historic
 
 export async function updateHistoricalJob(job: TransportJob, draft: HistoricalJobDraft, actor: UserProfile) {
   if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่แก้ใบงานย้อนหลังได้");
-  const { completed, arrived, tripCount } = validateHistoricalDetails(draft);
+  const { completed, arrived, arrivedPickup, tripCount } = validateHistoricalDetails(draft);
   if (!job.historical || draft.pickupDate !== job.pickupDate) throw new Error("วันที่รับสินค้าของใบงานย้อนหลังต้องตรงกับเลขใบงานเดิม");
   const { carrierName, driverName, driverPhone } = await resolveHistoricalAssignment(draft, actor);
   const customerId = await resolveCustomerId(draft.customer.trim(), actor);
@@ -207,6 +207,7 @@ export async function updateHistoricalJob(job: TransportJob, draft: HistoricalJo
     const current = snapshot.data();
     if (current.workOrder !== job.workOrder || current.pickupDate !== draft.pickupDate) throw new Error("เลขใบงานหรือวันที่รับสินค้าเปลี่ยนแล้ว กรุณาเปิดใหม่");
     const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(draft.pickupPlace, draft.deliveryPlace);
+    const keepPreviousCompletion = current.arrivedDeliveryAt?.toDate?.()?.getTime() === arrived.getTime() && current.completedAt;
     transaction.update(jobRef, {
       customer: draft.customer.trim(), customerId: customerId ?? deleteField(),
       carrierOrganizationId: draft.carrierOrganizationId, carrierName,
@@ -216,7 +217,7 @@ export async function updateHistoricalJob(job: TransportJob, draft: HistoricalJo
       pickupLocation: draft.pickupLocation.trim(), pickupPlace: draft.pickupPlace ?? deleteField(),
       deliveryDate: draft.deliveryDate, deliveryTime: draft.deliveryTime, deliveryLocation: draft.deliveryLocation.trim(),
       deliveryPlace: draft.deliveryPlace ?? deleteField(),
-      arrivedDeliveryAt: arrived ? Timestamp.fromDate(arrived) : deleteField(), completedAt: Timestamp.fromDate(completed),
+      arrivedPickupAt: arrivedPickup ? Timestamp.fromDate(arrivedPickup) : deleteField(), arrivedDeliveryAt: Timestamp.fromDate(arrived), completedAt: keepPreviousCompletion || Timestamp.fromDate(completed),
       ...(changedRoute ? { routeDistanceMeters: deleteField(), routeDistanceFingerprint: deleteField(), routeDistanceProvider: deleteField(), routeDistanceCalculatedAt: deleteField() } : {}),
       eta: draft.deliveryTime, notes: draft.notes.trim(), updatedAt: serverTimestamp()
     });

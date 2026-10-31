@@ -119,6 +119,7 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
       } : null,
       activeLeg: job.activeLeg === 2 ? 2 : 1,
       eta: value(job.eta),
+      arrivedPickupAt: job.arrivedPickupAt?.toDate?.()?.toISOString?.() ?? value(job.arrivedPickupAt),
       arrivedDeliveryAt: job.arrivedDeliveryAt?.toDate?.()?.toISOString?.() ?? value(job.arrivedDeliveryAt),
       completedAt: job.completedAt?.toDate?.()?.toISOString?.() ?? value(job.completedAt),
       pickupProof: job.historical === true ? { photoCount: Math.min(job.historicalEvidence?.pickup?.length ?? 0, 10), hasSignature: false, signerName: "", signedAt: "" } : proofSummary(job.pickupProof),

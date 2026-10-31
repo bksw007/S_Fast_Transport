@@ -1126,7 +1126,7 @@ export async function createTrackingShareLink(job: TransportJob, actor: UserProf
     vehicleLabel: job.vehiclePlate,
     carrierName: (job.historical ? job.carrierName || companySettings.name : companySettings.name || job.carrierName) || actor.organizationName || "S Fast Transport",
     eta: job.eta,
-    lastUpdatedAt: job.historical ? job.completedAt ?? job.recordedAt ?? "" : job.currentLocation.updatedAt,
+    lastUpdatedAt: job.historical ? job.arrivedDeliveryAt ?? job.completedAt ?? job.recordedAt ?? "" : job.currentLocation.updatedAt,
     ...(!job.historical ? { currentLocation: {
       lat: job.currentLocation.lat,
       lng: job.currentLocation.lng
@@ -1215,6 +1215,7 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     pickupTime: data.pickupTime ?? undefined,
     deliveryDate: data.deliveryDate ?? undefined,
     deliveryTime: data.deliveryTime ?? undefined,
+    arrivedPickupAt: timestampToIso(data.arrivedPickupAt),
     arrivedDeliveryAt: timestampToIso(data.arrivedDeliveryAt),
     completedAt: timestampToIso(data.completedAt),
     cancelledAt: timestampToIso(data.cancelledAt ?? data.deletedAt),

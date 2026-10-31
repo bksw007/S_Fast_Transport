@@ -37,8 +37,10 @@ const handoverHtml = context.exports.completionReportHtml(job, { photos: [] }, {
 assert.match(handoverHtml, /เอกสารนำส่ง ภาพที่ 1/);
 assert.match(handoverHtml, /https:\/\/example.com\/document\?x=1&amp;y=2/);
 assert.equal((handoverHtml.match(/เอกสารนำส่ง ภาพที่ /g) || []).length, 2);
-const historicalHtml = context.exports.completionReportHtml({ ...job, historical: true }, { photos: [] }, { photos: [] }, '', new Date('2026-10-10T11:00:00Z'), undefined, undefined, [], { pickup: ['https://example.com/pickup'], delivery: ['https://example.com/delivery'], document: ['https://example.com/document'], expense: ['https://example.com/expense'] });
+const historicalHtml = context.exports.completionReportHtml({ ...job, historical: true, arrivedPickupAt: '2026-10-10T02:15:00Z', arrivedDeliveryAt: '2026-10-10T06:00:00Z', completedAt: '2026-10-10T06:00:00Z' }, { photos: [] }, { photos: [] }, '', new Date('2026-10-10T11:00:00Z'), undefined, undefined, [], { pickup: ['https://example.com/pickup'], delivery: ['https://example.com/delivery'], document: ['https://example.com/document'], expense: ['https://example.com/expense'] });
 assert.match(historicalHtml, /<span class="badge">ส่งสำเร็จ<\/span>/);
+assert.match(historicalHtml, /ถึงจุดรับจริง/);
+assert.doesNotMatch(historicalHtml, /<span>ปิดงาน<\/span>/);
 assert.match(historicalHtml, /รูปเอกสาร/);
 assert.doesNotMatch(historicalHtml, /ค่าใช้จ่าย|https:\/\/example.com\/expense/);
 console.log('PASS: completion report template includes all proof sections and escapes job data');

@@ -93,7 +93,7 @@ export default function PublicTrackingPage() {
       deliveryLocation: details.deliveryLocation, deliveryDate: details.deliveryDate, deliveryTime: details.deliveryTime,
       returnTrip: details.returnTrip ? { ...details.returnTrip } : undefined,
       vehiclePlate: details.vehiclePlate, vehicleType: details.vehicleType, driverName: details.driverName,
-      routeDistanceMeters: details.routeDistanceMeters ?? undefined, arrivedDeliveryAt: details.arrivedDeliveryAt,
+      routeDistanceMeters: details.routeDistanceMeters ?? undefined, arrivedPickupAt: details.arrivedPickupAt, arrivedDeliveryAt: details.arrivedDeliveryAt,
       completedAt: details.completedAt,
       pickupProof: { signerName: details.pickupProof.signerName, signedAt: details.pickupProof.signedAt },
       deliveryProof: { signerName: details.deliveryProof.signerName, signedAt: details.deliveryProof.signedAt },
@@ -120,8 +120,8 @@ export default function PublicTrackingPage() {
       <section className="tracking-hero">
         <div><span className="tracking-kicker">งานขนส่ง {tracking.workOrder}</span><h1>{statusLabel}</h1><p>{tracking.customerName} · ดำเนินการโดย {tracking.carrierName}</p></div>
         <div className="tracking-arrivals">
-          <div className="tracking-eta"><Clock3 size={20} /><span>ถึงจุดรับโดยประมาณ</span><strong>{details ? scheduledArrival(details.pickupDate, details.pickupTime) : "กำลังโหลด..."}</strong></div>
-          <div className="tracking-eta"><Clock3 size={20} /><span>ถึงจุดส่งโดยประมาณ</span><strong>{details ? scheduledArrival(details.deliveryDate, details.deliveryTime, details.eta) : tracking.eta}</strong></div>
+          <div className="tracking-eta"><Clock3 size={20} /><span>{details?.historical ? "ถึงจุดรับจริง" : "ถึงจุดรับโดยประมาณ"}</span><strong>{details?.historical ? details.arrivedPickupAt ? `${thaiDateTime(details.arrivedPickupAt)} น.` : "ไม่ระบุ" : details ? scheduledArrival(details.pickupDate, details.pickupTime) : "กำลังโหลด..."}</strong></div>
+          <div className="tracking-eta"><Clock3 size={20} /><span>{details?.historical ? "ถึงจุดส่งจริง" : "ถึงจุดส่งโดยประมาณ"}</span><strong>{details?.historical ? `${thaiDateTime(details.arrivedDeliveryAt || details.completedAt)} น.` : details ? scheduledArrival(details.deliveryDate, details.deliveryTime, details.eta) : tracking.eta}</strong></div>
         </div>
       </section>
       {detailsError && <p className="tracking-data-error" role="alert">{detailsError} · ระบบจะลองโหลดใหม่อัตโนมัติ</p>}
@@ -138,7 +138,7 @@ export default function PublicTrackingPage() {
           <article className="tracking-summary">
             <div><Truck size={20} /><span>รถที่ให้บริการ</span><strong>{tracking.vehicleLabel}</strong></div>
             <div><PackageCheck size={20} /><span>สถานะล่าสุด</span><strong>{statusLabel}</strong></div>
-            <div><CheckCircle2 size={20} /><span>{details?.historical ? "ปิดงานเมื่อ" : "อัปเดตล่าสุด"}</span><strong>{thaiDateTime(tracking.lastUpdatedAt)}</strong></div>
+            <div><CheckCircle2 size={20} /><span>{details?.historical ? "ถึงจุดส่งจริง" : "อัปเดตล่าสุด"}</span><strong>{thaiDateTime(tracking.lastUpdatedAt)}</strong></div>
           </article>
           <article className="tracking-driver-card">
             <div className="tracking-section-title"><UserRound size={20} /><div><strong>ติดต่อคนขับ</strong><span>ผู้รับผิดชอบใบงานนี้</span></div></div>
