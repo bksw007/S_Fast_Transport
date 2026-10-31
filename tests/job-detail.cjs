@@ -57,6 +57,7 @@ let tree;
 function render(canWrite = true) { cursor = 0; effects = []; tree = context.exports.default({ job, actor, canWrite, map: React.createElement('div', null, 'MAP'), onDeleted: () => { closed++; } }); return tree; }
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
+function textOf(node) { return typeof node === 'string' || typeof node === 'number' ? String(node) : React.Children.toArray(node?.props?.children).map(textOf).join(''); }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {
   assert.equal(context.exports.previewableEvidenceUrl({ downloadUrl: 'https://example.test/photo.jpg', contentType: 'image/jpeg' }), 'https://example.test/photo.jpg');
@@ -112,7 +113,12 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(savedDistance?.[4], 'return', 'missing return distance is calculated and saved separately');
   render();
   find(n => n.props?.id === 'job-tab-0').props.onClick(); render();
-  assert.match(React.Children.toArray(find(n => n.props?.className === 'job-route-distance-breakdown').props.children).join(''), /ระยะทางรวม.*51\.3 กม\./);
+  const returnCard = find(n => n.type === 'section' && n.props?.className?.includes('job-detail-return-route'));
+  const returnHeading = React.Children.toArray(returnCard.props.children)[0];
+  assert.match(textOf(returnHeading), /ระยะทางตามถนน\s*26\.7 กม\./, 'return distance appears in the card heading');
+  assert.doesNotMatch(textOf(returnHeading), /กำลังดำเนินการ/);
+  const total = React.Children.toArray(returnCard.props.children).find(n => n.props?.className === 'job-route-distance-total');
+  assert.match(textOf(total), /ระยะทางรวม\s*51\.3 กม\./, 'combined distance appears at the bottom of the return card');
   const css = fs.readFileSync('apps/web/app/styles.css', 'utf8');
   assert.match(css, /\.job-detail-modal\[open\][^}]*overflow: hidden/);
   assert.match(css, /\.job-detail-body[^}]*overflow-y: auto/);
@@ -120,6 +126,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.match(css, /\.job-route-stops strong[^}]*display: block/);
   assert.match(css, /\.job-route-stops a[^}]*margin-top: 8px/);
   assert.match(css, /\.job-route-heading[^}]*justify-content: space-between/);
+  assert.match(css, /\.job-route-distance-total[^}]*text-align: right/);
   assert.match(css, /\.job-delete-zone[^}]*border/);
   console.log('PASS: tabs, Share/QR, job editing/deletion, upload, permissions and fixed-header scroll structure');
 })().catch(error => { console.error(error); process.exitCode = 1; });

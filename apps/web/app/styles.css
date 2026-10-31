@@ -4964,7 +4964,7 @@ textarea:focus {
 .job-route-stops small { display: block; color: var(--muted); font-size: .73rem; margin-bottom: 5px; }
 .job-route-stops strong { display: block; font-size: .9rem; font-weight: 500; overflow-wrap: anywhere; }
 .job-route-stops a { margin-top: 8px; }
-.job-route-distance-breakdown { margin: 16px 0 0; color: var(--accent); font-size: .82rem; font-weight: 650; }
+.job-route-distance-total { margin: 16px 0 0; color: var(--accent); font-size: .82rem; font-weight: 650; text-align: right; }
 .job-detail-empty { display: grid; place-items: center; min-height: 180px; padding: 32px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 14px; background: var(--surface); font-size: .86rem; }
 .job-records article { padding: 18px 20px; background: var(--surface); border-radius: 12px; }
 .job-records time { font-size: .72rem; }
@@ -5054,6 +5054,7 @@ textarea:focus {
   .job-detail-group, .job-detail-route { padding: 16px; }
   .job-route-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
   .job-route-heading > span { padding-left: 27px; }
+  .job-detail-return-route .job-route-heading > span { align-self: flex-end; padding-left: 0; }
   .job-route-stops { grid-template-columns: 1fr; gap: 20px; }
   .job-edit-grid, .job-edit-stops { grid-template-columns: minmax(0, 1fr); }
   .job-edit-section { padding: 13px; }
