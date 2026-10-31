@@ -17,12 +17,34 @@ function thaiDateTime(value: string) {
     : "ยังไม่ระบุ";
 }
 
+function thaiDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "ยังไม่ระบุ";
+  return new Date(`${value}T00:00:00+07:00`).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium" });
+}
+
 function scheduledArrival(date: string, time: string, fallback = "") {
   if (/^\d{4}-\d{2}-\d{2}$/.test(date) && /^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
     return `${thaiDateTime(`${date}T${time}:00+07:00`)} น.`;
   }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return thaiDate(date);
   if (/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return `${time} น.`;
   return fallback && fallback !== "-" ? fallback : "ยังไม่ระบุ";
+}
+
+function arrivalBadge(details: PublicTrackingDetails, stop: "pickup" | "delivery") {
+  const pickup = stop === "pickup";
+  const date = (pickup ? details.pickupDate : details.deliveryDate) || details.jobDate;
+  if (details.status === "completed") {
+    const actual = pickup ? details.arrivedPickupAt : details.arrivedDeliveryAt || (details.historical ? details.completedAt : "");
+    const value = actual && Number.isFinite(Date.parse(actual))
+      ? /^\d{4}-\d{2}-\d{2}$/.test(actual) ? thaiDate(actual) : `${thaiDateTime(actual)} น.`
+      : thaiDate(date);
+    return { label: pickup ? "ถึงจุดรับสินค้า" : "ถึงจุดส่งสินค้า", value };
+  }
+  return {
+    label: pickup ? "ถึงจุดรับโดยประมาณ" : "ถึงจุดส่งโดยประมาณ",
+    value: scheduledArrival(date, pickup ? details.pickupTime : details.deliveryTime, pickup ? "" : details.eta)
+  };
 }
 
 function phoneHref(phone: string) {
@@ -76,6 +98,8 @@ export default function PublicTrackingPage() {
   const callablePhone = details ? phoneHref(details.driverPhone) : null;
   const canDownloadReport = details?.status === "completed";
   const statusLabel = details?.status && details.status in statusLabels ? `${details.returnTrip ? `${details.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}${statusLabels[details.status as JobStatus]}` : tracking.statusLabel;
+  const pickupBadge = details ? arrivalBadge(details, "pickup") : null;
+  const deliveryBadge = details ? arrivalBadge(details, "delivery") : null;
 
   function openReport() {
     if (!details || !canDownloadReport) return;
@@ -120,8 +144,8 @@ export default function PublicTrackingPage() {
       <section className="tracking-hero">
         <div><span className="tracking-kicker">งานขนส่ง {tracking.workOrder}</span><h1>{statusLabel}</h1><p>{tracking.customerName} · ดำเนินการโดย {tracking.carrierName}</p></div>
         <div className="tracking-arrivals">
-          <div className="tracking-eta"><Clock3 size={20} /><span>{details?.historical ? "ถึงจุดรับจริง" : "ถึงจุดรับโดยประมาณ"}</span><strong>{details?.historical ? details.arrivedPickupAt ? `${thaiDateTime(details.arrivedPickupAt)} น.` : "ไม่ระบุ" : details ? scheduledArrival(details.pickupDate, details.pickupTime) : "กำลังโหลด..."}</strong></div>
-          <div className="tracking-eta"><Clock3 size={20} /><span>{details?.historical ? "ถึงจุดส่งจริง" : "ถึงจุดส่งโดยประมาณ"}</span><strong>{details?.historical ? `${thaiDateTime(details.arrivedDeliveryAt || details.completedAt)} น.` : details ? scheduledArrival(details.deliveryDate, details.deliveryTime, details.eta) : tracking.eta}</strong></div>
+          <div className="tracking-eta"><Clock3 size={20} /><span>{pickupBadge?.label || "ถึงจุดรับสินค้า"}</span><strong>{pickupBadge?.value || "กำลังโหลด..."}</strong></div>
+          <div className="tracking-eta"><Clock3 size={20} /><span>{deliveryBadge?.label || "ถึงจุดส่งสินค้า"}</span><strong>{deliveryBadge?.value || "กำลังโหลด..."}</strong></div>
         </div>
       </section>
       {detailsError && <p className="tracking-data-error" role="alert">{detailsError} · ระบบจะลองโหลดใหม่อัตโนมัติ</p>}
