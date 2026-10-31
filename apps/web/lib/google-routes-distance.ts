@@ -1,3 +1,5 @@
+import type { TransportJob } from "@s-fast-transport/shared";
+
 export type RouteCoordinate = { lat: number; lng: number };
 
 const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -17,6 +19,24 @@ export function validRouteCoordinate(point: unknown): point is RouteCoordinate {
 export function coordinateFingerprint(origin: unknown, destination: unknown) {
   if (!validRouteCoordinate(origin) || !validRouteCoordinate(destination)) return null;
   return `${origin.lat.toFixed(6)},${origin.lng.toFixed(6)}>${destination.lat.toFixed(6)},${destination.lng.toFixed(6)}`;
+}
+
+type DistanceJob = Pick<TransportJob,
+  "pickupPlace" | "deliveryPlace" | "routeDistanceMeters" | "routeDistanceFingerprint" | "routeDistanceProvider" |
+  "returnTrip" | "returnRouteDistanceMeters" | "returnRouteDistanceFingerprint" | "returnRouteDistanceProvider">;
+
+function savedLegDistance(origin: unknown, destination: unknown, meters: unknown, fingerprint: unknown, provider: unknown) {
+  const current = coordinateFingerprint(origin, destination);
+  return current && fingerprint === current && provider === "google_routes" && typeof meters === "number" && Number.isFinite(meters) && meters > 0
+    ? meters : null;
+}
+
+export function jobRouteDistanceSummary(job: DistanceJob) {
+  const outwardMeters = savedLegDistance(job.pickupPlace, job.deliveryPlace, job.routeDistanceMeters, job.routeDistanceFingerprint, job.routeDistanceProvider);
+  const returnMeters = job.returnTrip
+    ? savedLegDistance(job.returnTrip.pickupPlace, job.returnTrip.deliveryPlace, job.returnRouteDistanceMeters, job.returnRouteDistanceFingerprint, job.returnRouteDistanceProvider)
+    : null;
+  return { outwardMeters, returnMeters, totalMeters: job.returnTrip ? outwardMeters !== null && returnMeters !== null ? outwardMeters + returnMeters : null : outwardMeters };
 }
 
 type FetchResponse = { ok: boolean; status?: number; json: () => Promise<unknown> };

@@ -13,6 +13,7 @@ import DriverReports from "./components/DriverReports";
 import ReturnTripFields from "./components/ReturnTripFields";
 import { initialReturnTrip, activeLeg, driverReturnTrip, updateOutwardStop } from "@/lib/return-trip";
 import { driverJobCardTone, nextStopSchedule } from "@/lib/job-card-schedule";
+import { jobRouteDistanceSummary } from "@/lib/google-routes-distance";
 import DriverProofPhotoEditor from "./components/DriverProofPhotoEditor";
 import HandoverPhotoPicker from "./components/HandoverPhotoPicker";
 import DriverStatusDialog, { type DriverNotice } from "./components/DriverStatusDialog";
@@ -195,10 +196,10 @@ export function formatStopSchedule(date?: string, time?: string) {
   return [dateLabel, timeLabel].filter(Boolean).join(" · ") || "ยังไม่ระบุวันและเวลา";
 }
 
-export function routeDistanceLabel(distanceMeters?: number) {
+export function routeDistanceLabel(distanceMeters?: number | null, prefix = "ระยะทางประมาณ") {
   if (!distanceMeters || !Number.isFinite(distanceMeters) || distanceMeters <= 0) return "ยังไม่มีข้อมูลระยะทาง";
   const kilometers = distanceMeters / 1000;
-  return `ระยะทางประมาณ ${kilometers >= 100 ? Math.round(kilometers) : kilometers.toFixed(1)} กม.`;
+  return `${prefix} ${kilometers.toFixed(1)} กม.`;
 }
 
 export function stopNavigationUrl(location: string, place?: JobPlace) {
@@ -2086,6 +2087,7 @@ function JobSummaryCard({
   const needsProof = ["arrived_pickup", "loading", "arrived_delivery", "unloading"].includes(effectiveStatus ?? "");
   const returnLeg = Boolean(job.returnTrip && job.activeLeg === 2);
   const returnTrip = driverReturnTrip(job);
+  const distances = jobRouteDistanceSummary(job);
   const route = returnLeg && returnTrip ? returnTrip : job;
   const cardTone = driverToday ? driverJobCardTone(job) : null;
   const eta = driverToday ? nextStopSchedule(job) : null;
@@ -2127,7 +2129,9 @@ function JobSummaryCard({
             <div><small>ลูกค้า</small><strong>{job.customer}</strong></div>
             <div className="job-cargo-type"><Package size={18} /><span><small>ประเภทสินค้า</small><strong>{job.cargoType || "ไม่ระบุประเภทสินค้า"}</strong></span></div>
           </div>
-          <div className="job-distance"><Navigation size={17} /><strong>{routeDistanceLabel(job.routeDistanceMeters)}</strong></div>
+          <div className="job-distance"><Navigation size={17} /><span><strong>{returnTrip
+            ? distances.totalMeters !== null ? routeDistanceLabel(distances.totalMeters, "ระยะทางรวมประมาณ") : "รอคำนวณระยะทางรวม"
+            : routeDistanceLabel(distances.outwardMeters)}</strong>{returnTrip && <small>ขาไป {distances.outwardMeters !== null ? `${(distances.outwardMeters / 1000).toFixed(1)} กม.` : "รอคำนวณ"} · ขากลับ {distances.returnMeters !== null ? `${(distances.returnMeters / 1000).toFixed(1)} กม.` : "รอคำนวณ"}</small>}</span></div>
           {job.status === "problem" && (
             <div className="job-issue-banner">
               <AlertTriangle size={18} />

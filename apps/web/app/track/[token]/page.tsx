@@ -100,6 +100,7 @@ export default function PublicTrackingPage() {
   const statusLabel = details?.status && details.status in statusLabels ? `${details.returnTrip ? `${details.activeLeg === 2 ? "ขากลับ" : "ขาไป"} · ` : ""}${statusLabels[details.status as JobStatus]}` : tracking.statusLabel;
   const pickupBadge = details ? arrivalBadge(details, "pickup") : null;
   const deliveryBadge = details ? arrivalBadge(details, "delivery") : null;
+  const displayedDistanceMeters = details?.totalRouteDistanceMeters ?? (details?.returnTrip ? null : details?.routeDistanceMeters);
 
   function openReport() {
     if (!details || !canDownloadReport) return;
@@ -117,7 +118,10 @@ export default function PublicTrackingPage() {
       deliveryLocation: details.deliveryLocation, deliveryDate: details.deliveryDate, deliveryTime: details.deliveryTime,
       returnTrip: details.returnTrip ? { ...details.returnTrip } : undefined,
       vehiclePlate: details.vehiclePlate, vehicleType: details.vehicleType, driverName: details.driverName,
-      routeDistanceMeters: details.routeDistanceMeters ?? undefined, arrivedPickupAt: details.arrivedPickupAt, arrivedDeliveryAt: details.arrivedDeliveryAt,
+      routeDistanceMeters: details.routeDistanceMeters ?? undefined,
+      returnRouteDistanceMeters: details.returnRouteDistanceMeters ?? undefined,
+      totalRouteDistanceMeters: details.returnTrip ? details.totalRouteDistanceMeters ?? null : details.totalRouteDistanceMeters ?? details.routeDistanceMeters ?? null,
+      arrivedPickupAt: details.arrivedPickupAt, arrivedDeliveryAt: details.arrivedDeliveryAt,
       completedAt: details.completedAt,
       pickupProof: { signerName: details.pickupProof.signerName, signedAt: details.pickupProof.signedAt },
       deliveryProof: { signerName: details.deliveryProof.signerName, signedAt: details.deliveryProof.signedAt },
@@ -156,6 +160,7 @@ export default function PublicTrackingPage() {
           <div className="tracking-line" />
           <div className="tracking-stop"><span className="destination" /><div><small>จุดส่งสินค้า</small><strong>{tracking.deliveryLocation}</strong>{tracking.deliveryPlace && <a href={tracking.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดจุดส่งใน Google Maps</a>}</div></div>
           {details?.returnTrip && <><h3>เที่ยวขากลับ · รับสินค้ากลับ</h3><div className="tracking-stop"><span className="origin" /><div><small>รับสินค้ากลับ · {scheduledArrival(details.returnTrip.pickupDate, details.returnTrip.pickupTime)}</small><strong>{details.returnTrip.pickupLocation}</strong></div></div><div className="tracking-stop"><span className="destination" /><div><small>ส่งสินค้ากลับ · {scheduledArrival(details.returnTrip.deliveryDate, details.returnTrip.deliveryTime)}</small><strong>{details.returnTrip.deliveryLocation}</strong></div></div></>}
+          {details && <div className="tracking-distance"><strong>{details.returnTrip ? "ระยะทางรวมโดยประมาณ" : "ระยะทางโดยประมาณ"}: {displayedDistanceMeters != null ? `${(displayedDistanceMeters / 1000).toFixed(1)} กม.` : "รอคำนวณ"}</strong>{details.returnTrip && <span>ขาไป {details.routeDistanceMeters != null ? `${(details.routeDistanceMeters / 1000).toFixed(1)} กม.` : "รอคำนวณ"} · ขากลับ {details.returnRouteDistanceMeters != null ? `${(details.returnRouteDistanceMeters / 1000).toFixed(1)} กม.` : "รอคำนวณ"}</span>}</div>}
           {mapUrl && <a className="tracking-map-link" href={mapUrl} target="_blank" rel="noreferrer"><MapPin size={18} /> เปิดตำแหน่งล่าสุดใน Google Maps</a>}
         </article>
         <aside className="tracking-side">

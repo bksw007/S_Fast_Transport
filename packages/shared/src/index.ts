@@ -91,6 +91,10 @@ export type TransportJob = {
   routeDistanceFingerprint?: string;
   routeDistanceProvider?: "google_routes";
   routeDistanceCalculatedAt?: string;
+  returnRouteDistanceMeters?: number;
+  returnRouteDistanceFingerprint?: string;
+  returnRouteDistanceProvider?: "google_routes";
+  returnRouteDistanceCalculatedAt?: string;
   status: JobStatus;
   trackingStatus: TrackingStatus;
   trackingEnabled: boolean;

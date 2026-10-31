@@ -20,6 +20,19 @@ function proofSummary(proof: unknown) {
   };
 }
 
+function routeFingerprint(origin: DocumentData | undefined, destination: DocumentData | undefined) {
+  const valid = (point: DocumentData | undefined) => point && typeof point.lat === "number" && typeof point.lng === "number"
+    && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180
+    && (point.lat !== 0 || point.lng !== 0);
+  return valid(origin) && valid(destination)
+    ? `${origin!.lat.toFixed(6)},${origin!.lng.toFixed(6)}>${destination!.lat.toFixed(6)},${destination!.lng.toFixed(6)}` : null;
+}
+
+function savedRouteDistance(origin: DocumentData | undefined, destination: DocumentData | undefined, meters: unknown, fingerprint: unknown, provider: unknown) {
+  const current = routeFingerprint(origin, destination);
+  return current && fingerprint === current && provider === "google_routes" && typeof meters === "number" && Number.isFinite(meters) && meters > 0 ? meters : null;
+}
+
 function selectedAsset(job: DocumentData, kind: string, stage: string, index: number): string {
   if (job.historical === true) {
     return kind === "photo" && ["pickup", "delivery", "document"].includes(stage)
@@ -90,6 +103,10 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
     }
 
     const issue = job.lastIssue && typeof job.lastIssue === "object" ? job.lastIssue as DocumentData : null;
+    const outwardMeters = savedRouteDistance(job.pickupPlace, job.deliveryPlace, job.routeDistanceMeters, job.routeDistanceFingerprint, job.routeDistanceProvider);
+    const returnMeters = job.returnTrip
+      ? savedRouteDistance(job.returnTrip.pickupPlace, job.returnTrip.deliveryPlace, job.returnRouteDistanceMeters, job.returnRouteDistanceFingerprint, job.returnRouteDistanceProvider)
+      : null;
     response.json({
       workOrder: value(job.workOrder),
       historical: job.historical === true,
@@ -104,7 +121,9 @@ export const publicTrackingAccess = onRequest({ region: "asia-southeast1", cors:
       driverPhone: value(job.driverPhone),
       vehiclePlate: value(job.vehiclePlate),
       vehicleType: value(job.vehicleType),
-      routeDistanceMeters: Number(job.routeDistanceMeters) > 0 ? Number(job.routeDistanceMeters) : null,
+      routeDistanceMeters: outwardMeters,
+      returnRouteDistanceMeters: returnMeters,
+      totalRouteDistanceMeters: job.returnTrip ? outwardMeters !== null && returnMeters !== null ? outwardMeters + returnMeters : null : outwardMeters,
       pickupLocation: value(job.pickupLocation),
       pickupDate: value(job.pickupDate),
       pickupTime: value(job.pickupTime),

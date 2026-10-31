@@ -20,7 +20,7 @@ function firestoreCoordinate(value?: FirestoreValue): RouteCoordinate | null {
   return validRouteCoordinate(point) ? point : null;
 }
 
-async function authorizedJobCoordinates(jobId: string, authorization: string) {
+async function authorizedJobCoordinates(jobId: string, authorization: string, leg: "outward" | "return") {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim();
   if (!projectId) throw new Error("Firebase project is not configured");
   const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/today_jobs/${encodeURIComponent(jobId)}`;
@@ -31,8 +31,9 @@ async function authorizedJobCoordinates(jobId: string, authorization: string) {
   });
   if (!response.ok) return null;
   const payload = await response.json() as { fields?: Record<string, FirestoreValue> };
-  const origin = firestoreCoordinate(payload.fields?.pickupPlace);
-  const destination = firestoreCoordinate(payload.fields?.deliveryPlace);
+  const stops = leg === "return" ? payload.fields?.returnTrip?.mapValue?.fields : payload.fields;
+  const origin = firestoreCoordinate(stops?.pickupPlace);
+  const destination = firestoreCoordinate(stops?.deliveryPlace);
   return origin && destination ? { origin, destination } : null;
 }
 
@@ -43,13 +44,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "กรุณาเข้าสู่ระบบอีกครั้ง" }, { status: 401 });
     }
 
-    const body = await request.json() as { jobId?: unknown; origin?: unknown; destination?: unknown };
+    const body = await request.json() as { jobId?: unknown; leg?: unknown; origin?: unknown; destination?: unknown };
     const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
-    if (!jobId || jobId.length > 1500 || jobId.includes("/") || !validRouteCoordinate(body.origin) || !validRouteCoordinate(body.destination)) {
+    const leg = body.leg === undefined ? "outward" : body.leg;
+    if (!jobId || jobId.length > 1500 || jobId.includes("/") || (leg !== "outward" && leg !== "return") || !validRouteCoordinate(body.origin) || !validRouteCoordinate(body.destination)) {
       return NextResponse.json({ error: "ข้อมูลเส้นทางไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const savedCoordinates = await authorizedJobCoordinates(jobId, authorization);
+    const savedCoordinates = await authorizedJobCoordinates(jobId, authorization, leg);
     if (!savedCoordinates) return NextResponse.json({ error: "ไม่มีสิทธิ์อ่านใบงานหรือไม่พบพิกัด" }, { status: 403 });
     if (coordinateFingerprint(body.origin, body.destination) !== coordinateFingerprint(savedCoordinates.origin, savedCoordinates.destination)) {
       return NextResponse.json({ error: "พิกัดไม่ตรงกับใบงานล่าสุด" }, { status: 409 });

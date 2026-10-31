@@ -14,6 +14,24 @@ vm.runInNewContext(ts.transpileModule(source, {
   const destination = { lat: 13.6500, lng: 100.6500 };
   assert.equal(context.exports.coordinateFingerprint(origin, destination), '13.756300,100.501800>13.650000,100.650000');
   assert.equal(context.exports.coordinateFingerprint({ lat: 91, lng: 0 }, destination), null);
+  const outward = { pickupPlace: origin, deliveryPlace: destination, routeDistanceMeters: 24567,
+    routeDistanceFingerprint: '13.756300,100.501800>13.650000,100.650000', routeDistanceProvider: 'google_routes' };
+  const returnTrip = { pickupPlace: destination, deliveryPlace: origin };
+  assert.equal(context.exports.jobRouteDistanceSummary(outward).totalMeters, 24567, 'one-way jobs retain their outward total');
+  assert.equal(context.exports.jobRouteDistanceSummary({ ...outward, returnTrip }).totalMeters, null, 'a return job must not show outward distance as its total');
+  assert.deepEqual(JSON.parse(JSON.stringify(context.exports.jobRouteDistanceSummary({ ...outward, returnTrip,
+    returnRouteDistanceMeters: 26700,
+    returnRouteDistanceFingerprint: '13.650000,100.650000>13.756300,100.501800',
+    returnRouteDistanceProvider: 'google_routes'
+  }))), { outwardMeters: 24567, returnMeters: 26700, totalMeters: 51267 });
+  assert.equal(context.exports.jobRouteDistanceSummary({ ...outward, returnTrip, returnRouteDistanceMeters: 26700,
+    returnRouteDistanceFingerprint: '13.650000,100.650000>13.756300,100.501800', returnRouteDistanceProvider: 'google_routes',
+    deliveryPlace: { lat: 14, lng: 101 }
+  }).totalMeters, null, 'stale outward coordinates invalidate the total');
+  assert.equal(context.exports.jobRouteDistanceSummary({ ...outward, returnTrip: { ...returnTrip, deliveryPlace: { lat: 14, lng: 101 } },
+    returnRouteDistanceMeters: 26700, returnRouteDistanceFingerprint: '13.650000,100.650000>13.756300,100.501800',
+    returnRouteDistanceProvider: 'google_routes'
+  }).totalMeters, null, 'stale return coordinates invalidate the total');
 
   let request;
   const distance = await context.exports.requestGoogleRouteDistance(origin, destination, 'server-key', async (url, options) => {

@@ -22,7 +22,7 @@ const context = { exports: {}, crypto: webcrypto, require: name => {
   if (name === './return-trip') return { validateReturnTrip: trip => trip };
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว', pending_subcontract: 'รอบริษัทซับรับงาน', subcontract_accepted: 'บริษัทซับรับงานแล้ว' } };
   if (name === './google-routes-distance') return { coordinateFingerprint: (from, to) => from && to && Number.isFinite(from.lat) && Number.isFinite(from.lng) && Number.isFinite(to.lat) && Number.isFinite(to.lng) ? `${from.lat},${from.lng}>${to.lat},${to.lng}` : null };
-  if (name === './job-road-distance-client') return { requestJobRoadDistance: async (...args) => { roadRequests.push(args); if (roadError) throw roadError; return 24567; } };
+  if (name === './job-road-distance-client') return { requestJobRoadDistance: async (...args) => { roadRequests.push(args); if (roadError && (roadError !== 'return' || args[3] === 'return')) throw roadError === 'return' ? new Error('return route unavailable') : roadError; return args[3] === 'return' ? 26700 : 24567; } };
   return { db: {}, storage: {} };
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/transport-repository.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
@@ -80,9 +80,26 @@ function reset() {
   reset(); const calculatedOrder = await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace }, actor);
   const calculatedJob = writes.find(write => write.path.startsWith('today_jobs/'));
   assert.equal(calculatedJob.data.workOrder, calculatedOrder.workOrder);
-  assert.deepEqual(roadRequests[0].slice(1), [pickupPlace, deliveryPlace]);
+  assert.deepEqual(roadRequests[0].slice(1), [pickupPlace, deliveryPlace, 'outward']);
   assert.equal(records[calculatedJob.path].routeDistanceMeters, 24567, 'road distance is saved before creation returns');
   assert.equal(records[calculatedJob.path].routeDistanceProvider, 'google_routes');
+  reset(); await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace, returnTrip: {
+    pickupLocation: 'จุดส่ง', pickupPlace: deliveryPlace, deliveryLocation: 'จุดรับ', deliveryPlace: pickupPlace,
+    pickupDate: '2026-09-21', pickupTime: '16:00', deliveryDate: '2026-09-21', deliveryTime: '18:00'
+  } }, actor);
+  assert.equal(roadRequests.length, 2, 'return jobs request both legs');
+  assert.deepEqual(roadRequests[1].slice(1), [deliveryPlace, pickupPlace, 'return']);
+  assert.equal(records['today_jobs/auto-job'].routeDistanceMeters, 24567);
+  assert.equal(records['today_jobs/auto-job'].returnRouteDistanceMeters, 26700);
+  assert.equal(records['today_jobs/auto-job'].returnRouteDistanceProvider, 'google_routes');
+  await assert.rejects(() => context.exports.saveJobRouteDistance('auto-job', 99999, 'stale-route', actor, 'return'), /พิกัดใบงานมีการเปลี่ยนแปลง/);
+  assert.equal(records['today_jobs/auto-job'].returnRouteDistanceMeters, 26700, 'stale calculations never overwrite the saved return leg');
+  reset(); roadError = 'return';
+  await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace, returnTrip: {
+    pickupLocation: 'จุดส่ง', pickupPlace: deliveryPlace, deliveryLocation: 'จุดรับ', deliveryPlace: pickupPlace
+  } }, actor);
+  assert.equal(records['today_jobs/auto-job'].routeDistanceMeters, 24567, 'outward distance survives a return-route failure');
+  assert.equal(records['today_jobs/auto-job'].returnRouteDistanceMeters, undefined, 'the failed leg stays incomplete');
   reset(); roadError = new Error('routing unavailable');
   const createdWithoutDistance = await context.exports.createJob({ ...draft, pickupPlace, deliveryPlace }, actor);
   assert.match(createdWithoutDistance.workOrder, /^JN-\d{8}001$/, 'route failures do not discard a created job');

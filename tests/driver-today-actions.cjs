@@ -5,6 +5,8 @@ const ts = require('typescript');
 const React = require('react');
 const schedule = { exports: {}, Date, Intl };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/job-card-schedule.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, schedule);
+const distances = { exports: {}, require };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/google-routes-distance.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, distances);
 
 const sourceText = fs.readFileSync('apps/web/app/page.tsx', 'utf8');
 const source = ts.createSourceFile('page.tsx', sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -19,6 +21,7 @@ const context = {
   React,
   driverJobCardTone: schedule.exports.driverJobCardTone,
   nextStopSchedule: schedule.exports.nextStopSchedule,
+  jobRouteDistanceSummary: distances.exports.jobRouteDistanceSummary,
   useState: () => [true, () => {}],
   formatPhoneNumber: value => value,
   activeLeg: value => value.returnTrip && value.activeLeg === 2 ? 2 : 1,
@@ -49,6 +52,8 @@ function job(status) {
     id: 'job-1', workOrder: 'JN-1', status, pickupLocation: 'FMT', deliveryLocation: 'Freezone', alerts: [],
     driverPhone: '0929489777', driverName: 'คนขับ', vehiclePlate: '72-2211', customer: 'ลูกค้า', eta: '10:00', lastUpdatedMinutes: 1,
     pickupDate: '2026-09-23', pickupTime: '09:30', deliveryDate: '2026-09-23', deliveryTime: '13:00', routeDistanceMeters: 64500,
+    pickupPlace: { lat: 13.7563, lng: 100.5018 }, deliveryPlace: { lat: 13.65, lng: 100.65 },
+    routeDistanceFingerprint: '13.756300,100.501800>13.650000,100.650000', routeDistanceProvider: 'google_routes',
     cargoType: 'ชิ้นส่วนรถยนต์', pickupContact: 'คุณรับ', pickupContactPhone: '0811111111', deliveryContact: 'คุณส่ง', deliveryContactPhone: '0822222222'
   };
 }
@@ -98,6 +103,12 @@ assert.ok(!renderedNodes.some(node => node.props?.children === 'คุณส่�
 assert.ok(!renderedNodes.some(node => node.props?.children === 'ETA'));
 assert.ok(!renderedNodes.some(node => node.props?.children === 'อัปเดตล่าสุด'));
 assert.ok(!renderedNodes.some(node => node.props?.children === 'การแจ้งเตือน'));
+const returnJob = { ...job('accepted'), returnTrip: { pickupLocation: 'Freezone', deliveryLocation: 'FMT', pickupPlace: job('accepted').deliveryPlace, deliveryPlace: job('accepted').pickupPlace },
+  returnRouteDistanceMeters: 70000, returnRouteDistanceFingerprint: '13.650000,100.650000>13.756300,100.501800', returnRouteDistanceProvider: 'google_routes' };
+const returnCard = context.exports.JobSummaryCard({ job: returnJob, selected: true, canWrite: true, onSelect: () => {}, onAction: () => {}, onReportIssue: () => {} });
+assert.match(nodes(returnCard).map(node => typeof node.props?.children === 'string' ? node.props.children : '').join(' '), /ระยะทางรวมประมาณ 134\.5 กม\./);
+const incompleteCard = context.exports.JobSummaryCard({ job: { ...returnJob, returnRouteDistanceMeters: undefined }, selected: true, canWrite: true, onSelect: () => {}, onAction: () => {}, onReportIssue: () => {} });
+assert.doesNotMatch(nodes(incompleteCard).map(node => typeof node.props?.children === 'string' ? node.props.children : '').join(' '), /ระยะทางรวมประมาณ 64\.5 กม\./);
 const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const todayCard = context.exports.JobSummaryCard({ job: { ...job('assigned'), pickupDate: today, pickupTime: '09:30' }, selected: false, canWrite: true, onSelect: () => {}, driverToday: true });
 assert.ok(todayCard.props.className.includes('tone-today'));

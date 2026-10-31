@@ -167,6 +167,8 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
     if (current.status === "completed" && Boolean(current.returnTrip) !== Boolean(values.returnTrip)) throw new Error("งานเสร็จแล้ว ไม่สามารถเปลี่ยนการรับสินค้ากลับได้");
     if (current.returnTrip && !values.returnTrip && (current.activeLeg === 2 || current.returnPickupProof || current.returnDeliveryProof)) throw new Error("เริ่มงานขากลับแล้ว ไม่สามารถยกเลิกรับสินค้ากลับได้");
     const changedRoute = coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== coordinateFingerprint(values.pickupPlace, values.deliveryPlace);
+    const changedReturnRoute = coordinateFingerprint(current.returnTrip?.pickupPlace, current.returnTrip?.deliveryPlace)
+      !== coordinateFingerprint(values.returnTrip?.pickupPlace, values.returnTrip?.deliveryPlace) || Boolean(current.returnTrip) !== Boolean(values.returnTrip);
     const activeLinks = links ? await Promise.all(links.docs.map(link => transaction.get(link.ref))) : [];
     transaction.update(jobRef, {
       ...(companyChanged ? {
@@ -207,6 +209,12 @@ export async function updateJobDetails(job: TransportJob, draft: JobEditDraft, a
         routeDistanceFingerprint: deleteField(),
         routeDistanceProvider: deleteField(),
         routeDistanceCalculatedAt: deleteField()
+      } : {}),
+      ...(changedReturnRoute ? {
+        returnRouteDistanceMeters: deleteField(),
+        returnRouteDistanceFingerprint: deleteField(),
+        returnRouteDistanceProvider: deleteField(),
+        returnRouteDistanceCalculatedAt: deleteField()
       } : {}),
       updatedAt: serverTimestamp()
     });

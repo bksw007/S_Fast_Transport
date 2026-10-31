@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const React = require('react');
+const distances = { exports: {}, require };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/google-routes-distance.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, distances);
 let slots = [], cursor = 0, updated, deleted, savedDistance, uploaded, links = 0, copied, closed = 0;
 let effects = [];
 const bodyRef = { current: { scrollTop: 0 } };
@@ -14,6 +16,7 @@ const repository = {
 };
 const detailRepository = {
   canAdministerJob: () => true,
+  canEditJob: () => true,
   deleteJob: async (...args) => { deleted = args; },
   updateJobDetails: async (...args) => { updated = args; },
   recordTime: () => 0,
@@ -23,15 +26,20 @@ const context = { exports: {}, window: { location: { origin: 'https://example.te
   if (name === 'react') return { ...React, useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; }, useRef: () => bodyRef, useEffect: effect => { effects.push(effect); } };
   if (name === '@/lib/transport-repository') return repository;
   if (name === '@/lib/job-detail-repository') return detailRepository;
-  if (name === '@/lib/job-road-distance-client') return { requestJobRoadDistance: async () => 24567 };
+  if (name === '@/lib/job-road-distance-client') return { requestJobRoadDistance: async (_id, _from, _to, leg) => leg === 'return' ? 26700 : 24567 };
   if (name === '@/lib/firebase-auth') return { auth: { currentUser: null } };
+  if (name === '@/lib/firebase') return { storage: {} };
+  if (name === 'firebase/storage') return { getDownloadURL: async () => '', ref: () => ({}) };
   if (name === '@/lib/google-routes-distance') return {
-    coordinateFingerprint: (origin, destination) => origin && destination ? `${Number(origin.lat).toFixed(6)},${Number(origin.lng).toFixed(6)}>${Number(destination.lat).toFixed(6)},${Number(destination.lng).toFixed(6)}` : null
+    coordinateFingerprint: distances.exports.coordinateFingerprint,
+    jobRouteDistanceSummary: distances.exports.jobRouteDistanceSummary
   };
   if (name === '@/lib/profile-repository') return { formatPhoneNumber: value => { const digits = String(value).replace(/\D/g, '').slice(0, 10); return digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : value; } };
   if (name === '@s-fast-transport/shared') return { statusLabels: { assigned: 'มอบหมายแล้ว' } };
   if (name === './JobContacts') return () => null;
   if (name === './JobEditor') return JobEditorStub;
+  if (name === './HistoricalJobEditor') return JobEditorStub;
+  if (name === '@/lib/historical-job') return { appendHistoricalPhotos: async () => {}, updateHistoricalJob: async () => {} };
   if (name === './DriverStatusDialog') return () => null;
   if (name === './JobRouteHistory') return () => null;
   if (name === 'next/image') return 'img';
@@ -78,7 +86,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   for (let i = 0; i < 5; i++) { find(n => n.props?.id === `job-tab-${i}`).props.onClick(); render(); assert.equal(find(n => n.props?.role === 'tabpanel').props['aria-labelledby'], `job-tab-${i}`); }
   find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' Share')).props.onClick(); await flush(); render();
   assert.equal(copied, 'https://example.test/track/job-token');
-  find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' QR')).props.onClick(); for (let i = 0; i < 100 && !slots[7]; i++) await new Promise(resolve => setTimeout(resolve, 10)); render();
+  find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(' QR')).props.onClick(); for (let i = 0; i < 100 && !slots[8]; i++) await new Promise(resolve => setTimeout(resolve, 10)); render();
   assert.equal(links, 1, 'Share and QR reuse the same link');
   assert.ok(find(n => n.props?.alt?.startsWith('QR')).props.src.startsWith('data:image/png;base64,'));
   find(n => n.props?.['aria-label'] === 'แก้ไขใบงาน').props.onClick(); render();
@@ -98,6 +106,13 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   find(n => n.props?.type === 'file').props.onChange({ target: { files: [file], value: 'proof.pdf' } }); await flush();
   assert.equal(uploaded[0].id, 'job-a'); assert.equal(uploaded[1], file);
   render(false); assert.equal(find(n => n.props?.type === 'file').props.disabled, true);
+  job.returnTrip = { pickupLocation: 'ปลายทาง', deliveryLocation: 'ต้นทาง', pickupPlace: job.deliveryPlace, deliveryPlace: job.pickupPlace };
+  render();
+  effects[1](); await flush();
+  assert.equal(savedDistance?.[4], 'return', 'missing return distance is calculated and saved separately');
+  render();
+  find(n => n.props?.id === 'job-tab-0').props.onClick(); render();
+  assert.match(React.Children.toArray(find(n => n.props?.className === 'job-route-distance-breakdown').props.children).join(''), /ระยะทางรวม.*51\.3 กม\./);
   const css = fs.readFileSync('apps/web/app/styles.css', 'utf8');
   assert.match(css, /\.job-detail-modal\[open\][^}]*overflow: hidden/);
   assert.match(css, /\.job-detail-body[^}]*overflow-y: auto/);

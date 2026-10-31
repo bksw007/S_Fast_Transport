@@ -10,7 +10,12 @@ const evidence = {
   document: [`historical_jobs/${jobId}/admin/document/1.jpg`],
   expense: [`historical_jobs/${jobId}/admin/expense/private.jpg`]
 };
-const job = { historical: true, organizationId: 'main', workOrder: 'JN-20261010001PE', status: 'completed', historicalEvidence: evidence };
+const pickupPlace = { lat: 13.7563, lng: 100.5018 };
+const deliveryPlace = { lat: 13.65, lng: 100.65 };
+const job = { historical: true, organizationId: 'main', workOrder: 'JN-20261010001PE', status: 'completed', historicalEvidence: evidence,
+  pickupPlace, deliveryPlace, routeDistanceMeters: 24567, routeDistanceFingerprint: '13.756300,100.501800>13.650000,100.650000', routeDistanceProvider: 'google_routes',
+  returnTrip: { pickupPlace: deliveryPlace, deliveryPlace: pickupPlace }, returnRouteDistanceMeters: 26700,
+  returnRouteDistanceFingerprint: '13.650000,100.650000>13.756300,100.501800', returnRouteDistanceProvider: 'google_routes' };
 let streamedPath = '';
 const mocks = {
   'firebase-admin/firestore': { getFirestore: () => ({ collection: name => ({ doc: () => ({ get: async () => ({ data: () => name === 'today_jobs' ? job : { enabled: true, expiresAt: { toMillis: () => Date.now() + 60_000 }, jobId, organizationId: 'main' } }) }) }) }) },
@@ -34,6 +39,16 @@ async function request(query) {
   assert.equal(details.pickupProof.photoCount, 1);
   assert.equal(details.deliveryProof.hasSignature, false);
   assert.equal(details.documentPhotoCount, 1);
+  assert.equal(details.routeDistanceMeters, 24567);
+  assert.equal(details.returnRouteDistanceMeters, 26700);
+  assert.equal(details.totalRouteDistanceMeters, 51267);
+  job.returnTrip.deliveryPlace = { lat: 14, lng: 101 };
+  assert.equal((await request({})).result.body.totalRouteDistanceMeters, null, 'stale return distance must not become a public total');
+  job.returnTrip.deliveryPlace = pickupPlace;
+  const savedReturnTrip = job.returnTrip;
+  delete job.returnTrip;
+  assert.equal((await request({})).result.body.totalRouteDistanceMeters, 24567, 'one-way public jobs keep the outward total');
+  job.returnTrip = savedReturnTrip;
   assert.ok(!JSON.stringify(details).includes('private.jpg'));
   assert.equal((await request({ kind: 'photo', stage: 'document', index: '0' })).streamedPath, evidence.document[0]);
   assert.equal((await request({ kind: 'photo', stage: 'expense', index: '0' })).result.statusCode, 404);

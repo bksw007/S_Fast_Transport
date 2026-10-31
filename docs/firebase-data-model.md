@@ -71,7 +71,8 @@ Hot collection for the active dashboard.
 - `pickupPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
 - `deliveryLocation`, `deliveryDate`, `deliveryTime`, `deliveryContact`
 - `deliveryPlace.{locationId,name,googleName,originalMapsUrl,navigationUrl,lat,lng,googlePlaceId}` (optional snapshot)
-- `routeDistanceMeters`, `routeDistanceFingerprint`, `routeDistanceProvider`, `routeDistanceCalculatedAt` (optional Google road-distance cache; valid only while the pickup/delivery fingerprint matches)
+- `routeDistanceMeters`, `routeDistanceFingerprint`, `routeDistanceProvider`, `routeDistanceCalculatedAt` (optional Google road-distance cache for the outward leg; valid only while the pickup/delivery fingerprint matches)
+- `returnRouteDistanceMeters`, `returnRouteDistanceFingerprint`, `returnRouteDistanceProvider`, `returnRouteDistanceCalculatedAt` (optional return-leg cache; valid only while the return pickup/delivery fingerprint matches; total distance is derived only when both legs are valid)
 - `driverId` (อ้างอิง `drivers`), `driverName`, `driverPhone`, `vehiclePlate`
 - `notes`
 - `deletedAt`, `deletedByUid`, `deletedByName` (optional soft-delete metadata; deleted jobs are hidden from app subscriptions while evidence remains recoverable)

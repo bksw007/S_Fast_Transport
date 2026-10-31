@@ -27,6 +27,8 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/job-road-dis
   assert.equal(request.url, '/api/maps/distance');
   assert.equal(request.options.headers.Authorization, 'Bearer signed-in-token');
   assert.deepEqual(JSON.parse(request.options.body), { jobId: 'job-1', origin, destination });
+  await context.exports.requestJobRoadDistance('job-1', destination, origin, 'return');
+  assert.deepEqual(JSON.parse(request.options.body), { jobId: 'job-1', origin: destination, destination: origin, leg: 'return' });
   await assert.rejects(() => context.exports.requestJobRoadDistance('job-1', null, destination), /พิกัด/);
   context.fetch = async () => ({ ok: false, json: async () => ({ error: 'route unavailable' }) });
   await assert.rejects(() => context.exports.requestJobRoadDistance('job-1', origin, destination), /route unavailable/);

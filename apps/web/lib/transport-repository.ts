@@ -538,14 +538,21 @@ export async function createJob(draft: JobDraft, actor: UserProfile) {
     if (requestRef) transaction.update(requestRef, { status: "accepted", jobId: jobRef.id, workOrder: workOrders[0], decidedByUid: actor.uid, decidedAt: serverTimestamp() });
     return { workOrders, trackingToken: rounds[0].trackingToken, created: true };
   });
-  const fingerprint = coordinateFingerprint(pickupPlace, deliveryPlace);
-  if (result.created && fingerprint && pickupPlace && deliveryPlace) {
-    try {
-      const distanceMeters = await requestJobRoadDistance(jobRef.id, pickupPlace, deliveryPlace);
-      await Promise.all(rounds.map(round => saveJobRouteDistance(round.jobRef.id, distanceMeters, fingerprint, actor)));
-    } catch {
-      // The job is already saved; its details screen can retry the distance calculation later.
-    }
+  if (result.created) {
+    const legs = [
+      { origin: pickupPlace, destination: deliveryPlace, leg: "outward" as const },
+      ...(checkedReturnTrip ? [{ origin: checkedReturnTrip.pickupPlace, destination: checkedReturnTrip.deliveryPlace, leg: "return" as const }] : [])
+    ];
+    await Promise.all(legs.map(async ({ origin, destination, leg }) => {
+      const fingerprint = coordinateFingerprint(origin, destination);
+      if (!fingerprint || !origin || !destination) return;
+      try {
+        const distanceMeters = await requestJobRoadDistance(jobRef.id, origin, destination, leg);
+        await Promise.all(rounds.map(round => saveJobRouteDistance(round.jobRef.id, distanceMeters, fingerprint, actor, leg)));
+      } catch {
+        // The job is saved; its details screen retries a failed leg later.
+      }
+    }));
   }
   return { workOrder: result.workOrders[0], workOrders: result.workOrders, trackingToken: result.trackingToken } satisfies CreatedJob;
 }
@@ -598,7 +605,7 @@ export async function assignSubcontractJob(jobId: string, driverId: string, vehi
   });
 }
 
-export async function saveJobRouteDistance(jobId: string, distanceMeters: number, fingerprint: string, actor: UserProfile) {
+export async function saveJobRouteDistance(jobId: string, distanceMeters: number, fingerprint: string, actor: UserProfile, leg: "outward" | "return" = "outward") {
   if (!hasApprovedAccess(actor)) throw new Error("ไม่มีสิทธิ์แก้ไขงาน");
   if (!Number.isFinite(distanceMeters) || distanceMeters <= 0 || distanceMeters > 10_000_000) throw new Error("ระยะทางไม่ถูกต้อง");
   const jobRef = doc(db, "today_jobs", jobId);
@@ -607,8 +614,15 @@ export async function saveJobRouteDistance(jobId: string, distanceMeters: number
     if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
     const current = snapshot.data();
     if (!isMainAdmin(actor) && !(actor.role === "subcontract_admin" && actor.organizationId === current.organizationId)) throw new Error("ไม่มีสิทธิ์แก้ไขงานนี้");
-    if (coordinateFingerprint(current.pickupPlace, current.deliveryPlace) !== fingerprint) throw new Error("พิกัดใบงานมีการเปลี่ยนแปลง");
-    transaction.update(jobRef, {
+    const stops = leg === "return" ? current.returnTrip : current;
+    if (!stops || coordinateFingerprint(stops.pickupPlace, stops.deliveryPlace) !== fingerprint) throw new Error("พิกัดใบงานมีการเปลี่ยนแปลง");
+    transaction.update(jobRef, leg === "return" ? {
+      returnRouteDistanceMeters: Math.round(distanceMeters),
+      returnRouteDistanceFingerprint: fingerprint,
+      returnRouteDistanceProvider: "google_routes",
+      returnRouteDistanceCalculatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    } : {
       routeDistanceMeters: Math.round(distanceMeters),
       routeDistanceFingerprint: fingerprint,
       routeDistanceProvider: "google_routes",
@@ -1198,6 +1212,10 @@ function toTransportJob(id: string, data: DocumentData): TransportJob {
     routeDistanceFingerprint: typeof data.routeDistanceFingerprint === "string" ? data.routeDistanceFingerprint : undefined,
     routeDistanceProvider: data.routeDistanceProvider === "google_routes" ? "google_routes" : undefined,
     routeDistanceCalculatedAt: timestampToIso(data.routeDistanceCalculatedAt),
+    returnRouteDistanceMeters: Number(data.returnRouteDistanceMeters) > 0 ? Number(data.returnRouteDistanceMeters) : undefined,
+    returnRouteDistanceFingerprint: typeof data.returnRouteDistanceFingerprint === "string" ? data.returnRouteDistanceFingerprint : undefined,
+    returnRouteDistanceProvider: data.returnRouteDistanceProvider === "google_routes" ? "google_routes" : undefined,
+    returnRouteDistanceCalculatedAt: timestampToIso(data.returnRouteDistanceCalculatedAt),
 
     status: data.status ?? "assigned",
     trackingStatus: data.trackingStatus ?? "not_started",

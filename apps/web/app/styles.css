@@ -3871,6 +3871,8 @@ h2 {
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
   font-size: .76rem;
 }
+.job-distance > span { display: grid; gap: 3px; min-width: 0; }
+.job-distance small { color: var(--muted); font-size: .72rem; }
 
 .job-issue-banner {
   display: flex;
@@ -4962,6 +4964,7 @@ textarea:focus {
 .job-route-stops small { display: block; color: var(--muted); font-size: .73rem; margin-bottom: 5px; }
 .job-route-stops strong { display: block; font-size: .9rem; font-weight: 500; overflow-wrap: anywhere; }
 .job-route-stops a { margin-top: 8px; }
+.job-route-distance-breakdown { margin: 16px 0 0; color: var(--accent); font-size: .82rem; font-weight: 650; }
 .job-detail-empty { display: grid; place-items: center; min-height: 180px; padding: 32px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 14px; background: var(--surface); font-size: .86rem; }
 .job-records article { padding: 18px 20px; background: var(--surface); border-radius: 12px; }
 .job-records time { font-size: .72rem; }

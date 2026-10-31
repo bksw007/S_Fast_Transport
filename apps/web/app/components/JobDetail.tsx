@@ -9,7 +9,7 @@ import { statusLabels, type DriverIssueType, type TransportJob } from "@s-fast-t
 import { createTrackingShareLink, isMainAdmin, saveJobRouteDistance, uploadProof, type UserProfile } from "@/lib/transport-repository";
 import { recordTime, subscribeJobRecords, type JobRecord } from "@/lib/job-detail-repository";
 import { formatPhoneNumber } from "@/lib/profile-repository";
-import { coordinateFingerprint } from "@/lib/google-routes-distance";
+import { coordinateFingerprint, jobRouteDistanceSummary } from "@/lib/google-routes-distance";
 import { requestJobRoadDistance } from "@/lib/job-road-distance-client";
 import JobEditor from "./JobEditor";
 import HistoricalJobEditor from "./HistoricalJobEditor";
@@ -50,7 +50,7 @@ function distanceLabel(distanceMeters: number | null) {
   if (distanceMeters === null) return "";
   if (distanceMeters < 1000) return `${Math.round(distanceMeters)} ม.`;
   const distanceKm = distanceMeters / 1000;
-  return `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm).toLocaleString("th-TH")} กม.`;
+  return `${distanceKm.toFixed(1)} กม.`;
 }
 
 export function cachedRoadDistanceMeters(job: Pick<TransportJob, "pickupPlace" | "deliveryPlace" | "routeDistanceMeters" | "routeDistanceFingerprint" | "routeDistanceProvider">) {
@@ -75,10 +75,11 @@ function approximateDistanceState(job: TransportJob): DistanceState {
   return kilometers === null ? { meters: null, source: "none" } : { meters: kilometers * 1000, source: "approximate" };
 }
 
-async function requestRoadDistance(job: TransportJob) {
-  const fingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
-  if (!fingerprint || !job.pickupPlace || !job.deliveryPlace) throw new Error("ไม่มีพิกัดสำหรับคำนวณระยะทาง");
-  const requestKey = `${job.id}:${fingerprint}`;
+async function requestRoadDistance(job: TransportJob, leg: "outward" | "return" = "outward") {
+  const stops = leg === "return" ? job.returnTrip : job;
+  const fingerprint = coordinateFingerprint(stops?.pickupPlace, stops?.deliveryPlace);
+  if (!fingerprint || !stops?.pickupPlace || !stops.deliveryPlace) throw new Error("ไม่มีพิกัดสำหรับคำนวณระยะทาง");
+  const requestKey = `${job.id}:${leg}:${fingerprint}`;
   if (sessionDistanceResults.has(requestKey)) {
     const saved = sessionDistanceResults.get(requestKey);
     if (typeof saved === "number") return saved;
@@ -86,7 +87,7 @@ async function requestRoadDistance(job: TransportJob) {
   }
   const existing = pendingDistanceRequests.get(requestKey);
   if (existing) return existing;
-  const pending = requestJobRoadDistance(job.id, job.pickupPlace, job.deliveryPlace).then(distanceMeters => {
+  const pending = requestJobRoadDistance(job.id, stops.pickupPlace, stops.deliveryPlace, leg).then(distanceMeters => {
     sessionDistanceResults.set(requestKey, distanceMeters);
     return distanceMeters;
   }, error => {
@@ -155,12 +156,15 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted, startE
   const [link, setLink] = useState("");
   const [qr, setQr] = useState("");
   const [requestedDistance, setRequestedDistance] = useState<RequestedDistanceState | null>(null);
+  const [requestedReturnDistance, setRequestedReturnDistance] = useState<RequestedDistanceState | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (panel === "settings" && bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [panel]);
   const routeFingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
   const cachedDistance = cachedRoadDistanceMeters(job);
+  const returnFingerprint = coordinateFingerprint(job.returnTrip?.pickupPlace, job.returnTrip?.deliveryPlace);
+  const cachedReturnDistance = jobRouteDistanceSummary(job).returnMeters;
   const routeDistance: DistanceState = cachedDistance !== null
     ? { meters: cachedDistance, source: "road" }
     : requestedDistance?.fingerprint === routeFingerprint
@@ -168,22 +172,41 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted, startE
       : routeFingerprint
         ? { meters: null, source: "loading" }
         : { meters: null, source: "none" };
+  const returnDistance: DistanceState = cachedReturnDistance !== null
+    ? { meters: cachedReturnDistance, source: "road" }
+    : requestedReturnDistance?.fingerprint === returnFingerprint
+      ? requestedReturnDistance
+      : returnFingerprint
+        ? { meters: null, source: "loading" }
+        : { meters: null, source: "none" };
 
   useEffect(() => {
-    const cached = cachedRoadDistanceMeters(job);
-    const fingerprint = coordinateFingerprint(job.pickupPlace, job.deliveryPlace);
-    if (cached !== null || !fingerprint) return;
     let active = true;
-    void requestRoadDistance(job).then(distanceMeters => {
-      if (active) setRequestedDistance({ fingerprint, meters: distanceMeters, source: "road" });
-      if (canWrite) void saveJobRouteDistance(job.id, distanceMeters, fingerprint, actor).catch(() => undefined);
-    }).catch(() => {
-      if (active) setRequestedDistance({ fingerprint, ...approximateDistanceState(job) });
-    });
+    if (cachedDistance === null && routeFingerprint) {
+      void requestRoadDistance(job).then(distanceMeters => {
+        if (active) setRequestedDistance({ fingerprint: routeFingerprint, meters: distanceMeters, source: "road" });
+        if (canWrite) void saveJobRouteDistance(job.id, distanceMeters, routeFingerprint, actor).catch(() => undefined);
+      }).catch(() => {
+        if (active) setRequestedDistance({ fingerprint: routeFingerprint, ...approximateDistanceState(job) });
+      });
+    }
+    if (job.returnTrip && cachedReturnDistance === null && returnFingerprint) {
+      const trip = job.returnTrip;
+      void requestRoadDistance(job, "return").then(distanceMeters => {
+        if (active) setRequestedReturnDistance({ fingerprint: returnFingerprint, meters: distanceMeters, source: "road" });
+        if (canWrite) void saveJobRouteDistance(job.id, distanceMeters, returnFingerprint, actor, "return").catch(() => undefined);
+      }).catch(() => {
+        const kilometers = approximateDistanceKm(trip.pickupPlace, trip.deliveryPlace);
+        if (active) setRequestedReturnDistance({ fingerprint: returnFingerprint, meters: kilometers === null ? null : kilometers * 1000, source: "approximate" });
+      });
+    }
     return () => { active = false; };
-  }, [actor, canWrite, job, job.deliveryPlace, job.pickupPlace]);
+  }, [actor, canWrite, job, routeFingerprint, returnFingerprint, cachedDistance, cachedReturnDistance]);
 
   const routeDistanceLabel = distanceLabel(routeDistance.meters);
+  const returnDistanceLabel = distanceLabel(returnDistance.meters);
+  const totalDistanceLabel = job.returnTrip && routeDistance.meters !== null && returnDistance.meters !== null
+    ? distanceLabel(routeDistance.meters + returnDistance.meters) : "";
 
   async function perform(action: () => Promise<void>, success: string) {
     setBusy(true); setMessage("");
@@ -246,7 +269,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted, startE
         {tab === 0 && <div className="job-detail-overview">
           {job.lastIssue && !job.lastIssue.resolvedAt && <section className="job-issue-resolution"><h3>คนขับแจ้งปัญหา: {issueLabels[job.lastIssue.type] ?? "อื่น ๆ"}</h3>{job.lastIssue.note && <p>{job.lastIssue.note}</p>}<label>วิธีแก้ไขหรือคำแนะนำ<input value={resolutionNote} maxLength={500} placeholder="เช่น ประสานลูกค้าแล้ว ให้เข้าทางประตู 2" onChange={event => setResolutionNote(event.target.value)} /></label><button disabled={busy || !canAdministerJob(job, actor) || !resolutionNote.trim()} onClick={() => void perform(async () => { await resolveDriverIssue(job, resolutionNote, actor); setResolutionNote(""); }, "บันทึกการแก้ไขและแจ้งคนขับแล้ว")}>บันทึกการแก้ไข</button></section>}
           <JobContacts job={job} /><section className="job-detail-route"><div className="job-route-heading"><h3><MapPin size={18} /> เส้นทางขนส่ง</h3>{routeDistance.source === "loading" ? <span role="status">กำลังคำนวณระยะทาง…</span> : routeDistanceLabel && <span title={routeDistance.source === "road" ? "ระยะทางตามถนนจาก Google Maps บันทึกไว้กับใบงานเพื่อไม่เรียกซ้ำ" : "ค่าประมาณแบบเส้นตรง เนื่องจากยังใช้ Google Maps ไม่ได้"}>{routeDistance.source === "road" ? "ระยะทางตามถนน" : "ระยะทางประมาณ"} <strong>{routeDistanceLabel}</strong></span>}</div><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>จุดรับสินค้า</small><strong>{job.pickupLocation || "—"}</strong>{job.pickupPlace && <a href={job.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>จุดส่งสินค้า</small><strong>{job.deliveryLocation || "—"}</strong>{job.deliveryPlace && <a href={job.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>
-          {job.returnTrip && <section className="job-detail-route"><div className="job-route-heading"><h3><MapPin size={18} /> เที่ยวขากลับ · รับสินค้ากลับ</h3><span>{job.activeLeg === 2 ? "กำลังดำเนินการ" : job.status === "completed" ? "เสร็จแล้ว" : "รอดำเนินการ"}</span></div><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>รับสินค้ากลับ · {job.returnTrip.pickupDate} {job.returnTrip.pickupTime}</small><strong>{job.returnTrip.pickupLocation}</strong>{job.returnTrip.pickupPlace && <a href={job.returnTrip.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>ส่งสินค้ากลับ · {job.returnTrip.deliveryDate} {job.returnTrip.deliveryTime}</small><strong>{job.returnTrip.deliveryLocation}</strong>{job.returnTrip.deliveryPlace && <a href={job.returnTrip.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div></section>}
+          {job.returnTrip && <section className="job-detail-route"><div className="job-route-heading"><h3><MapPin size={18} /> เที่ยวขากลับ · รับสินค้ากลับ</h3><span>{job.activeLeg === 2 ? "กำลังดำเนินการ" : job.status === "completed" ? "เสร็จแล้ว" : "รอดำเนินการ"}</span></div><div className="job-route-stops"><div><span className="job-route-dot" /><div><small>รับสินค้ากลับ · {job.returnTrip.pickupDate} {job.returnTrip.pickupTime}</small><strong>{job.returnTrip.pickupLocation}</strong>{job.returnTrip.pickupPlace && <a href={job.returnTrip.pickupPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดรับ</a>}</div></div><div><span className="job-route-dot destination" /><div><small>ส่งสินค้ากลับ · {job.returnTrip.deliveryDate} {job.returnTrip.deliveryTime}</small><strong>{job.returnTrip.deliveryLocation}</strong>{job.returnTrip.deliveryPlace && <a href={job.returnTrip.deliveryPlace.navigationUrl} target="_blank" rel="noreferrer">เปิดเส้นทางไปจุดส่ง</a>}</div></div></div><p className="job-route-distance-breakdown">ขากลับ {returnDistance.source === "loading" ? "กำลังคำนวณ…" : returnDistanceLabel || "ยังไม่มีข้อมูล"} · ระยะทางรวม {totalDistanceLabel || "รอคำนวณ"}</p></section>}
           <div className="job-detail-section-grid">
             <DetailGroup title="ข้อมูลใบงาน" icon={<FileText size={18} />} fields={{ "เลขที่ใบงาน": job.workOrder, "ลูกค้า": job.customer, "บริษัทขนส่ง": job.carrierName, "วันที่รับงานจากผู้ว่าจ้าง": job.jobDate, "ประเภทสินค้า": job.cargoType }} />
             <DetailGroup title="รถและคนขับ" icon={<UserRound size={18} />} fields={{ "คนขับ": job.driverName, "เบอร์ติดต่อ": formatPhoneNumber(job.driverPhone), "ทะเบียนรถ": job.vehiclePlate, "ประเภทรถ": job.vehicleType, "จำนวนรอบ": job.tripCount }} />

@@ -4,7 +4,9 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const source = fs.readFileSync('apps/web/lib/job-completion-report.ts', 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-const context = { exports: {}, require: name => name === './driver-issue-labels' ? { driverIssueLabels: { traffic: 'จราจรติดขัด' } } : {} };
+const distances = { exports: {}, require };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('apps/web/lib/google-routes-distance.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, distances);
+const context = { exports: {}, require: name => name === './driver-issue-labels' ? { driverIssueLabels: { traffic: 'จราจรติดขัด' } } : name === './google-routes-distance' ? distances.exports : {} };
 vm.runInNewContext(code, context);
 const job = { status: 'completed', workOrder: 'JN-001', customer: 'A&B <Customer>', carrierName: 'S Fast', jobDate: '2026-10-10', cargoType: 'Parts', tripCount: 1, pickupLocation: 'Bangkok', deliveryLocation: 'Rayong', pickupDate: '2026-10-10', pickupTime: '09:00', deliveryDate: '2026-10-10', deliveryTime: '12:00', driverName: 'Driver', vehiclePlate: 'ABC-123', pickupProof: { signerName: 'Pickup signer', signedAt: '2026-10-10T03:00:00Z' }, deliveryProof: { signerName: 'Delivery signer', signedAt: '2026-10-10T05:00:00Z' } };
 const html = context.exports.completionReportHtml(job, { photos: ['https://example.com/pickup?x=1&y=2'], signature: 'https://example.com/pickup-sign' }, { photos: ['https://example.com/delivery-1', 'https://example.com/delivery-2'], signature: 'https://example.com/delivery-sign' }, 'https://example.com/logo.png', new Date('2026-10-10T06:00:00Z'));
@@ -22,6 +24,20 @@ assert.throws(() => context.exports.completionReportHtml({ ...job, status: 'assi
 const missing = context.exports.completionReportHtml({ ...job, pickupProof: undefined, deliveryProof: undefined }, { photos: [] }, { photos: [] }, '', new Date('2026-10-10T06:00:00Z'));
 assert.equal((missing.match(/ไม่มีภาพหลักฐาน/g) || []).length, 2);
 const returnHtml = context.exports.completionReportHtml({ ...job, returnTrip: { pickupLocation: 'Rayong', pickupDate: '2026-10-10', pickupTime: '13:00', deliveryLocation: 'Bangkok', deliveryDate: '2026-10-10', deliveryTime: '17:00' }, returnPickupProof: { signerName: 'Return pickup', signedAt: '2026-10-10T07:00:00Z' }, returnDeliveryProof: { signerName: 'Return delivery', signedAt: '2026-10-10T10:00:00Z' } }, { photos: [] }, { photos: [] }, '', new Date('2026-10-10T11:00:00Z'), { pickup: { photos: ['https://example.com/return-pickup'] }, delivery: { photos: ['https://example.com/return-delivery'] } });
+const pickupPlace = { lat: 13.7563, lng: 100.5018 };
+const deliveryPlace = { lat: 13.65, lng: 100.65 };
+const distanceJob = { ...job, pickupPlace, deliveryPlace, routeDistanceMeters: 24567, routeDistanceFingerprint: '13.756300,100.501800>13.650000,100.650000', routeDistanceProvider: 'google_routes',
+  returnTrip: { pickupLocation: 'Rayong', pickupDate: '2026-10-10', pickupTime: '13:00', deliveryLocation: 'Bangkok', deliveryDate: '2026-10-10', deliveryTime: '17:00', pickupPlace: deliveryPlace, deliveryPlace: pickupPlace },
+  returnRouteDistanceMeters: 26700, returnRouteDistanceFingerprint: '13.650000,100.650000>13.756300,100.501800', returnRouteDistanceProvider: 'google_routes' };
+const distanceHtml = context.exports.completionReportHtml(distanceJob, { photos: [] }, { photos: [] }, '');
+assert.match(distanceHtml, /<span>ระยะทางขาไปโดยประมาณ<\/span><strong>24\.6 กม\.<\/strong>/);
+assert.match(distanceHtml, /<span>ระยะทางขากลับโดยประมาณ<\/span><strong>26\.7 กม\.<\/strong>/);
+assert.match(distanceHtml, /<span>ระยะทางรวมโดยประมาณ<\/span><strong>51\.3 กม\.<\/strong>/);
+const incompleteDistanceHtml = context.exports.completionReportHtml({ ...distanceJob, returnRouteDistanceMeters: undefined }, { photos: [] }, { photos: [] }, '');
+assert.doesNotMatch(incompleteDistanceHtml, /<span>ระยะทางรวมโดยประมาณ<\/span><strong>24\.6 กม\.<\/strong>/);
+const sharedDistanceHtml = context.exports.completionReportHtml({ ...distanceJob, pickupPlace: undefined, deliveryPlace: undefined,
+  returnTrip: { ...distanceJob.returnTrip, pickupPlace: undefined, deliveryPlace: undefined }, totalRouteDistanceMeters: 51267 }, { photos: [] }, { photos: [] }, '');
+assert.match(sharedDistanceHtml, /<span>ระยะทางรวมโดยประมาณ<\/span><strong>51\.3 กม\.<\/strong>/, 'the public share report uses the server-validated total');
 assert.match(returnHtml, /เที่ยวขากลับ/);
 assert.match(returnHtml, /Return pickup/);
 assert.match(returnHtml, /Return delivery/);

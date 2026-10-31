@@ -34,6 +34,8 @@ export type PublicTrackingDetails = {
   vehiclePlate: string;
   vehicleType: string;
   routeDistanceMeters: number | null;
+  returnRouteDistanceMeters: number | null;
+  totalRouteDistanceMeters: number | null;
   pickupLocation: string;
   pickupDate: string;
   pickupTime: string;
