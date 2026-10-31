@@ -19,7 +19,7 @@ const context = { React, exports: {}, window: { setTimeout: fn => { dismissMessa
 }};
 vm.runInNewContext(compile(fs.readFileSync('apps/web/app/components/AdminDashboard.tsx', 'utf8')), context);
 const currentMonth = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 7);
-const makeJob = (id, status, alerts = []) => ({ id, status, alerts, jobDate: `${currentMonth}-01`, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
+const makeJob = (id, status, alerts = []) => ({ id, status, alerts, jobDate: `${currentMonth}-01`, pickupDate: `${currentMonth}-01`, workOrder: `WO-${id}`, customer: 'Customer', driverName: 'Driver', vehiclePlate: 'TRUCK', pickupLocation: 'Origin', deliveryLocation: 'Destination', eta: '16:00' });
 const jobs = [makeJob('active', 'assigned'), makeJob('problem', 'problem'), { ...makeJob('done', 'completed', ['Old alert']), historical: true }, makeJob('cancel', 'cancelled')];
 let tree;
 function render(data = jobs, dataState = 'ready', deletedJobs = [], actor = { role: 'admin', organizationId: 'main' }) { cursor = 0; tree = context.exports.default({ jobs: data, deletedJobs, dataState, selectedJobId: '', actor, canWrite: true, onSelectJob: id => { selected = id; }, onEditJob: id => { edited = id; }, onPermanentlyDelete: async job => { permanentlyDeleted = job.id; } }); }
@@ -72,7 +72,7 @@ const datedJobs = [
   { ...makeJob('old-completed', 'completed'), pickupDate: '2026-10-07' },
   { ...makeJob('new-cancelled', 'cancelled'), pickupDate: '2026-10-11' },
   { ...makeJob('old-attention', 'problem'), pickupDate: '2026-10-09' },
-  makeJob('undated', 'assigned')
+  { ...makeJob('undated', 'assigned'), pickupDate: '' }
 ];
 function visibleOrders() { return nodes().filter(n => n.props?.className?.startsWith('dashboard-work-order')).map(n => React.Children.toArray(n.props.children).join('')); }
 function selectTab(label) { nodes(find(n => n.props?.className === 'dashboard-filters')).find(n => n.type === 'button' && React.Children.toArray(n.props.children).includes(label)).props.onClick(); render(datedJobs); }
@@ -82,6 +82,19 @@ selectTab('ยังไม่เสร็จ'); assert.deepEqual(visibleOrders()
 selectTab('ต้องติดตาม'); assert.deepEqual(visibleOrders(), ['WO-new-attention', 'WO-old-attention']);
 selectTab('เสร็จงาน'); assert.deepEqual(visibleOrders(), ['WO-new-completed', 'WO-old-completed']);
 selectTab('ยกเลิก'); assert.deepEqual(visibleOrders(), ['WO-new-cancelled', 'WO-old-cancelled']);
+
+const monthBoundaryJobs = [
+  { ...makeJob('closed-next-month', 'completed'), pickupDate: '2026-10-31', completedAt: '2026-10-31T18:00:00Z', jobDate: '2026-11-01' },
+  { ...makeJob('cancelled-next-month', 'cancelled'), pickupDate: '2026-10-31', cancelledAt: '2026-10-31T18:00:00Z', jobDate: '2026-11-01' },
+  { ...makeJob('active-next-month', 'assigned'), pickupDate: '2026-10-31', jobDate: '2026-11-01' },
+  { ...makeJob('november-pickup', 'completed'), pickupDate: '2026-11-01', completedAt: '2026-11-01T04:00:00Z', jobDate: '2026-10-31' }
+];
+function selectMonth(value) { nodes(find(n => n.props?.className === 'dashboard-month-filter')).find(n => n.type === 'select').props.onChange({ target: { value } }); render(monthBoundaryJobs); }
+slots = []; render(monthBoundaryJobs);
+selectMonth('2026-10');
+assert.deepEqual(visibleOrders(), ['WO-closed-next-month', 'WO-cancelled-next-month', 'WO-active-next-month']);
+selectMonth('2026-11');
+assert.deepEqual(visibleOrders(), ['WO-november-pickup']);
 
 const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
 const todayKey = today.toISOString().slice(0, 10);

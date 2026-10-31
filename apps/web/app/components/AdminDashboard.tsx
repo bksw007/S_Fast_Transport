@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Pencil, Search, Trash2, Truck, UserRound } from "lucide-react";
-import { historyMonthLabel, jobHistoryMonth, statusLabels, type TransportJob } from "@s-fast-transport/shared";
+import { historyMonthLabel, statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { bangkokDateKey, nextStopSchedule } from "@/lib/job-card-schedule";
 import { canEditJob } from "@/lib/job-detail-repository";
 import type { UserProfile } from "@/lib/transport-repository";
@@ -50,7 +50,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   }, [deletedMessage]);
   const allJobs = useMemo(() => [...jobs, ...deletedJobs], [jobs, deletedJobs]);
   const deletedIds = useMemo(() => new Set(deletedJobs.map(job => job.id)), [deletedJobs]);
-  const jobMonth = (job: TransportJob) => job.status === "cancelled" || job.status === "completed" ? jobHistoryMonth(job) : job.jobDate?.slice(0, 7) || "unknown";
+  const jobMonth = (job: TransportJob) => pickupDateKey(job).slice(0, 7) || "unknown";
   const months = useMemo(() => [...new Set([currentBangkokMonth(), ...allJobs.map(jobMonth)])].sort((a, b) => a === "unknown" ? 1 : b === "unknown" ? -1 : b.localeCompare(a)), [allJobs]);
   const counts = useMemo(() => ({
     all: allJobs.length,
@@ -114,7 +114,7 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
     <section className="dashboard-jobs" aria-labelledby="dashboard-jobs-title">
       <div className="dashboard-list-heading"><div><span className="dashboard-section-kicker">รายการงานขนส่ง</span><h2 id="dashboard-jobs-title">ติดตามทุกงานในที่เดียว</h2><p>เลือกใบงานเพื่อดูรายละเอียด หลักฐาน และตำแหน่งรถ</p></div><label className="dashboard-search"><Search size={18} /><input aria-label="ค้นหาใบงาน" placeholder="ค้นหาใบงาน ลูกค้า คนขับ หรือทะเบียน" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label></div>
       <div className="dashboard-filters" role="group" aria-label="กรองสถานะงาน">{filters.map(item => <button key={item.id} aria-pressed={filter === item.id} onClick={() => selectFilter(item.id)}>{item.label}<span>{ready ? counts[item.id] : "—"}</span></button>)}</div>
-      <label className="dashboard-month-filter"><CalendarDays size={17} /><span>เดือน</span><select value={month} onChange={event => { setMonth(event.target.value); setPage(1); }}><option value="all">ทุกเดือน</option>{months.map(value => <option key={value} value={value}>{historyMonthLabel(value)}</option>)}</select></label>
+      <label className="dashboard-month-filter"><CalendarDays size={17} /><span>เดือนรับสินค้า</span><select value={month} onChange={event => { setMonth(event.target.value); setPage(1); }}><option value="all">ทุกเดือน</option>{months.map(value => <option key={value} value={value}>{historyMonthLabel(value)}</option>)}</select></label>
       {filter === "cancelled" && deletedMessage && <p className="dashboard-delete-success" role="status">{deletedMessage}</p>}
       {dataState === "loading" ? <div className="dashboard-empty" role="status"><Clock3 size={30} /><h3>กำลังโหลดใบงาน</h3><p>กำลังรวบรวมข้อมูลภาพรวมของคุณ</p></div>
         : dataState === "error" ? <div className="dashboard-empty" role="alert"><AlertTriangle size={30} /><h3>โหลดข้อมูลไม่สำเร็จ</h3><p>ตรวจสอบการเชื่อมต่อ แล้วเปิด Dashboard อีกครั้งหรือรีเฟรชหน้า</p></div>
