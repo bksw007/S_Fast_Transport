@@ -13,6 +13,10 @@ import type { JobPlace, TransportJob } from "@s-fast-transport/shared";
 export const historicalPhotoCategories = ["pickup", "delivery", "document", "expense"] as const;
 export type HistoricalPhotoCategory = typeof historicalPhotoCategories[number];
 export type HistoricalPhotos = Record<HistoricalPhotoCategory, File[]>;
+export const historicalPhotoLabels: Record<HistoricalPhotoCategory, string> = {
+  pickup: "รูปรับสินค้า", delivery: "รูปลงสินค้า", document: "รูปเอกสาร", expense: "รูปค่าใช้จ่ายคนขับ"
+};
+const emptyEvidence = (): Record<HistoricalPhotoCategory, string[]> => ({ pickup: [], delivery: [], document: [], expense: [] });
 export type HistoricalJobDraft = {
   submissionId: string;
   customer: string;
@@ -70,11 +74,30 @@ export function validateHistoricalDetails(draft: HistoricalJobDraft) {
 
 export function validateHistoricalJob(draft: HistoricalJobDraft, photos: HistoricalPhotos) {
   const details = validateHistoricalDetails(draft);
-  if (!photos.pickup.length || !photos.delivery.length) throw new Error("กรุณาแนบรูปรับสินค้าและรูปลงสินค้าอย่างน้อยหมวดละ 1 รูป");
+  validateHistoricalPhotos(photos);
+  return details;
+}
+
+function validateHistoricalPhotos(photos: HistoricalPhotos) {
   for (const category of historicalPhotoCategories) {
     if (photos[category].length > 10 || photos[category].some(file => !isImageFile(file) || file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES)) throw new Error("แต่ละหมวดแนบได้ไม่เกิน 10 รูป และรูปต้นฉบับต้องไม่เกิน 20 MB ต่อรูป");
   }
-  return details;
+}
+
+async function uploadHistoricalPhotos(jobId: string, photos: HistoricalPhotos, actor: UserProfile, uploaded: string[], onProgress?: (message: string) => void) {
+  const paths = emptyEvidence();
+  for (const category of historicalPhotoCategories) {
+    for (const [index, source] of photos[category].entries()) {
+      onProgress?.(`กำลังอัปโหลด${historicalPhotoLabels[category]} ${index + 1}/${photos[category].length}`);
+      const file = await compressImageForUpload(source);
+      const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const path = `historical_jobs/${jobId}/${actor.uid}/${category}/${crypto.randomUUID()}.${extension}`;
+      uploaded.push(path);
+      await uploadBytes(ref(storage, path), file, { contentType: file.type });
+      paths[category].push(path);
+    }
+  }
+  return paths;
 }
 
 async function resolveHistoricalAssignment(draft: HistoricalJobDraft, actor: UserProfile) {
@@ -98,20 +121,9 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
     if (existing.data().historical && existing.data().createdByUid === actor.uid) return existing.data().workOrder as string;
     throw new Error("รหัสรายการนี้ถูกใช้แล้ว กรุณาเปิดฟอร์มใหม่");
   }
-  const paths = { pickup: [] as string[], delivery: [] as string[], document: [] as string[], expense: [] as string[] };
   const uploaded: string[] = [];
   try {
-    for (const category of historicalPhotoCategories) {
-      for (const [index, source] of photos[category].entries()) {
-        onProgress?.(`กำลังอัปโหลด${category === "pickup" ? "รูปรับสินค้า" : category === "delivery" ? "รูปลงสินค้า" : category === "document" ? "รูปเอกสาร" : "รูปค่าใช้จ่าย"} ${index + 1}/${photos[category].length}`);
-        const file = await compressImageForUpload(source);
-        const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-        const path = `historical_jobs/${jobRef.id}/${actor.uid}/${category}/${crypto.randomUUID()}.${extension}`;
-        await uploadBytes(ref(storage, path), file, { contentType: file.type });
-        uploaded.push(path);
-        paths[category].push(path);
-      }
-    }
+    const paths = await uploadHistoricalPhotos(jobRef.id, photos, actor, uploaded, onProgress);
     onProgress?.("กำลังออกเลขและบันทึกใบงาน");
     const dateKey = `${draft.pickupDate.replaceAll("-", "")}PE`;
     const counterRef = doc(db, "job_counters", dateKey);
@@ -147,6 +159,36 @@ export async function createHistoricalJob(draft: HistoricalJobDraft, photos: His
   } catch (error) {
     const saved = await getDoc(jobRef).catch(() => null);
     if (saved && !saved.exists()) await Promise.allSettled(uploaded.map(path => deleteObject(ref(storage, path))));
+    throw error;
+  }
+}
+
+export async function appendHistoricalPhotos(job: TransportJob, photos: HistoricalPhotos, actor: UserProfile, onProgress?: (message: string) => void) {
+  if (!hasApprovedAccess(actor) || !isMainAdmin(actor) || actor.organizationId !== "main") throw new Error("เฉพาะแอดมินบริษัทหลักเท่านั้นที่เพิ่มรูปใบงานย้อนหลังได้");
+  if (!job.historical) throw new Error("เพิ่มรูปได้เฉพาะใบงานย้อนหลัง");
+  validateHistoricalPhotos(photos);
+  if (historicalPhotoCategories.every(category => photos[category].length === 0)) throw new Error("กรุณาเลือกรูปที่ต้องการเพิ่ม");
+  const jobRef = doc(db, "today_jobs", job.id);
+  const uploaded: string[] = [];
+  try {
+    const paths = await uploadHistoricalPhotos(job.id, photos, actor, uploaded, onProgress);
+    const eventRef = doc(collection(db, "job_events"));
+    await runTransaction(db, async transaction => {
+      const snapshot = await transaction.get(jobRef);
+      if (!snapshot.exists()) throw new Error("ไม่พบใบงาน");
+      const current = snapshot.data();
+      if (current.historical !== true || current.status !== "completed" || current.organizationId !== "main" || current.workOrder !== job.workOrder) throw new Error("ใบงานย้อนหลังนี้ไม่พร้อมให้เพิ่มรูป กรุณาเปิดใหม่");
+      const evidence = current.historicalEvidence ?? emptyEvidence();
+      const updated = emptyEvidence();
+      for (const category of historicalPhotoCategories) {
+        if (!Array.isArray(evidence[category]) || evidence[category].length + paths[category].length > 10) throw new Error(`รูป${historicalPhotoLabels[category]}เกิน 10 รูป กรุณาเปิดใบงานใหม่`);
+        updated[category] = [...evidence[category], ...paths[category]];
+      }
+      transaction.update(jobRef, { historicalEvidence: updated, updatedAt: serverTimestamp() });
+      transaction.set(eventRef, { jobId: job.id, type: "proof_uploaded", message: "เพิ่มรูปหลักฐานใบงานย้อนหลัง", actorUid: actor.uid, actorName: actor.displayName, organizationId: "main", timestamp: serverTimestamp() });
+    });
+  } catch (error) {
+    await Promise.allSettled(uploaded.map(path => deleteObject(ref(storage, path))));
     throw error;
   }
 }

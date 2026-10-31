@@ -4,10 +4,12 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 const source = fs.readFileSync('apps/web/lib/historical-job.ts', 'utf8');
-const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
 const writes = [];
+const uploaded = [];
+const deleted = [];
 let syncedLink;
-const current = { historical: true, status: 'completed', workOrder: 'JN-20261010001PE', pickupDate: '2026-10-10' };
+const current = { historical: true, status: 'completed', organizationId: 'main', workOrder: 'JN-20261010001PE', pickupDate: '2026-10-10', historicalEvidence: { pickup: [], delivery: [], document: [], expense: [] } };
 const firestore = {
   collection: (_db, path) => ({ path }),
   doc: (parent, path, id) => ({ path: id ? `${path}/${id}` : `${parent.path}/${path}` }),
@@ -23,9 +25,9 @@ const firestore = {
 };
 const mocks = {
   'firebase/firestore': firestore,
-  'firebase/storage': {},
+  'firebase/storage': { ref: (_storage, path) => path, uploadBytes: async path => { uploaded.push(path); }, deleteObject: async path => { deleted.push(path); } },
   './firebase': { db: {}, storage: {} },
-  './image-upload': { isImageFile: () => true, MAX_SOURCE_IMAGE_BYTES: 20_000_000 },
+  './image-upload': { isImageFile: () => true, compressImageForUpload: async file => file, MAX_SOURCE_IMAGE_BYTES: 20_000_000 },
   './customer-repository': { resolveCustomerId: async () => 'customer-1' },
   './transport-repository': { hasApprovedAccess: () => true, isMainAdmin: () => true },
   './historical-work-order': {},
@@ -33,7 +35,7 @@ const mocks = {
   './settings-repository': { loadCompanySettings: async () => ({ name: 'S Fast Transport' }) },
   './job-detail-repository': { syncEditedShareLinks: async (_jobId, values) => { syncedLink = values; } }
 };
-const context = { exports: {}, require: name => mocks[name] ?? {}, Intl, Date, Number, String, Error };
+const context = { exports: {}, require: name => mocks[name] ?? {}, Intl, Date, Number, String, Error, crypto: { randomUUID: () => `photo-${uploaded.length + 1}` } };
 vm.runInNewContext(code, context);
 
 const job = { id: 'job-1', historical: true, workOrder: current.workOrder, pickupDate: current.pickupDate };
@@ -56,5 +58,17 @@ const draft = {
   assert.equal(syncedLink.lastUpdatedAt, new Date('2026-10-10T13:00:00+07:00').toISOString());
   await assert.rejects(context.exports.updateHistoricalJob(job, { ...draft, pickupDate: '2026-10-11' }, { uid: 'admin', organizationId: 'main' }), /วันที่รับสินค้า/);
   assert.equal(writes.length, 1);
-  console.log('PASS: historical edits preserve the work order, pickup date, and evidence');
+  const emptyPhotos = { pickup: [], delivery: [], document: [], expense: [] };
+  assert.doesNotThrow(() => context.exports.validateHistoricalJob(draft, emptyPhotos), 'historical jobs can be created before photos are available');
+  const photo = { name: 'proof.jpg', type: 'image/jpeg', size: 100 };
+  await context.exports.appendHistoricalPhotos(job, { ...emptyPhotos, pickup: [photo], document: [photo] }, { uid: 'admin', organizationId: 'main' });
+  assert.equal(writes[1].historicalEvidence.pickup.length, 1);
+  assert.equal(writes[1].historicalEvidence.document.length, 1);
+  assert.equal(writes[1].historicalEvidence.delivery.length, 0);
+  assert.ok(!('workOrder' in writes[1]));
+  current.historicalEvidence.pickup = Array.from({ length: 10 }, (_, index) => `existing-${index}`);
+  await assert.rejects(context.exports.appendHistoricalPhotos(job, { ...emptyPhotos, pickup: [photo] }, { uid: 'admin', organizationId: 'main' }), /เกิน 10 รูป/);
+  assert.equal(writes.length, 2);
+  assert.equal(deleted.length, 1, 'failed append cleans up newly uploaded files');
+  console.log('PASS: historical jobs allow empty photos and later appends without replacing existing evidence');
 })().catch(error => { console.error(error); process.exitCode = 1; });

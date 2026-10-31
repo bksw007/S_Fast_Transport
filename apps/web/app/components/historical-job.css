@@ -46,6 +46,12 @@
 .historical-detail-evidence { display: grid; gap: 20px; }
 .historical-detail-photos { display: flex; flex-wrap: wrap; gap: 10px; }
 .historical-detail-photos img { max-width: 180px; height: 130px; object-fit: cover; border-radius: 8px; }
+.historical-edit-photos { display: grid; gap: 12px; }
+.historical-edit-photos > p { margin: 0; color: var(--muted); font-size: .76rem; }
+.historical-edit-photos > p[role="alert"] { color: var(--danger); }
+.historical-edit-photo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--text); font-size: .73rem; overflow-wrap: anywhere; }
+.historical-edit-photo span { min-width: 0; }
+.historical-edit-photo button { flex: none; }
 @media (max-width: 1100px) { .historical-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1200px) { .historical-route-times { grid-template-columns: 1fr; } }
 @media (max-width: 700px) { .historical-grid, .historical-route-grid, .historical-actual-times, .historical-photo-grid { grid-template-columns: 1fr; } .historical-job-screen form > section { padding: 18px; } .historical-route-grid { gap: 26px; } }

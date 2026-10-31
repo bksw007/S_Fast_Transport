@@ -399,9 +399,7 @@ service cloud.firestore {
             && request.resource.data.workOrder.matches('JN-[0-9]{8}[0-9]{3,}PE')
             && request.resource.data.historicalEvidence.pickup is list
             && request.resource.data.historicalEvidence.delivery is list
-            && request.resource.data.historicalEvidence.pickup.size() >= 1
             && request.resource.data.historicalEvidence.pickup.size() <= 10
-            && request.resource.data.historicalEvidence.delivery.size() >= 1
             && request.resource.data.historicalEvidence.delivery.size() <= 10
             && request.resource.data.historicalEvidence.document is list
             && request.resource.data.historicalEvidence.document.size() <= 10

@@ -16,7 +16,7 @@ import HistoricalJobEditor from "./HistoricalJobEditor";
 import DriverStatusDialog, { type DriverNotice } from "./DriverStatusDialog";
 import JobRouteHistory from "./JobRouteHistory";
 import { canAdministerJob, canEditJob, deleteJob, resolveDriverIssue, updateJobDetails } from "@/lib/job-detail-repository";
-import { updateHistoricalJob } from "@/lib/historical-job";
+import { appendHistoricalPhotos, updateHistoricalJob } from "@/lib/historical-job";
 
 const tabs = ["รายละเอียดงาน", "หลักฐาน", "ตำแหน่งปัจจุบัน", "ประวัติเส้นทาง", "Timeline เหตุการณ์"];
 const issueLabels: Record<DriverIssueType, string> = { accident: "อุบัติเหตุ", traffic: "จราจรติดขัด", heavy_rain: "ฝนตกหนัก", vehicle_breakdown: "รถเสีย", road_closed: "เส้นทางปิด", contact_failed: "ติดต่อลูกค้าไม่ได้", loading_delay: "รอสินค้านาน", customer_absent: "ลูกค้าไม่อยู่", signature_refused: "ปฏิเสธเซ็นชื่อ", photo_unavailable: "ถ่ายรูปไม่ได้", goods_damaged: "สินค้าเสียหาย", other: "ปัญหาอื่น ๆ" };
@@ -135,12 +135,12 @@ function HistoricalEvidence({ job }: { job: TransportJob }) {
   ] as const;
   useEffect(() => {
     let active = true;
-    const paths = groups.flatMap(([, items]) => items);
+    const paths = [job.historicalEvidence?.pickup ?? [], job.historicalEvidence?.delivery ?? [], job.historicalEvidence?.document ?? [], job.historicalEvidence?.expense ?? []].flat();
     void Promise.all(paths.map(async path => [path, await getDownloadURL(ref(storage, path))] as const)).then(entries => {
       if (active) setUrls(Object.fromEntries(entries));
     }).catch(() => { if (active) setError("โหลดรูปหลักฐานไม่สำเร็จ กรุณาเปิดใบงานใหม่"); });
     return () => { active = false; };
-  }, [job.id]);
+  }, [job.id, job.historicalEvidence]);
   return <div className="historical-detail-evidence">{error && <p role="alert">{error}</p>}{groups.map(([label, paths]) => <section key={label}><h3>{label}</h3>{paths.length ? <div className="historical-detail-photos">{paths.map((path, index) => urls[path] ? <a key={path} href={urls[path]} target="_blank" rel="noreferrer"><Image unoptimized src={urls[path]} width={180} height={130} alt={`${label} ภาพ ${index + 1}`} /></a> : <span key={path}>กำลังโหลดรูป {index + 1}…</span>)}</div> : <p>ไม่ได้แนบรูป</p>}</section>)}</div>;
 }
 
@@ -238,7 +238,7 @@ export default function JobDetail({ job, actor, canWrite, map, onDeleted, startE
       {panel && <aside className="job-action-panel">
         <button className="job-action-close" disabled={busy} onClick={() => setPanel(null)}>ปิด{panel === "settings" ? "การแก้ไข" : "ลิงก์ติดตาม"}</button>
         {panel === "settings" ? job.historical
-          ? <HistoricalJobEditor job={job} actor={actor} busy={busy} onSave={draft => saveEditedJob(() => updateHistoricalJob(job, draft, actor))} />
+          ? <HistoricalJobEditor job={job} actor={actor} busy={busy} onSave={draft => saveEditedJob(() => updateHistoricalJob(job, draft, actor))} onSavePhotos={(photos, onProgress) => saveEditedJob(() => appendHistoricalPhotos(job, photos, actor, onProgress))} />
           : <JobEditor job={job} actor={actor} busy={busy} canDelete={canAdministerJob(job, actor) && (job.originOrganizationId !== "main" || isMainAdmin(actor))} onSave={draft => saveEditedJob(() => updateJobDetails(job, draft, actor))} onDelete={() => perform(async () => { await deleteJob(job, actor); onDeleted(); }, "ลบใบงานแล้ว")} />
           : <><h3>{panel === "qr" ? "QR ติดตามงาน" : "แชร์ลิงก์ติดตามงาน"}</h3>{panel === "qr" && qr && <><Image unoptimized src={qr} width={280} height={280} alt={`QR ติดตามใบงาน ${job.workOrder}`} /><a download={`tracking-${job.workOrder}.png`} href={qr}>ดาวน์โหลด QR</a></>}{link && <><label>ลิงก์ติดตาม<input readOnly value={link} onFocus={event => event.target.select()} /></label><a href={link} target="_blank" rel="noreferrer">เปิดหน้าติดตาม</a></>}</>}
       </aside>}
