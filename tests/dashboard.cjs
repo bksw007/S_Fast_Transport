@@ -26,9 +26,13 @@ function render(data = jobs, dataState = 'ready', deletedJobs = [], actor = { ro
 function nodes(node = tree) { if (!node || typeof node !== 'object') return []; return [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)]; }
 function find(predicate) { const result = nodes().find(predicate); assert.ok(result, 'Expected UI element'); return result; }
 function cardIds() { return nodes().filter(n => n.props?.['aria-haspopup'] === 'dialog').map(n => n.props['aria-label']); }
+function metricValue(id) { return nodes(find(n => n.props?.className === `dashboard-metric ${id}`)).find(n => n.type === 'strong').props.children[0]; }
+function progressPercent() { return nodes(find(n => n.props?.className === 'dashboard-progress-copy')).find(n => n.type === 'h2').props.children[0]; }
 render();
 assert.equal(find(n => n.type === 'select' && n.props?.value === currentMonth).props.value, currentMonth, 'dashboard starts with the Bangkok current month');
 assert.equal(cardIds().length, 4);
+assert.equal(metricValue('cancelled'), '1', 'cancelled jobs have their own summary card');
+assert.equal(progressPercent(), '33%', 'cancelled jobs are excluded from completion percentage');
 find(n => n.props?.className === 'dashboard-metric active').props.onClick(); render(); assert.equal(cardIds().length, 1, 'Normal active tab excludes jobs requiring attention and closed jobs');
 find(n => n.props?.className === 'dashboard-metric attention').props.onClick(); render(); assert.equal(cardIds().length, 1, 'Problem status is actionable, old closed-job alert is not');
 find(n => n.props?.className === 'dashboard-metric completed').props.onClick(); render();
@@ -93,8 +97,19 @@ function selectMonth(value) { nodes(find(n => n.props?.className === 'dashboard-
 slots = []; render(monthBoundaryJobs);
 selectMonth('2026-10');
 assert.deepEqual(visibleOrders(), ['WO-closed-next-month', 'WO-cancelled-next-month', 'WO-active-next-month']);
+assert.equal(metricValue('all'), '3');
+assert.equal(metricValue('cancelled'), '1');
+assert.equal(progressPercent(), '50%');
+assert.ok(renderToStaticMarkup(tree).includes('เทียบกับใบงานที่ไม่ยกเลิก 2 งาน'));
+assert.equal(nodes(find(n => n.props?.className === 'dashboard-status-bar')).filter(n => n.type === 'span').length, 3);
 selectMonth('2026-11');
 assert.deepEqual(visibleOrders(), ['WO-november-pickup']);
+assert.equal(metricValue('all'), '1');
+assert.equal(metricValue('cancelled'), '0');
+assert.equal(progressPercent(), '100%');
+slots = []; render([{ ...makeJob('cancel-only', 'cancelled'), pickupDate: '2026-11-01' }]);
+assert.equal(progressPercent(), '0%');
+assert.equal(nodes(find(n => n.props?.className === 'dashboard-status-bar')).filter(n => n.type === 'span').length, 0);
 
 const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
 const todayKey = today.toISOString().slice(0, 10);

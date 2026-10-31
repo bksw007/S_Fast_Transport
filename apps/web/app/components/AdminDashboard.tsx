@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Pencil, Search, Trash2, Truck, UserRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, Ban, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, ListChecks, MapPin, Pencil, Search, Trash2, Truck, UserRound } from "lucide-react";
 import { historyMonthLabel, statusLabels, type TransportJob } from "@s-fast-transport/shared";
 import { bangkokDateKey, nextStopSchedule } from "@/lib/job-card-schedule";
 import { canEditJob } from "@/lib/job-detail-repository";
@@ -52,27 +52,30 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
   const deletedIds = useMemo(() => new Set(deletedJobs.map(job => job.id)), [deletedJobs]);
   const jobMonth = (job: TransportJob) => pickupDateKey(job).slice(0, 7) || "unknown";
   const months = useMemo(() => [...new Set([currentBangkokMonth(), ...allJobs.map(jobMonth)])].sort((a, b) => a === "unknown" ? 1 : b === "unknown" ? -1 : b.localeCompare(a)), [allJobs]);
+  const monthJobs = useMemo(() => month === "all" ? jobs : jobs.filter(job => jobMonth(job) === month), [jobs, month]);
+  const monthAllJobs = useMemo(() => month === "all" ? allJobs : allJobs.filter(job => jobMonth(job) === month), [allJobs, month]);
   const counts = useMemo(() => ({
-    all: allJobs.length,
-    active: jobs.filter(job => isActive(job) && !needsAttention(job)).length,
-    attention: jobs.filter(needsAttention).length,
-    completed: jobs.filter(job => job.status === "completed").length,
-    cancelled: allJobs.filter(job => job.status === "cancelled").length
-  }), [jobs, allJobs]);
+    all: monthAllJobs.length,
+    active: monthJobs.filter(job => isActive(job) && !needsAttention(job)).length,
+    attention: monthJobs.filter(needsAttention).length,
+    completed: monthJobs.filter(job => job.status === "completed").length,
+    cancelled: monthAllJobs.filter(job => job.status === "cancelled").length
+  }), [monthJobs, monthAllJobs]);
   const shown = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("th-TH");
-    return allJobs.filter(job => {
+    return monthAllJobs.filter(job => {
       const matchesFilter = filter === "all" || (filter === "active" ? isActive(job) && !needsAttention(job) : filter === "attention" ? needsAttention(job) : job.status === filter);
-      return matchesFilter && (month === "all" || jobMonth(job) === month) && (!term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th-TH").includes(term)));
+      return matchesFilter && (!term || [job.workOrder, job.customer, job.driverName, job.vehiclePlate, job.pickupLocation, job.deliveryLocation].some(value => value.toLocaleLowerCase("th-TH").includes(term)));
     }).sort((a, b) => {
       return pickupDateKey(b).localeCompare(pickupDateKey(a))
         || (b.pickupTime || "").localeCompare(a.pickupTime || "")
         || b.workOrder.localeCompare(a.workOrder, "th");
     });
-  }, [allJobs, search, filter, month]);
+  }, [monthAllJobs, search, filter]);
   const pages = Math.max(1, Math.ceil(shown.length / pageSize));
   const currentPage = Math.min(page, pages);
-  const completedPercent = counts.all ? Math.round(counts.completed / counts.all * 100) : 0;
+  const progressTotal = counts.all - counts.cancelled;
+  const completedPercent = progressTotal ? Math.round(counts.completed / progressTotal * 100) : 0;
   const ready = dataState === "ready";
   function selectFilter(next: Filter) { setFilter(next); setPage(1); setDeletedMessage(""); }
   async function permanentlyDelete(job: TransportJob) {
@@ -90,12 +93,13 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
     { id: "all" as const, label: "ใบงานทั้งหมด", hint: "งานที่คุณมีสิทธิ์ดู", value: counts.all, icon: ListChecks },
     { id: "active" as const, label: "ยังไม่เสร็จ", hint: "รวมงานรอบริษัทซับรับและมอบหมาย", value: counts.active, icon: Truck },
     { id: "attention" as const, label: "ต้องติดตาม", hint: "งานมีปัญหาหรือแจ้งเตือน", value: counts.attention, icon: AlertTriangle },
-    { id: "completed" as const, label: "เสร็จงานแล้ว", hint: "ปิดงานเรียบร้อย", value: counts.completed, icon: CheckCircle2 }
+    { id: "completed" as const, label: "เสร็จงานแล้ว", hint: "ปิดงานเรียบร้อย", value: counts.completed, icon: CheckCircle2 },
+    { id: "cancelled" as const, label: "ยกเลิก", hint: "ใบงานที่ยกเลิก", value: counts.cancelled, icon: Ban }
   ];
 
   return <section className="screen transport-dashboard" aria-busy={dataState === "loading"}>
     <header className="dashboard-header">
-      <div><span className="dashboard-eyebrow"><LayoutDashboard size={15} /> TRANSPORT OVERVIEW</span><h1>Dashboard</h1><p>ภาพรวมงานขนส่งทั้งหมดที่คุณมีสิทธิ์ดู</p></div>
+      <div><span className="dashboard-eyebrow"><LayoutDashboard size={15} /> TRANSPORT OVERVIEW</span><h1>Dashboard</h1><p>ภาพรวมงานขนส่งตามเดือนรับสินค้าที่เลือก</p></div>
       <span className={`dashboard-connection ${ready ? "is-ready" : ""}`} role="status"><span />{ready ? "เชื่อมต่อข้อมูลแล้ว" : dataState === "error" ? "เชื่อมต่อไม่สำเร็จ" : "กำลังโหลดข้อมูล"}</span>
     </header>
 
@@ -105,10 +109,10 @@ export default function AdminDashboard({ jobs, deletedJobs = [], dataState, sele
     </button>)}</div>
 
     <section className="dashboard-progress" aria-label="สัดส่วนสถานะงาน">
-      <div className="dashboard-progress-copy"><span className="dashboard-section-kicker">ภาพรวมความคืบหน้า</span><h2>{ready ? `${completedPercent}%` : "—"}<small>เสร็จงานแล้ว</small></h2><p>เทียบกับใบงานทั้งหมด {ready ? counts.all.toLocaleString("th-TH") : "—"} งาน</p></div>
-      <div className="dashboard-progress-chart"><div className="dashboard-status-bar" role="img" aria-label={ready ? `เสร็จ ${counts.completed} งาน ยังไม่เสร็จ ${counts.active} งาน ต้องติดตาม ${counts.attention} งาน ยกเลิก ${counts.cancelled} งาน` : "ยังไม่มีข้อมูลสรุป"}>
-        {ready && counts.all > 0 && <><span className="completed" style={{ width: `${counts.completed / counts.all * 100}%` }} /><span className="active" style={{ width: `${counts.active / counts.all * 100}%` }} /><span className="attention" style={{ width: `${counts.attention / counts.all * 100}%` }} /><span className="cancelled" style={{ width: `${counts.cancelled / counts.all * 100}%` }} /></>}
-      </div><div className="dashboard-legend">{(["completed", "active", "attention", "cancelled"] as const).map(id => <button key={id} disabled={!ready} onClick={() => selectFilter(id)}><span className={id} />{filters.find(item => item.id === id)?.label}<strong>{ready ? counts[id] : "—"}</strong></button>)}</div></div>
+      <div className="dashboard-progress-copy"><span className="dashboard-section-kicker">ภาพรวมความคืบหน้า</span><h2>{ready ? `${completedPercent}%` : "—"}<small>เสร็จงานแล้ว</small></h2><p>เทียบกับใบงานที่ไม่ยกเลิก {ready ? progressTotal.toLocaleString("th-TH") : "—"} งาน</p></div>
+      <div className="dashboard-progress-chart"><div className="dashboard-status-bar" role="img" aria-label={ready ? `เสร็จ ${counts.completed} งาน ยังไม่เสร็จ ${counts.active} งาน ต้องติดตาม ${counts.attention} งาน` : "ยังไม่มีข้อมูลสรุป"}>
+        {ready && progressTotal > 0 && <><span className="completed" style={{ width: `${counts.completed / progressTotal * 100}%` }} /><span className="active" style={{ width: `${counts.active / progressTotal * 100}%` }} /><span className="attention" style={{ width: `${counts.attention / progressTotal * 100}%` }} /></>}
+      </div><div className="dashboard-legend">{(["completed", "active", "attention"] as const).map(id => <button key={id} disabled={!ready} onClick={() => selectFilter(id)}><span className={id} />{filters.find(item => item.id === id)?.label}<strong>{ready ? counts[id] : "—"}</strong></button>)}</div></div>
     </section>
 
     <section className="dashboard-jobs" aria-labelledby="dashboard-jobs-title">
