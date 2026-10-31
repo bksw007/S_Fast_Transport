@@ -475,11 +475,16 @@ service cloud.firestore {
           && request.resource.data.organizationId == resource.data.organizationId
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "status", "trackingEnabled", "trackingStartedAt", "trackingEndedAt",
-            "currentLocation", "trackingStatus", "updatedAt", "arrivedDeliveryAt", "completedAt",
+            "currentLocation", "trackingStatus", "updatedAt", "arrivedPickupAt", "arrivedDeliveryAt", "completedAt",
             "issuePreviousStatus", "lastIssue", "alerts", "pickupProof", "deliveryProof",
             "activeLeg", "returnPickupProof", "returnDeliveryProof", "returnArrivedDeliveryAt",
             "handoverDocumentPhotoPaths"
           ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["arrivedPickupAt"]) || (
+            !resource.data.keys().hasAny(["arrivedPickupAt"])
+            && request.resource.data.status == "arrived_pickup"
+            && request.resource.data.arrivedPickupAt == request.time
+          ))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["handoverDocumentPhotoPaths"]) || (
             (resource.data.status in ["ready_to_close", "completed"] || (resource.data.status == "problem" && resource.data.get("issuePreviousStatus", "") == "ready_to_close"))
             && request.resource.data.handoverDocumentPhotoPaths is list

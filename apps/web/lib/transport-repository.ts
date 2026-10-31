@@ -790,6 +790,7 @@ export async function updateJobStatus(job: TransportJob, status: JobStatus, acto
       status,
       ...(startingReturn ? { activeLeg: 2 } : {}),
       ...(stage && proof ? { [currentLeg === 2 ? `return${stage === "pickup" ? "Pickup" : "Delivery"}Proof` : `${stage}Proof`]: proof } : {}),
+      ...(status === "arrived_pickup" && currentLeg === 1 && !existing.arrivedPickupAt ? { arrivedPickupAt: serverTimestamp() } : {}),
       ...(status === "arrived_delivery" && currentLeg === 1 && !existing.arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "arrived_delivery" && currentLeg === 2 && !existing.returnArrivedDeliveryAt ? { returnArrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "completed" && !existing.completedAt ? { completedAt: serverTimestamp() } : {}),

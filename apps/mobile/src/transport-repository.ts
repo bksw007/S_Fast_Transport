@@ -183,6 +183,7 @@ export async function updateDriverJobStatus(
       ...patch,
       ...(startingReturn ? { activeLeg: 2 } : {}),
       ...(stage && proof ? { [leg === 2 ? `return${stage === "pickup" ? "Pickup" : "Delivery"}Proof` : `${stage}Proof`]: proof } : {}),
+      ...(status === "arrived_pickup" && leg === 1 && !current.arrivedPickupAt ? { arrivedPickupAt: serverTimestamp() } : {}),
       ...(status === "arrived_delivery" && leg === 1 && !current.arrivedDeliveryAt ? { arrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "arrived_delivery" && leg === 2 && !current.returnArrivedDeliveryAt ? { returnArrivedDeliveryAt: serverTimestamp() } : {}),
       ...(status === "completed" && !snapshot.data().completedAt ? { completedAt: serverTimestamp() } : {})
